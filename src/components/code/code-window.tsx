@@ -25,6 +25,7 @@ export function CodeWindow({
   lensSize = 140,
   className = "",
   label,
+  revealRows = false,
 }: {
   file: string;
   lang?: string;
@@ -44,6 +45,8 @@ export function CodeWindow({
   className?: string;
   /** Accessible name for the code region; defaults to the file name. */
   label?: string;
+  /** Rows reveal one after another inside a <Reveal stagger> item. */
+  revealRows?: boolean;
 }) {
   const dark = tone === "dark";
   const staticHighlight = magnify?.length ? [...highlight, magnify[0].line] : highlight;
@@ -56,6 +59,7 @@ export function CodeWindow({
       removed={removed}
       tone={tone}
       plain={plain}
+      revealRows={revealRows}
     />
   );
 

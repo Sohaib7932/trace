@@ -63,8 +63,8 @@ export function ProgressRecord() {
         A record of what you predicted, what you changed, and how it went when the idea came back.
       </SectionHeading>
 
-      <div className="mt-[clamp(48px,6vw,80px)] grid gap-6 lg:grid-cols-12 lg:gap-8">
-        <div data-reveal="up" className="rounded-2xl border border-border bg-surface lg:col-span-8">
+      <div data-reveal-stagger="card" className="mt-[clamp(48px,6vw,80px)] grid gap-6 lg:grid-cols-12 lg:gap-8">
+        <div data-reveal-item className="rounded-2xl border border-border bg-surface lg:col-span-8">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-7">
             <div>
               <p className="type-label text-secondary">Concept</p>
@@ -75,7 +75,7 @@ export function ProgressRecord() {
 
           <ol className="px-5 py-6 sm:px-7 sm:py-8">
             {events.map((event, index) => (
-              <li key={index} className="relative grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 pb-7 last:pb-0 sm:grid-cols-[64px_auto_minmax(0,1fr)]">
+              <li key={index} data-reveal-inner className="relative grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 pb-7 last:pb-0 sm:grid-cols-[64px_auto_minmax(0,1fr)]">
                 <p className="hidden pt-0.5 font-mono text-[0.75rem] text-secondary sm:block">{event.day}</p>
                 <div className="relative flex justify-center">
                   <span
@@ -104,7 +104,7 @@ export function ProgressRecord() {
           </ol>
         </div>
 
-        <aside data-reveal="up" style={{ "--d": "120ms" } as React.CSSProperties} className="flex flex-col gap-4 lg:col-span-4">
+        <aside data-reveal-item className="flex flex-col gap-4 lg:col-span-4">
           <div className="rounded-2xl border border-border bg-surface p-6">
             <h3 className="type-label text-secondary">What Trace records</h3>
             <ul className="mt-4 space-y-2.5">

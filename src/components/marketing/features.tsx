@@ -14,7 +14,7 @@ export function Features() {
         Three moves on real code, often the kind an agent hands back.
       </SectionHeading>
 
-      <div className="mt-[clamp(40px,5vw,64px)] grid gap-x-6 gap-y-12 lg:grid-cols-3">
+      <div data-reveal-stagger="card" className="mt-[clamp(40px,5vw,64px)] grid gap-x-6 gap-y-12 lg:grid-cols-3">
         <FeatureCard
           title="Predict what happens"
           text="Decide what the code will do before it runs. A wrong call shows exactly which idea needs work."
@@ -26,7 +26,6 @@ export function Features() {
           title="Change the code"
           text="One focused edit, not a rewrite. Change the line that matters and see what it does."
           tile="tile-b"
-          delay={90}
         >
           <DiffFragment />
         </FeatureCard>
@@ -34,7 +33,6 @@ export function Features() {
           title="See the evidence"
           text="Your prediction next to what happened: the status code, the response, the rows in the database."
           tile="tile-c"
-          delay={180}
         >
           <EvidenceFragment />
         </FeatureCard>
@@ -47,22 +45,23 @@ function FeatureCard({
   title,
   text,
   tile,
-  delay = 0,
   children,
 }: {
   title: string;
   text: string;
   tile: string;
-  delay?: number;
   children: ReactNode;
 }) {
   return (
-    <article data-reveal="card" style={{ "--d": `${delay}ms` } as React.CSSProperties} className="group">
+    <article
+      data-reveal-item
+      className="group transition-transform duration-[180ms] ease-[var(--ease-ui)] hover:-translate-y-1"
+    >
       <div
-        className={`relative aspect-[4/3] overflow-hidden rounded-[14px] border border-black/[0.04] md:aspect-[16/8] lg:aspect-[4/3] ${tile}`}
+        className={`relative aspect-[4/3] overflow-hidden rounded-[14px] border border-black/[0.04] shadow-[0_1px_2px_rgba(21,25,35,0.04)] transition-shadow duration-200 ease-[var(--ease-ui)] group-hover:shadow-[0_22px_44px_-26px_rgba(90,40,20,0.45)] md:aspect-[16/8] lg:aspect-[4/3] ${tile}`}
       >
         <div aria-hidden="true" className="tile-blur absolute -inset-[20%]" />
-        <div className="relative flex h-full items-center justify-center p-[7%] transition-transform duration-500 ease-[var(--ease-out)] group-hover:-translate-y-1">
+        <div className="relative flex h-full items-center justify-center p-[7%] transition-transform duration-200 ease-[var(--ease-ui)] group-hover:scale-[1.02]">
           {children}
         </div>
       </div>
@@ -139,6 +138,7 @@ function DiffFragment() {
         start={23}
         added={[25]}
         lines={["    db.add(row)", "    db.flush()", "    db.commit()", "    return {...}"]}
+        revealRows
       />
       <p className="mt-3 flex items-center justify-center gap-2 font-mono text-[10.5px] text-foreground/80">
         <span className="rounded-[5px] border border-white/80 bg-surface/90 px-1.5 py-0.5 text-foreground">Enter</span>
@@ -158,15 +158,15 @@ function EvidenceFragment() {
           <SampleTag>Sample</SampleTag>
         </div>
         <dl className="divide-y divide-border text-[11.5px]">
-          <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+          <div data-reveal-inner className="flex items-center justify-between gap-2 px-2.5 py-2">
             <dt className="text-secondary">HTTP status</dt>
             <dd className="font-mono font-medium">201 Created</dd>
           </div>
-          <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+          <div data-reveal-inner className="flex items-center justify-between gap-2 px-2.5 py-2">
             <dt className="text-secondary">Rows in notes</dt>
             <dd className="font-mono font-medium">0</dd>
           </div>
-          <div className="flex items-center justify-between gap-2 bg-error-soft/60 px-2.5 py-2">
+          <div data-reveal-inner className="flex items-center justify-between gap-2 bg-error-soft/60 px-2.5 py-2">
             <dt className="text-secondary">You expected</dt>
             <dd className="flex items-center gap-2">
               <span className="font-mono font-medium">1 row</span>
