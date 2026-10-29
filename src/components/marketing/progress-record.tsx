@@ -58,17 +58,13 @@ export function ProgressRecord() {
       <SectionHeading
         id="progress-title"
         eyebrow="Learning approach"
-        title={
-          <>
-            Progress you can read, not a score you have to&nbsp;trust.
-          </>
-        }
+        title={["Progress you can read, not a score you have to trust."]}
       >
         A record of what you predicted, what you changed, and how it went when the idea came back.
       </SectionHeading>
 
       <div className="mt-[clamp(48px,6vw,80px)] grid gap-6 lg:grid-cols-12 lg:gap-8">
-        <div data-reveal className="rounded-2xl border border-border bg-surface lg:col-span-8">
+        <div data-reveal="up" className="rounded-2xl border border-border bg-surface lg:col-span-8">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-7">
             <div>
               <p className="type-label text-secondary">Concept</p>
@@ -108,7 +104,7 @@ export function ProgressRecord() {
           </ol>
         </div>
 
-        <aside data-reveal style={{ "--d": "120ms" } as React.CSSProperties} className="flex flex-col gap-4 lg:col-span-4">
+        <aside data-reveal="up" style={{ "--d": "120ms" } as React.CSSProperties} className="flex flex-col gap-4 lg:col-span-4">
           <div className="rounded-2xl border border-border bg-surface p-6">
             <h3 className="type-label text-secondary">What Trace records</h3>
             <ul className="mt-4 space-y-2.5">

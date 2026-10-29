@@ -44,18 +44,13 @@ export function LearningLoop() {
               id="loop-title"
               eyebrow="How it works"
               tone="dark"
-              title={
-                <>
-                  One loop. Five moves.
-                  <br className="hidden sm:block" /> Less help each time.
-                </>
-              }
+              title={["One loop. Five moves.", { br: true }, "Less help each time."]}
             >
               Each lesson follows one request through the code, with evidence at the end of each pass.
             </SectionHeading>
 
             {/* Desktop: horizontal trace */}
-            <div data-reveal className="mt-[clamp(56px,7vw,96px)] hidden lg:block">
+            <div data-reveal="up" className="mt-[clamp(56px,7vw,96px)] hidden lg:block">
               <ol className="relative grid grid-cols-5 gap-6">
                 <span
                   aria-hidden="true"
@@ -108,7 +103,7 @@ export function LearningLoop() {
             </div>
 
             {/* Mobile and tablet: vertical rail */}
-            <div data-reveal className="mt-12 lg:hidden">
+            <div data-reveal="up" className="mt-12 lg:hidden">
               <ol className="relative">
                 <span aria-hidden="true" className="absolute top-2 bottom-2 left-[11px] w-px bg-editor-line" />
                 <span

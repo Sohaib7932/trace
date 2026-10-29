@@ -9,12 +9,7 @@ export function Features() {
       <SectionHeading
         id="features-title"
         eyebrow="What you practise"
-        title={
-          <>
-            Practise the part you can&apos;t delegate: knowing{" "}
-            <span className="text-primary-display">why</span>.
-          </>
-        }
+        title={["Practise the part you can’t delegate: knowing ", { accent: "why" }, "."]}
       >
         Three moves on real code, often the kind an agent hands back.
       </SectionHeading>
@@ -62,7 +57,7 @@ function FeatureCard({
   children: ReactNode;
 }) {
   return (
-    <article data-reveal style={{ "--d": `${delay}ms` } as React.CSSProperties} className="group">
+    <article data-reveal="card" style={{ "--d": `${delay}ms` } as React.CSSProperties} className="group">
       <div
         className={`relative aspect-[4/3] overflow-hidden rounded-[14px] border border-black/[0.04] md:aspect-[16/8] lg:aspect-[4/3] ${tile}`}
       >

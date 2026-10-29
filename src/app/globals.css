@@ -50,9 +50,15 @@
   --rim: clamp(4px, 0.7vw, 10px);
   --canvas-radius: clamp(24px, 3vw, 40px);
 
-  /* Motion */
+  /* Motion (mirrors src/lib/motion/tokens.ts) */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-ui: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-micro: 180ms;
+  --dur-state: 300ms;
+  --dur-entrance: 650ms;
+  --dur-word: 700ms;
+  --dur-accent: 900ms;
+  --stagger-word: 70ms;
 
   /* Elevation */
   --shadow-float: 0 1px 2px rgba(21, 25, 35, 0.04), 0 8px 24px -12px rgba(21, 25, 35, 0.14);
@@ -398,33 +404,108 @@
 }
 
 /* ==========================================================================
-   Motion: content is visible by default. Only when JS is running (html.js)
-   do reveal targets start hidden and fade in as they enter the viewport.
+   Motion (CLAUDE.md §7). The final, readable state is always the default CSS
+   state. "From" states below apply only under html.js (set before first paint)
+   with motion allowed, until the runtime marks the element data-revealed.
    ========================================================================== */
+.sh-word {
+  display: inline-block;
+}
+
+.sh {
+  position: relative;
+  --veil: rgba(250, 250, 252, 0.78);
+}
+.sh-dark {
+  --veil: rgba(26, 30, 39, 0.78);
+}
+
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
     .enter {
-      animation: enter 0.75s var(--ease-out) both;
+      animation: enter var(--dur-entrance) var(--ease-out) both;
       animation-delay: var(--d, 0ms);
     }
 
     .enter-down {
-      animation: enter-down 0.6s var(--ease-out) both;
+      animation: enter-down 500ms var(--ease-out) both;
       animation-delay: var(--d, 0ms);
     }
 
-    .js [data-reveal] {
+    /* ----- Reveal from-states (match revealFrom in tokens.ts) ----- */
+    .js [data-reveal="up"]:not([data-revealed]) {
       opacity: 0;
-      transform: translateY(18px);
-      transition:
-        opacity 0.7s var(--ease-out),
-        transform 0.7s var(--ease-out);
-      transition-delay: var(--d, 0ms);
+      transform: translateY(24px);
+    }
+    .js [data-reveal="card"]:not([data-revealed]) {
+      opacity: 0;
+      transform: translateY(32px) scale(0.98);
+    }
+    .js [data-reveal="fade"]:not([data-revealed]) {
+      opacity: 0;
+    }
+    .js [data-reveal-stagger="up"]:not([data-revealed]) [data-reveal-item] {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    .js [data-reveal-stagger="card"]:not([data-revealed]) [data-reveal-item] {
+      opacity: 0;
+      transform: translateY(32px) scale(0.98);
+    }
+    .js [data-reveal-stagger="fade"]:not([data-revealed]) [data-reveal-item] {
+      opacity: 0;
+    }
+    .js [data-reveal-stagger]:not([data-revealed]) [data-reveal-inner] {
+      opacity: 0;
+      transform: translateY(8px);
     }
 
-    .js [data-reveal][data-revealed] {
-      opacity: 1;
-      transform: none;
+    /* ----- Split headings: word from-state ----- */
+    .js [data-split]:not([data-revealed]) .sh-word {
+      opacity: 0;
+      filter: blur(12px);
+      transform: translateY(18px);
+    }
+
+    /* ----- Load-mode headings (hero): CSS keyframes, no wait for hydration ----- */
+    .sh-load .sh-word {
+      animation: word-in var(--dur-word) var(--ease-out) both;
+      animation-delay: calc(var(--sh-base, 0ms) + var(--i, 0) * var(--stagger-word));
+    }
+    .sh-load .sh-word[data-accent] {
+      animation-duration: var(--dur-accent);
+    }
+
+    /* ----- Frosted veil: one soft sweep in the stagger direction (desktop only) ----- */
+    @media (min-width: 768px) {
+      .sh[data-state="revealing"]::after,
+      .sh-load::after {
+        content: "";
+        position: absolute;
+        inset: -0.12em auto -0.12em 0;
+        width: 42%;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, var(--veil) 38%, var(--veil) 62%, transparent);
+        opacity: 0;
+        animation: veil 1150ms var(--ease-out) forwards;
+      }
+      .sh-load::after {
+        animation-delay: var(--sh-base, 0ms);
+      }
+    }
+
+    /* ----- Icon chips: scale 0.8 to 1 with one soft glow pulse ----- */
+    .js [data-reveal]:not([data-revealed]) .chip-pulse {
+      transform: scale(0.8);
+    }
+    .js [data-revealed] .chip-pulse,
+    .chip-pulse-load {
+      animation:
+        chip-pop 520ms var(--ease-out) both,
+        chip-glow 1100ms ease-out 200ms 1;
+    }
+    .chip-pulse-load {
+      animation-delay: var(--d, 0ms), calc(var(--d, 0ms) + 200ms);
     }
 
     /* Learning-loop trace line draws across once revealed */
@@ -464,6 +545,77 @@
     }
   }
 
+  /* Phones: half the word blur, no veil */
+  @media (prefers-reduced-motion: no-preference) and (max-width: 767px) {
+    .js [data-split]:not([data-revealed]) .sh-word {
+      filter: blur(6px);
+    }
+    .sh-load .sh-word {
+      animation-name: word-in-sm;
+    }
+  }
+
+  @keyframes word-in {
+    from {
+      opacity: 0;
+      filter: blur(12px);
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: none;
+    }
+  }
+
+  @keyframes word-in-sm {
+    from {
+      opacity: 0;
+      filter: blur(6px);
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: none;
+    }
+  }
+
+  @keyframes veil {
+    0% {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+    30% {
+      opacity: 1;
+    }
+    75% {
+      opacity: 0.8;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(250%);
+    }
+  }
+
+  @keyframes chip-pop {
+    from {
+      transform: scale(0.8);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes chip-glow {
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 129, 57, 0.45);
+    }
+    100% {
+      box-shadow: 0 0 0 9px rgba(255, 129, 57, 0);
+    }
+  }
+
   @keyframes enter {
     from {
       opacity: 0;
@@ -478,7 +630,7 @@
   @keyframes enter-down {
     from {
       opacity: 0;
-      transform: translateY(-10px);
+      transform: translateY(-12px);
     }
     to {
       opacity: 1;

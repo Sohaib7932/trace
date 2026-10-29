@@ -823,6 +823,35 @@ Implement `prefers-reduced-motion`.
 
 Do not depend on a moving effect to communicate information.
 
+## Homepage motion system (implemented)
+
+**Libraries.** Motion for React / Motion (`animate`, `inView`) for reveals and hovers. GSAP + ScrollTrigger only for the two pinned, scrubbed sequences (hero device sequence, learning-loop sticky steps), loaded with a dynamic `import()` inside client effects so GSAP is never in the first-load bundle. No smooth-scroll libraries; native scroll only.
+
+**Tokens.** `src/lib/motion/tokens.ts`, mirrored as CSS custom properties in `globals.css`:
+- Easing: entrance `cubic-bezier(.22,1,.36,1)`; hover/UI `cubic-bezier(.2,.8,.2,1)`.
+- Durations: micro 180ms, state 300ms, entrance 650ms, heading word 700ms (accent word 900ms), large reveal 800ms, connector 500ms, magnifier glide 750ms with a 400ms pause, sticky-step swap 550ms.
+- Stagger: words 70ms, cards 90ms, inner parts 80ms, branches 120ms.
+- No ad-hoc values in components.
+
+**Final state is the default.** Server-rendered markup is the readable final state. "From" states apply only under `html.js` (set by an inline script before first paint) and `prefers-reduced-motion: no-preference`. The motion runtime animates in once, then sets `data-revealed` and removes every inline style.
+
+**Components.**
+- `<Reveal>` (server): `up`, `card` (translateY 32px, scale .98) or `fade`; `stagger` reveals `[data-reveal-item]` children 90ms apart and `[data-reveal-inner]` parts after each item.
+- `<SplitHeading>` (server): word split; each word goes from opacity 0, blur(12px), translateY(18px) to its final state, 70ms apart; the accent word resolves last in its line; a canvas-coloured veil sweeps once in the stagger direction (desktop only). Triggers once at ~85% of the viewport. Full text sits in a visually hidden span; word spans are aria-hidden. The hero headline uses the same reveal as CSS keyframes at load, so it never waits for hydration.
+- `<MotionRuntime>` (client): the single observer that runs all reveals.
+- `<CodeWindow>`: macOS-style window used for every code excerpt; optional magnifier lens that renders a real 1.6× copy of the code clipped to a circle (never blurred), gliding between target lines while in view.
+- `<DeviceSequence>`: the hero's pinned, scrubbed device sequence (tilt, flatten, background panel, settle at ≥0.7 scale).
+- `<StickySteps>`: pinned learning-loop steps with an accessible accordion fallback.
+- `<FlowDiagram>`: sequential node, connector and travelling-dot reveal, with an optional Replay.
+
+**Blur.** `filter: blur` only on individual heading words and the magnifier lens edge. Never on large containers.
+
+**Phones (under 768px).** Word blur 6px, no veil, no pinning, no 3D tilt; simple in-view reveals instead. Sticky steps pin only from 1024px.
+
+**Reduced motion.** No scrub, no pin, no blur, no movement; final states shown immediately. GSAP parts use `gsap.matchMedia()`.
+
+**Lesson workspace routes** get microinteractions only, never scroll choreography.
+
 ---
 
 # 8. NEXT.JS ENGINEERING ARCHITECTURE

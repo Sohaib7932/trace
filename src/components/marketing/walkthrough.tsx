@@ -26,11 +26,7 @@ export function Walkthrough() {
       <SectionHeading
         id="walkthrough-title"
         eyebrow="An exercise, start to finish"
-        title={
-          <>
-            What happens when the request has <span className="text-primary-display">no title</span>?
-          </>
-        }
+        title={["What happens when the request has ", { accent: "no title" }, "?"]}
       >
         An agent wrote the endpoint. This is how a learner reviews it, start to finish.
       </SectionHeading>
@@ -148,7 +144,7 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <li data-reveal className="grid gap-5 border-b border-border py-[clamp(28px,4vw,48px)] lg:grid-cols-12 lg:gap-8">
+    <li data-reveal="up" className="grid gap-5 border-b border-border py-[clamp(28px,4vw,48px)] lg:grid-cols-12 lg:gap-8">
       <div className="grid grid-cols-[28px_minmax(0,1fr)] items-baseline lg:col-span-4">
         <span className="font-mono text-[0.75rem] text-primary-ink">{n}</span>
         <h3 className="text-[1.25rem] font-semibold tracking-[-0.025em]">{title}</h3>

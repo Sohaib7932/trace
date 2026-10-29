@@ -4,7 +4,7 @@ export function Principles() {
   return (
     <section aria-label="Principles" className="shell mt-[clamp(56px,7vw,96px)]">
       <div
-        data-reveal
+        data-reveal="fade"
         className="flex flex-col gap-5 border-y border-border py-7 md:flex-row md:items-center md:gap-10 md:border-y-0 md:py-0"
       >
         <p className="shrink-0 text-[0.875rem] leading-snug text-secondary md:max-w-[11.5rem]">

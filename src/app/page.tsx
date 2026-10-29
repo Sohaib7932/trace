@@ -7,7 +7,7 @@ import { LearningLoop } from "@/components/marketing/learning-loop";
 import { Principles } from "@/components/marketing/principles";
 import { ProgressRecord } from "@/components/marketing/progress-record";
 import { Walkthrough } from "@/components/marketing/walkthrough";
-import { RevealObserver } from "@/components/motion/reveal-observer";
+import { MotionRuntime } from "@/components/motion/motion-runtime";
 
 export default function Home() {
   return (
@@ -24,7 +24,7 @@ export default function Home() {
         <FinalCta />
       </main>
       <SiteFooter />
-      <RevealObserver />
+      <MotionRuntime />
     </>
   );
 }
