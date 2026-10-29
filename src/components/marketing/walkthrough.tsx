@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { CodeExcerpt } from "@/components/code/code-line";
+import { CodeWindow } from "@/components/code/code-window";
+import { sourceLines } from "@/content/demo-lesson";
 import { SampleTag, StatusBadge } from "@/components/ui/labels";
 import { SectionHeading } from "./section-heading";
 
@@ -33,30 +34,28 @@ export function Walkthrough() {
 
       <ol className="mt-[clamp(48px,6vw,88px)] border-t border-border">
         <Row n="01" title="What you're attempting" text="Your agent wrote this endpoint. Before you accept it, you need to know what it does when a client leaves out the title.">
-          <Panel label="Request">
-            <pre className="code-block code-light overflow-x-auto px-4 py-4 text-foreground">
-              <span className="font-medium">POST</span> /notes{"\n"}
-              <span className="text-secondary">Content-Type: application/json</span>
-              {"\n\n"}
-              {'{ "content": "Buy milk" }'}
-            </pre>
-          </Panel>
+          <CodeWindow
+            file="request.http"
+            lang="HTTP"
+            plain
+            lines={["POST /notes", "Content-Type: application/json", "", '{ "content": "Buy milk" }']}
+            label="The request: POST /notes with only a content field"
+          />
         </Row>
 
         <Row n="02" title="Which code runs" text="FastAPI turns the JSON body into a NoteIn before it calls create_note. The model decides what gets through.">
-          <Panel label="app/routes/notes.py · agent-generated, under review">
-            <CodeExcerpt
-              tone="light"
-              start={9}
-              highlight={[10]}
-              label="NoteIn model, lines 9 to 11"
-              lines={[
-                "class NoteIn(BaseModel):",
-                "    title: str = Field(min_length=1, max_length=120)",
-                '    content: str = ""',
-              ]}
-            />
-          </Panel>
+          <CodeWindow
+            file="app/routes/notes.py"
+            meta="agent-generated, under review"
+            start={9}
+            lines={sourceLines.slice(8, 22)}
+            label="app/routes/notes.py, lines 9 to 22"
+            magnify={[
+              { line: 10, label: "required: no default" },
+              { line: 11, label: "optional: has a default" },
+              { line: 21, label: "runs only if NoteIn is valid" },
+            ]}
+          />
         </Row>
 
         <Row n="03" title="What the learner predicts" text="A common first answer: the note is saved with an empty title. It's locked before anything runs.">
@@ -85,19 +84,18 @@ export function Walkthrough() {
         </Row>
 
         <Row n="05" title="The change" text="The task: accept notes without a title and store them as “Untitled”. You make the change yourself; one argument changes.">
-          <Panel label="app/routes/notes.py · your change">
-            <CodeExcerpt
-              tone="light"
-              start={10}
-              removed={[10]}
-              added={[11]}
-              label="Diff of line 10"
-              lines={[
-                "    title: str = Field(min_length=1, max_length=120)",
-                '    title: str = Field(default="Untitled", min_length=1, max_length=120)',
-              ]}
-            />
-          </Panel>
+          <CodeWindow
+            file="app/routes/notes.py"
+            meta="your change"
+            start={10}
+            removed={[10]}
+            added={[11]}
+            label="Diff of line 10"
+            lines={[
+              "    title: str = Field(min_length=1, max_length=120)",
+              '    title: str = Field(default="Untitled", min_length=1, max_length=120)',
+            ]}
+          />
           <Panel label="Response after the change" tag className="mt-3">
             <div className="flex flex-wrap items-center gap-2 px-4 py-3">
               <span className="font-mono text-[0.8125rem] font-medium">201 Created</span>

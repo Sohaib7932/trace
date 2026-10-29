@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CodeText } from "@/components/code/code-line";
+import { CodeWindow } from "@/components/code/code-window";
 import { SampleTag, StatusBadge } from "@/components/ui/labels";
 import { SectionHeading } from "./section-heading";
 
@@ -82,77 +82,38 @@ function MiniCard({ children, className = "" }: { children: ReactNode; className
   );
 }
 
-function MiniLine({
-  n,
-  code,
-  tone,
-}: {
-  n: number;
-  code: string;
-  tone?: "active" | "added";
-}) {
-  const row = tone === "added" ? "bg-success-soft" : tone === "active" ? "bg-primary-soft" : "";
-  const rail = tone === "added" ? "bg-success" : tone === "active" ? "bg-primary" : "";
-  return (
-    <span className={`relative flex items-center gap-2 py-[3px] pr-3 pl-2.5 ${row}`}>
-      {rail && <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[2px] ${rail}`} />}
-      <span aria-hidden="true" className="w-4 text-right text-tertiary select-none">
-        {n}
-      </span>
-      <span aria-hidden="true" className="w-2 text-success select-none">
-        {tone === "added" ? "+" : ""}
-      </span>
-      {tone === "added" && <span className="sr-only">Added line: </span>}
-      <span className="whitespace-pre">
-        <CodeText source={code} />
-      </span>
-    </span>
-  );
-}
 
-/* ---------- 01: a highlighted code path and two possible outcomes ---------- */
+/* ---------- 01: a magnified code path and two possible outcomes ---------- */
 function PredictFragment() {
   return (
-    <figure className="relative h-full w-full max-w-[340px]" aria-label="Two possible outcomes for the same code path">
-      <MiniCard className="code-light absolute top-0 left-0 w-[70%] sm:top-[4%]">
-        <p className="border-b border-border px-2.5 py-1.5 font-mono text-[10.5px] text-secondary">notes.py</p>
-        <pre className="py-1.5 font-mono text-[11.5px] leading-[1.5]">
-          <code className="block">
-            <MiniLine n={23} code="db.add(row)" />
-            <MiniLine n={24} code="db.flush()" tone="active" />
-            <MiniLine n={25} code="return {...}" />
-          </code>
-        </pre>
-      </MiniCard>
-
-      <svg aria-hidden="true" className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <path
-          d="M 52 30 C 62 30, 58 62, 70 62"
-          fill="none"
-          stroke="var(--primary)"
-          strokeWidth="1.4"
-          strokeDasharray="3 3"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-
-      <MiniCard className="absolute right-0 bottom-0 w-[66%] p-1.5 sm:bottom-[4%]">
-        <p className="px-1.5 pt-0.5 pb-1 font-mono text-[10px] tracking-[0.06em] text-secondary uppercase">
-          Your prediction
-        </p>
+    <figure className="w-full max-w-[340px]" aria-label="A code path under the magnifier, and two possible outcomes">
+      <CodeWindow
+        file="notes.py"
+        size="sm"
+        start={21}
+        lensSize={112}
+        lines={["def create_note(...):", "    row = Note(...)", "    db.add(row)", "    db.flush()", "    return {...}"]}
+        magnify={[
+          { line: 23, label: "row staged" },
+          { line: 24, label: "INSERT sent" },
+          { line: 25, label: "201 returned" },
+        ]}
+      />
+      <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Your prediction">
         {[
           { label: "201 · Row saved", picked: false },
           { label: "201 · No row saved", picked: true },
         ].map((option) => (
           <div
             key={option.label}
-            className={`flex items-center gap-2 rounded-[7px] px-2 py-1.5 text-[11.5px] font-medium ${
-              option.picked ? "bg-surface-muted ring-1 ring-foreground" : ""
+            data-reveal-inner
+            className={`flex items-center gap-2 rounded-[9px] border bg-surface px-2.5 py-2 text-[11.5px] font-medium shadow-[0_8px_18px_-12px_rgba(90,40,20,0.4)] ${
+              option.picked ? "border-foreground" : "border-white/70"
             }`}
           >
             <span
               aria-hidden="true"
-              className={`flex size-3 items-center justify-center rounded-full border ${
+              className={`flex size-3 shrink-0 items-center justify-center rounded-full border ${
                 option.picked ? "border-foreground" : "border-border-strong"
               }`}
             >
@@ -162,7 +123,7 @@ function PredictFragment() {
             {option.picked && <span className="sr-only"> (selected)</span>}
           </div>
         ))}
-      </MiniCard>
+      </div>
     </figure>
   );
 }
@@ -171,20 +132,14 @@ function PredictFragment() {
 function DiffFragment() {
   return (
     <figure className="w-full max-w-[320px]" aria-label="A one-line change: db.commit() added after db.flush()">
-      <MiniCard className="code-light">
-        <div className="flex items-center justify-between border-b border-border px-2.5 py-1.5">
-          <p className="font-mono text-[10.5px] text-secondary">notes.py · your change</p>
-          <p className="font-mono text-[10.5px] font-medium text-success">+1 line</p>
-        </div>
-        <pre className="py-1.5 font-mono text-[11.5px] leading-[1.5]">
-          <code className="block">
-            <MiniLine n={23} code="db.add(row)" />
-            <MiniLine n={24} code="db.flush()" />
-            <MiniLine n={25} code="db.commit()" tone="added" />
-            <MiniLine n={26} code="return {...}" />
-          </code>
-        </pre>
-      </MiniCard>
+      <CodeWindow
+        file="notes.py"
+        meta="your change"
+        size="sm"
+        start={23}
+        added={[25]}
+        lines={["    db.add(row)", "    db.flush()", "    db.commit()", "    return {...}"]}
+      />
       <p className="mt-3 flex items-center justify-center gap-2 font-mono text-[10.5px] text-foreground/80">
         <span className="rounded-[5px] border border-white/80 bg-surface/90 px-1.5 py-0.5 text-foreground">Enter</span>
         to check your edit

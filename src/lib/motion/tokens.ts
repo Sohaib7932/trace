@@ -20,6 +20,7 @@ export const duration = {
   connector: 0.5, // flow-diagram connector draw (400–600ms)
   lensGlide: 0.75, // magnifier glide between targets (600–900ms)
   lensPause: 0.4, // magnifier pause on a target
+  lensRead: 0.9, // extra dwell so the lens caption can be read (pause + read = 1.3s)
   stepSwap: 0.55, // sticky-steps visual swap (500–600ms)
 } as const;
 

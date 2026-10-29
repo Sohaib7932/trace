@@ -278,6 +278,22 @@
     background: #f7f7fa;
   }
 
+  .code-block.code-sm {
+    font-size: 13px;
+  }
+
+  /* Code windows with a magnifier: horizontal scroll on phones (no lens there);
+     from 768px the code fits and the lens may extend over the title bar. */
+  .lens-body {
+    overflow-x: auto;
+  }
+  @media (min-width: 768px) {
+    .lens-body {
+      overflow: visible;
+    }
+  }
+
+
   /* Light-surface code tokens (white cards and the #F7F7FA showcase surface; all 4.5:1+) */
   .code-light .tok-kw { color: #b8460f; }
   .code-light .tok-str { color: #2d7a3e; }
@@ -421,6 +437,15 @@
 }
 
 @layer utilities {
+  /* Once the lens runs, its moving band replaces the static first-target highlight.
+     In the utilities layer so it outranks the row's own bg utility class. */
+  .lens-body[data-lens="on"] [data-hl] {
+    background: transparent;
+  }
+  .lens-body[data-lens="on"] [data-hl] .code-rail {
+    opacity: 0;
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     .enter {
       animation: enter var(--dur-entrance) var(--ease-out) both;
