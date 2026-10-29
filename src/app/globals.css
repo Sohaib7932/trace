@@ -1,26 +1,503 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Trace design tokens (CLAUDE.md §3)
+   Two values are adjusted for WCAG AA and documented inline.
+   ========================================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ambient-base: #c88d81;
+  --background: #fafafc;
+  --surface: #ffffff;
+  --surface-muted: #f4f5f7;
+
+  --foreground: #151923;
+  /* §3 lists #717784 (4.3:1 on --background). Darkened to reach 4.5:1 for body copy. */
+  --text-secondary: #646a77;
+  /* Decorative only (line numbers, separators). Not for meaningful text. */
+  --text-tertiary: #9196a1;
+
+  --border: #e5e7ec;
+  --border-strong: #d6d9e0;
+
+  --primary: #ff8139;
+  --primary-hover: #e96e29;
+  --primary-soft: #fff0e6;
+  /* #FF8139 as text is 2.4:1. These carry orange *text*: large display (3:1+) and small labels (4.5:1+). */
+  --primary-display: #e5631c;
+  --primary-ink: #b8460f;
+
+  --editor-background: #1a1e27;
+  --editor-surface: #222733;
+  --editor-foreground: #e8eaf0;
+  --editor-muted: #a3a9b7;
+  --editor-line: #2e3442;
+
+  --success: #227953;
+  --success-soft: #e8f4ee;
+  --error: #bd4b4b;
+  --error-soft: #fbeeee;
+  /* §3 lists #A46D2B (4.4:1 on white). Darkened slightly for small text. */
+  --warning: #915f21;
+  --warning-soft: #fbf3e6;
+
+  /* Layout */
+  --page-max: 1440px;
+  --content-max: 1200px;
+  --reading-max: 720px;
+  --gutter: clamp(20px, 4vw, 64px);
+  --section-space: clamp(80px, 10vw, 160px);
+  --frame: clamp(12px, 3.5vw, 56px);
+  --rim: clamp(4px, 0.7vw, 10px);
+  --canvas-radius: clamp(24px, 3vw, 40px);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-ui: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Elevation */
+  --shadow-float: 0 1px 2px rgba(21, 25, 35, 0.04), 0 8px 24px -12px rgba(21, 25, 35, 0.14);
+  --shadow-window: 0 1px 2px rgba(21, 25, 35, 0.05), 0 24px 48px -24px rgba(21, 25, 35, 0.18),
+    0 48px 120px -40px rgba(150, 70, 30, 0.28);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --color-foreground: var(--foreground);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-display: var(--primary-display);
+  --color-primary-ink: var(--primary-ink);
+  --color-editor: var(--editor-background);
+  --color-editor-surface: var(--editor-surface);
+  --color-editor-foreground: var(--editor-foreground);
+  --color-editor-muted: var(--editor-muted);
+  --color-editor-line: var(--editor-line);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-error: var(--error);
+  --color-error-soft: var(--error-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --ease-out: var(--ease-out);
+  --ease-ui: var(--ease-ui);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ==========================================================================
+   Base
+   ========================================================================== */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    position: relative;
+    min-height: 100dvh;
+    color: var(--foreground);
+    background: var(--ambient-base);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+    overflow-x: clip;
+  }
+
+  /* The warm ambient environment around the canvas. Fixed layer, so it works on iOS too. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    /* Mesh gradient: layered colour blobs, softened further by a blur.
+       Oversized so the blur never shows a hard edge. Static, painted once. */
+    inset: -12%;
+    filter: blur(48px);
+    background:
+      radial-gradient(34% 46% at 4% 42%, #b9506b 0%, transparent 72%),
+      radial-gradient(26% 34% at 14% 12%, #c9637a 0%, transparent 70%),
+      radial-gradient(30% 34% at 6% 96%, #c8452f 0%, transparent 72%),
+      radial-gradient(30% 34% at 96% 96%, #c8452f 0%, transparent 72%),
+      radial-gradient(38% 36% at 30% 88%, #e8743b 0%, transparent 72%),
+      radial-gradient(38% 40% at 82% 78%, #e8743b 0%, transparent 72%),
+      radial-gradient(42% 30% at 46% 2%, #eba45e 0%, transparent 72%),
+      radial-gradient(30% 28% at 86% 6%, #f4c6a4 0%, transparent 72%),
+      radial-gradient(36% 26% at 58% 100%, #f4c6a4 0%, transparent 72%),
+      radial-gradient(30% 44% at 98% 40%, #d9744c 0%, transparent 72%),
+      #d27a5e;
+  }
+
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  code,
+  kbd,
+  pre,
+  .font-mono {
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "calt" 0;
+  }
+
+  [id] {
+    scroll-margin-top: 96px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ==========================================================================
+   Layout primitives
+   ========================================================================== */
+@layer components {
+  /* Translucent glass ring between the mesh frame and the canvas */
+  .frame-rim {
+    margin: calc(var(--frame) - var(--rim));
+    padding: var(--rim);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: calc(var(--canvas-radius) + var(--rim) + 2px);
+    box-shadow: 0 40px 100px -50px rgba(80, 20, 20, 0.45);
+  }
+
+  .site-canvas {
+    position: relative;
+    min-height: calc(100dvh - 2 * var(--frame));
+    background: var(--background);
+    border-radius: var(--canvas-radius);
+    overflow: clip;
+  }
+
+  .shell {
+    width: min(calc(100% - 2 * var(--gutter)), var(--content-max));
+    margin-inline: auto;
+  }
+
+  .shell-wide {
+    width: min(calc(100% - 2 * var(--gutter)), var(--page-max));
+    margin-inline: auto;
+  }
+
+  .section {
+    padding-block: var(--section-space);
+  }
+
+  /* Typography */
+  .type-display {
+    font-size: clamp(2.5rem, 4.4vw, 4.5rem);
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  .type-h2 {
+    font-size: clamp(2rem, 3.6vw, 3.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  .type-h3 {
+    font-size: clamp(1.3rem, 1.1rem + 0.6vw, 1.6rem);
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+  }
+
+  .type-lede {
+    font-size: clamp(1.05rem, 0.98rem + 0.35vw, 1.25rem);
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    text-wrap: pretty;
+  }
+
+  .type-label {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Code */
+  .code-block {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    tab-size: 4;
+  }
+
+  @media (min-width: 1280px) {
+    .code-block {
+      font-size: 14px;
+    }
+  }
+
+  .tok-kw { color: #ff9e6b; }
+  .tok-str { color: #a9d8a6; }
+  .tok-com { color: #8a91a1; font-style: italic; }
+  .tok-dec { color: #e8bd74; }
+  .tok-num { color: #f2c38b; }
+  .tok-fn { color: #8cc6f0; }
+  .tok-call { color: #d6dbe6; }
+  .tok-cls { color: #f3d58c; }
+  .tok-builtin { color: #c9a8f0; }
+  .tok-punct { color: #a3a9b7; }
+  .tok-plain { color: var(--editor-foreground); }
+
+  .code-surface {
+    background: #f7f7fa;
+  }
+
+  /* Light-surface code tokens (white cards and the #F7F7FA showcase surface; all 4.5:1+) */
+  .code-light .tok-kw { color: #b8460f; }
+  .code-light .tok-str { color: #2d7a3e; }
+  .code-light .tok-com { color: #6b7180; }
+  .code-light .tok-dec { color: #8a5a12; }
+  .code-light .tok-num { color: #8a5a12; }
+  .code-light .tok-fn { color: #1f5f99; }
+  .code-light .tok-call { color: #151923; }
+  .code-light .tok-cls { color: #7a4f00; }
+  .code-light .tok-builtin { color: #6b3fa0; }
+  .code-light .tok-punct { color: #646a77; }
+  .code-light .tok-plain { color: #151923; }
+
+  /* Hero atmosphere: a warm wash at the top of the canvas */
+  .hero-atmosphere {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: min(1100px, 120vh);
+    pointer-events: none;
+    background:
+      radial-gradient(55% 45% at 50% 0%, rgba(255, 176, 128, 0.22) 0%, transparent 70%),
+      radial-gradient(40% 30% at 18% 8%, rgba(232, 160, 140, 0.14) 0%, transparent 70%),
+      radial-gradient(40% 30% at 84% 6%, rgba(244, 190, 130, 0.14) 0%, transparent 70%);
+  }
+
+  /* Soft warm glow under the product window */
+  .showcase-glow {
+    position: absolute;
+    inset: 30% -8% -14%;
+    pointer-events: none;
+    background:
+      radial-gradient(50% 45% at 50% 70%, rgba(255, 150, 95, 0.3) 0%, transparent 72%),
+      radial-gradient(30% 30% at 18% 60%, rgba(230, 140, 120, 0.16) 0%, transparent 72%),
+      radial-gradient(30% 30% at 82% 60%, rgba(245, 175, 110, 0.18) 0%, transparent 72%);
+  }
+
+  /* Vertical light streaks: bars sit on the window's top edge and fade upward.
+     The horizontal mask fades the band out toward both sides. */
+  .streaks {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% - 40px);
+    width: min(114%, 94vw);
+    height: clamp(200px, 24vw, 340px);
+    transform: translateX(-50%);
+    pointer-events: none;
+    /* Sides fade out; the bottom 40px also fades, so the band dissolves beside the window
+       instead of ending in a hard line (under the window it is covered anyway). */
+    mask-image:
+      linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%),
+      linear-gradient(to top, transparent 0, black 40px);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+  }
+
+  .streak-layer {
+    position: absolute;
+    inset: 0;
+  }
+
+  .streak {
+    position: absolute;
+    bottom: 0;
+    border-radius: 4px 4px 0 0;
+    background: linear-gradient(
+      to top,
+      rgba(255, 128, 64, var(--a)) 0%,
+      rgba(255, 168, 120, calc(var(--a) * 0.7)) 38%,
+      rgba(255, 205, 170, calc(var(--a) * 0.25)) 70%,
+      transparent 100%
+    );
+  }
+
+  @media (max-width: 640px) {
+    .streaks {
+      height: 180px;
+      width: 100%;
+    }
+    .streak[data-dense] {
+      display: none;
+    }
+  }
+
+  /* Feature tiles: blurred warm gradients, each with one cool grey tint for contrast */
+  .tile-blur {
+    filter: blur(28px);
+  }
+  .tile-a {
+    background: #f6cdb3;
+  }
+  .tile-a .tile-blur {
+    background:
+      radial-gradient(40% 45% at 22% 30%, #ffb07f 0%, transparent 70%),
+      radial-gradient(45% 50% at 80% 78%, #f0835a 0%, transparent 70%),
+      radial-gradient(35% 40% at 84% 18%, #c6ced6 0%, transparent 70%),
+      radial-gradient(40% 40% at 30% 88%, #f7d9b0 0%, transparent 70%);
+  }
+  .tile-b {
+    background: #f4d2b8;
+  }
+  .tile-b .tile-blur {
+    background:
+      radial-gradient(45% 45% at 74% 26%, #f6ab5f 0%, transparent 70%),
+      radial-gradient(40% 45% at 22% 70%, #ec8d6b 0%, transparent 70%),
+      radial-gradient(38% 40% at 16% 16%, #cdd3da 0%, transparent 70%),
+      radial-gradient(40% 40% at 80% 90%, #fbd9bd 0%, transparent 70%);
+  }
+  .tile-c {
+    background: #efc6b4;
+  }
+  .tile-c .tile-blur {
+    background:
+      radial-gradient(45% 50% at 30% 70%, #e9785a 0%, transparent 70%),
+      radial-gradient(40% 45% at 76% 30%, #f5b47c 0%, transparent 70%),
+      radial-gradient(36% 40% at 50% 96%, #c3cbd3 0%, transparent 70%),
+      radial-gradient(35% 35% at 12% 12%, #f8d7c0 0%, transparent 70%);
+  }
+
+  /* Subtle dotted technical grid for visual panels */
+  .dot-grid {
+    background-image: radial-gradient(rgba(21, 25, 35, 0.09) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+}
+
+/* ==========================================================================
+   Motion: content is visible by default. Only when JS is running (html.js)
+   do reveal targets start hidden and fade in as they enter the viewport.
+   ========================================================================== */
+@layer utilities {
+  @media (prefers-reduced-motion: no-preference) {
+    .enter {
+      animation: enter 0.75s var(--ease-out) both;
+      animation-delay: var(--d, 0ms);
+    }
+
+    .enter-down {
+      animation: enter-down 0.6s var(--ease-out) both;
+      animation-delay: var(--d, 0ms);
+    }
+
+    .js [data-reveal] {
+      opacity: 0;
+      transform: translateY(18px);
+      transition:
+        opacity 0.7s var(--ease-out),
+        transform 0.7s var(--ease-out);
+      transition-delay: var(--d, 0ms);
+    }
+
+    .js [data-reveal][data-revealed] {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* Learning-loop trace line draws across once revealed */
+    .js [data-reveal] .trace-fill {
+      transform: scaleX(0);
+      transition: transform 1.4s var(--ease-out) 0.2s;
+    }
+    .js [data-reveal][data-revealed] .trace-fill {
+      transform: scaleX(1);
+    }
+    .js [data-reveal] .trace-fill-y {
+      transform: scaleY(0);
+      transition: transform 1.4s var(--ease-out) 0.2s;
+    }
+    .js [data-reveal][data-revealed] .trace-fill-y {
+      transform: scaleY(1);
+    }
+    .js [data-reveal] .trace-node {
+      background-color: var(--editor-surface);
+      border-color: var(--editor-line);
+      transition:
+        background-color 0.4s var(--ease-ui),
+        border-color 0.4s var(--ease-ui);
+      transition-delay: var(--nd, 0ms);
+    }
+    .js [data-reveal][data-revealed] .trace-node {
+      background-color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .caret {
+      animation: caret 1.1s steps(1) infinite;
+    }
+
+    .streak-drift {
+      animation: drift 9s ease-in-out infinite alternate;
+    }
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes enter-down {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes drift {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.55;
+    }
+  }
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
 }
