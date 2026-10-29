@@ -36,7 +36,12 @@ function normalise(code: string) {
   return code.replace(/\s+/g, "");
 }
 
-export function LessonDemo() {
+/**
+ * `railHold`: display-only. While the learner hasn't acted yet (stage "predict"), the
+ * hero scroll sequence can hold the step tracker on an earlier step (0 = Read) and
+ * release it as the device flattens. It never changes lesson state or logic.
+ */
+export function LessonDemo({ railHold }: { railHold?: number } = {}) {
   const [stage, setStage] = useState<Stage>("predict");
   const [choice, setChoice] = useState<PredictionId | null>(null);
   const [observed, setObserved] = useState(false);
@@ -143,7 +148,10 @@ export function LessonDemo() {
               <span className="font-medium text-foreground">{lesson.title}</span>
             </p>
           </div>
-          <StepRail current={railIndex[stage]} done={stage === "verify"} />
+          <StepRail
+            current={stage === "predict" && railHold !== undefined ? railHold : railIndex[stage]}
+            done={stage === "verify"}
+          />
           <div className="ml-auto">
             <SampleTag>Interactive demo</SampleTag>
           </div>

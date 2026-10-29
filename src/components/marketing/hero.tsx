@@ -1,8 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { SplitHeading } from "@/components/motion/split-heading";
 import { ButtonLink } from "@/components/ui/button-link";
-import { LessonDemo } from "./lesson-demo";
-import { LightStreaks } from "./light-streaks";
+import { DeviceSequence } from "./device-sequence";
 
 export function Hero() {
   return (
@@ -58,18 +57,7 @@ export function Hero() {
         </div>
       </div>
 
-      <div
-        id="demo"
-        className="enter relative mx-auto mt-[clamp(72px,7vw,96px)] w-[min(calc(100%-2*var(--gutter)),1100px)] lg:w-[min(80%,1100px)]"
-        style={{ "--d": "480ms" } as React.CSSProperties}
-      >
-        <LightStreaks />
-        <div aria-hidden="true" className="showcase-glow" />
-        <div className="relative z-10">
-          <h2 className="sr-only">Try a sample lesson</h2>
-          <LessonDemo />
-        </div>
-      </div>
+      <DeviceSequence />
     </section>
   );
 }
