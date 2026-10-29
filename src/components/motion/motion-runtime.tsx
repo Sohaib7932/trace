@@ -42,6 +42,9 @@ function finish(target: HTMLElement, animated: HTMLElement[]) {
   requestAnimationFrame(() => requestAnimationFrame(() => clear(animated)));
 }
 
+/** Explicit identity end keyframe: "none" does not reliably interpolate as identity. */
+const IDENTITY = "translateY(0px) scale(1)";
+
 function fromTransform(variant: RevealVariant) {
   const { y, scale } = revealFrom[variant];
   return `translateY(${y}px) scale(${scale})`;
@@ -79,7 +82,7 @@ async function revealBlock(element: HTMLElement) {
   element.style.willChange = "transform, opacity";
   await animate(
     element,
-    { opacity: [0, 1], transform: [fromTransform(variant), "none"] },
+    { opacity: [0, 1], transform: [fromTransform(variant), IDENTITY] },
     { duration: variant === "fade" ? duration.state * 1.6 : duration.entrance, delay, ease: easeEntrance },
   ).finished;
   finish(element, [element]);
@@ -99,7 +102,7 @@ async function revealGroup(group: HTMLElement) {
     runs.push(
       animate(
         item,
-        { opacity: [0, 1], transform: [fromTransform(variant), "none"] },
+        { opacity: [0, 1], transform: [fromTransform(variant), IDENTITY] },
         { duration: duration.entrance, delay: itemDelay, ease: easeEntrance },
       ).finished,
     );
@@ -109,7 +112,7 @@ async function revealGroup(group: HTMLElement) {
       runs.push(
         animate(
           inner,
-          { opacity: [0, 1], transform: ["translateY(8px)", "none"] },
+          { opacity: [0, 1], transform: ["translateY(8px)", IDENTITY] },
           {
             duration: duration.state * 1.4,
             delay: itemDelay + 0.22 + innerIndex * stagger.inner,

@@ -330,6 +330,248 @@
       radial-gradient(30% 30% at 82% 60%, rgba(245, 175, 110, 0.18) 0%, transparent 72%);
   }
 
+  /* ----- Flow diagram (static = final, fully drawn) ----- */
+  .flow {
+    --flow-line: var(--text-secondary);
+  }
+  .flow-dark {
+    --flow-line: var(--editor-muted);
+  }
+  .flow-grid {
+    display: flex;
+    flex-direction: column;
+  }
+  .flow-node {
+    position: relative;
+    min-height: 74px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow:
+      0 1px 2px rgba(21, 25, 35, 0.05),
+      0 10px 24px -18px rgba(21, 25, 35, 0.35);
+  }
+  .flow-node-success {
+    border-color: color-mix(in oklab, var(--success) 40%, var(--border));
+  }
+  .flow-node-error {
+    border-color: color-mix(in oklab, var(--error) 40%, var(--border));
+  }
+  .flow-node-kicker {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .flow-node-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--foreground);
+  }
+  .flow-node-detail {
+    margin-top: 2px;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+  .flow-check {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--success);
+    color: #fff;
+    box-shadow: 0 0 0 3px var(--surface);
+  }
+  .flow-conn {
+    position: relative;
+    width: 100%;
+    height: 34px;
+  }
+  .flow-conn-h {
+    display: none;
+  }
+  .flow-conn-v {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 10px;
+    height: 100%;
+    overflow: visible;
+    transform: translateX(-50%);
+  }
+  .flow-path {
+    fill: none;
+    stroke: var(--flow-line);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  .flow-arrow,
+  .flow-branch-arrow {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-top: 1.5px solid var(--flow-line);
+    border-right: 1.5px solid var(--flow-line);
+  }
+  .flow-arrow {
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%) rotate(135deg);
+  }
+  .flow-branch-arrow {
+    display: none;
+  }
+  .flow-dot {
+    position: absolute;
+    top: -4px;
+    left: calc(50% - 4px);
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .flow-fork {
+    display: none;
+  }
+  .flow-fork-label {
+    position: absolute;
+    left: 10px;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10.5px;
+    white-space: nowrap;
+    color: var(--flow-line);
+    transform: translateY(calc(-100% - 5px));
+  }
+  .flow-branches {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin-top: 22px;
+  }
+  .flow-branch {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .flow-branch-label-sm {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--flow-line);
+  }
+  /* A branch this request never reached: dimmed as a whole, so reveals end at the same opacity */
+  .flow-dim {
+    opacity: 0.55;
+  }
+  .flow-dim .flow-node {
+    border-style: dashed;
+    box-shadow: none;
+  }
+  .flow-dim-note {
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--flow-line);
+  }
+  .flow-replay {
+    display: none;
+  }
+  .js .flow-replay {
+    display: inline-flex;
+  }
+
+  @media (min-width: 768px) {
+    .flow-grid {
+      display: grid;
+      grid-template-columns:
+        minmax(0, 1fr) clamp(24px, 3vw, 44px) minmax(0, 1fr) 96px
+        minmax(0, 2.15fr);
+      align-items: center;
+    }
+    .flow-conn {
+      align-self: center;
+      height: 12px;
+    }
+    .flow-conn-h {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .flow-conn-v,
+    .flow-conn-sm,
+    .flow-branch-label-sm {
+      display: none;
+    }
+    .flow-arrow {
+      top: 50%;
+      right: 1px;
+      bottom: auto;
+      left: auto;
+      transform: translateY(-50%) rotate(45deg);
+    }
+    .flow-conn .flow-dot {
+      top: calc(50% - 4px);
+      left: -4px;
+    }
+    .flow-fork {
+      position: relative;
+      display: block;
+      align-self: stretch;
+    }
+    .flow-fork svg {
+      overflow: visible;
+    }
+    .flow-fork .flow-dot {
+      top: -4px;
+      left: -4px;
+    }
+    .flow-branches {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 0;
+      margin-top: 0;
+    }
+    .flow-branch {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) clamp(24px, 3vw, 44px) minmax(0, 1fr);
+      align-items: center;
+      padding-block: 12px;
+    }
+    .flow-branch-arrow {
+      display: block;
+      top: 50%;
+      left: 0;
+      transform: translate(-100%, -50%) rotate(45deg);
+    }
+    .flow-dim-note {
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      margin: 0;
+    }
+  }
+
   /* ----- Hero device (static composition = final state of the scroll sequence) ----- */
   .device-stage {
     position: relative;
@@ -642,6 +884,23 @@
       animation-delay: var(--d, 0ms), calc(var(--d, 0ms) + 200ms);
     }
 
+    /* ----- Flow diagram from-states ----- */
+    .js [data-flow]:not([data-revealed]) [data-flow-node] {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    .js [data-flow]:not([data-revealed]) .flow-path {
+      stroke-dashoffset: 1;
+    }
+    .js [data-flow]:not([data-revealed]) .flow-arrow,
+    .js [data-flow]:not([data-revealed]) .flow-branch-arrow {
+      opacity: 0;
+    }
+    .js [data-flow]:not([data-revealed]) [data-flow-check] {
+      opacity: 0;
+      transform: scale(0);
+    }
+
     .device-mesh {
       animation: mesh-drift 26s ease-in-out infinite alternate;
     }
@@ -716,6 +975,12 @@
     .js .device-frame:not([data-revealed]) {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .js .flow-replay {
+      display: none;
     }
   }
 

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { CodeWindow } from "@/components/code/code-window";
 import { sourceLines } from "@/content/demo-lesson";
+import { walkthroughBranches, walkthroughPath } from "@/content/flows";
+import { FlowDiagram } from "./flow-diagram";
 import { SampleTag, StatusBadge } from "@/components/ui/labels";
 import { SectionHeading } from "./section-heading";
 
@@ -69,6 +71,9 @@ export function Walkthrough() {
         </Row>
 
         <Row n="04" title="What verification shows" text="The handler never ran. Validation failed first, so FastAPI answered 422 and told you exactly which field was missing.">
+          <div className="mb-4">
+            <FlowDiagram title="Traced for this request" path={walkthroughPath} branches={walkthroughBranches} />
+          </div>
           <Panel label="Response" tag>
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
               <span className="font-mono text-[0.8125rem] font-medium">422 Unprocessable Content</span>

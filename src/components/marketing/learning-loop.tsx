@@ -1,4 +1,6 @@
 import { CornerLeftUp } from "lucide-react";
+import { loopBranches, loopPath } from "@/content/flows";
+import { FlowDiagram } from "./flow-diagram";
 import { SectionHeading } from "./section-heading";
 
 const steps = [
@@ -136,6 +138,10 @@ export function LearningLoop() {
                 <CornerLeftUp aria-hidden="true" className="mt-0.5 size-4 shrink-0" strokeWidth={1.6} />
                 Revisit becomes the next Read: a changed scenario, fewer hints.
               </p>
+            </div>
+
+            <div className="mt-[clamp(56px,7vw,96px)] border-t border-editor-line pt-[clamp(32px,4vw,48px)]">
+              <FlowDiagram title="One request, traced" tone="dark" path={loopPath} branches={loopBranches} />
             </div>
           </div>
         </div>
