@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\"" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\"" }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\"" }
+        ]
+      }
+    ]
+  }
+}
