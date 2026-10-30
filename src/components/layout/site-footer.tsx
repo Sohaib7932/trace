@@ -1,4 +1,5 @@
 import { Wordmark } from "@/components/brand/trace-mark";
+import { Reveal } from "@/components/motion/reveal";
 
 const links = [
   { href: "#demo", label: "Demo lesson" },
@@ -10,6 +11,7 @@ const links = [
 export function SiteFooter() {
   return (
     <footer className="border-t border-border">
+      <Reveal variant="fade">
       <div className="shell flex flex-col gap-8 py-10 md:flex-row md:items-center md:justify-between">
         <div className="max-w-[22rem]">
           <Wordmark />
@@ -37,6 +39,7 @@ export function SiteFooter() {
           Trace is a prototype. Lesson results on this page are sample output, not live runs.
         </p>
       </div>
+      </Reveal>
     </footer>
   );
 }

@@ -954,6 +954,43 @@
 }
 
 @layer utilities {
+  /* Nav: a slightly deeper shadow once the page has scrolled past 40px */
+  .site-header nav[aria-label="Main"] {
+    transition: box-shadow var(--dur-state) var(--ease-ui);
+  }
+  .site-header[data-scrolled] nav[aria-label="Main"] {
+    box-shadow:
+      0 1px 2px rgba(21, 25, 35, 0.06),
+      0 16px 36px -20px rgba(21, 25, 35, 0.32);
+  }
+
+  /* Phone menu: fade + short slide; invisible and inert when closed */
+  .mobile-menu {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition:
+      opacity var(--dur-micro) var(--ease-ui),
+      transform var(--dur-micro) var(--ease-ui),
+      visibility 0s linear var(--dur-micro);
+  }
+  .mobile-menu[data-open] {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--dur-micro) var(--ease-ui),
+      transform var(--dur-micro) var(--ease-ui),
+      visibility 0s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-menu,
+    .mobile-menu[data-open] {
+      transform: none;
+      transition: opacity 120ms linear, visibility 0s;
+    }
+  }
+
   /* Once the lens runs, its moving band replaces the static first-target highlight.
      In the utilities layer so it outranks the row's own bg utility class. */
   .lens-body[data-lens="on"] [data-hl] {

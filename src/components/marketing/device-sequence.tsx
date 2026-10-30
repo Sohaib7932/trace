@@ -78,6 +78,9 @@ export function DeviceSequence() {
             const vh = () => window.innerHeight;
             const fit = () => Math.min(1, (vh() - NAV_CLEARANCE - 56) / frame.offsetHeight);
             const settle = () => Math.max(MIN_SETTLE_SCALE, fit() * 0.74);
+            // The frame pivots on its top edge (for the tilt), so at scale s it is shifted
+            // down by half the height it loses: it stays centred in the stage at every scale.
+            const centreY = (scale: number) => (frame.offsetHeight * (1 - scale)) / 2;
 
             let held = true;
             setHoldRead(true);
@@ -106,13 +109,19 @@ export function DeviceSequence() {
             // Phase A: rise while the tilt begins to relax
             tl.fromTo(
               frame,
-              { rotateX: 52, rotateZ: -4, scale: () => fit() * 1.08, y: () => vh() * 0.08 },
-              { rotateX: 24, rotateZ: -2, scale: () => fit() * 1.04, y: () => vh() * 0.03, duration: 0.25 },
+              { rotateX: 52, rotateZ: -4, scale: () => fit() * 1.08, y: () => vh() * 0.08 + centreY(fit() * 1.08) },
+              {
+                rotateX: 24,
+                rotateZ: -2,
+                scale: () => fit() * 1.04,
+                y: () => vh() * 0.03 + centreY(fit() * 1.04),
+                duration: 0.25,
+              },
               0,
             )
               .fromTo(streaks, { y: () => vh() * 0.08, opacity: 1 }, { y: () => vh() * 0.02, opacity: 0.7, duration: 0.25 }, 0)
               // Phase B: flatten fully, deepen the shadow
-              .to(frame, { rotateX: 0, rotateZ: 0, scale: () => fit(), y: 0, duration: 0.25 }, 0.25)
+              .to(frame, { rotateX: 0, rotateZ: 0, scale: () => fit(), y: () => centreY(fit()), duration: 0.25 }, 0.25)
               .fromTo(shadow, { opacity: 0.2 }, { opacity: 1, duration: 0.25 }, 0.25)
               .to(streaks, { y: () => -vh() * 0.04, opacity: 0, duration: 0.3 }, 0.25)
               // Phase C: panel scales in behind; bezel eases from graphite to light
@@ -125,17 +134,7 @@ export function DeviceSequence() {
               .fromTo(bezelDark, { opacity: 1 }, { opacity: 0, duration: 0.25 }, 0.5)
               // Phase D: panel to full width, device settles (never below 0.7)
               .to(panel, { scale: 1, yPercent: 0, duration: 0.25 }, 0.75)
-              // The frame pivots on its top edge (for the tilt), so shift it down by half the
-              // height it loses: it shrinks around its own centre and stays centred on the panel.
-              .to(
-                frame,
-                {
-                  scale: () => settle(),
-                  y: () => (frame.offsetHeight * (fit() - settle())) / 2,
-                  duration: 0.25,
-                },
-                0.75,
-              );
+              .to(frame, { scale: () => settle(), y: () => centreY(settle()), duration: 0.25 }, 0.75);
 
             // "Try a lesson" / "Try Trace" (#demo) land where the device is flat and usable.
             onAnchorClick.current = (event: MouseEvent) => {
@@ -147,7 +146,29 @@ export function DeviceSequence() {
             };
             document.addEventListener("click", onAnchorClick.current);
 
+            // The lesson grows as the learner advances (Verify is the tallest step).
+            // Re-measure so the device's fit scale keeps the whole lesson in view.
+            let lastHeight = frame.offsetHeight;
+            let pending = 0;
+            const resize = new ResizeObserver(() => {
+              if (Math.abs(frame.offsetHeight - lastHeight) < 8) return;
+              lastHeight = frame.offsetHeight;
+              cancelAnimationFrame(pending);
+              pending = requestAnimationFrame(() => {
+                // Refreshing a pin briefly re-parents the pinned element, which blurs a
+                // focused input inside the lesson; put focus back where the learner was.
+                const focused = document.activeElement as HTMLElement | null;
+                ScrollTrigger.refresh();
+                if (focused && frame.contains(focused) && document.activeElement !== focused) {
+                  focused.focus({ preventScroll: true });
+                }
+              });
+            });
+            resize.observe(frame);
+
             return () => {
+              resize.disconnect();
+              cancelAnimationFrame(pending);
               if (onAnchorClick.current) document.removeEventListener("click", onAnchorClick.current);
               setHoldRead(false);
             };
