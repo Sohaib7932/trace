@@ -1,45 +1,166 @@
-import { CornerLeftUp } from "lucide-react";
+import { Check, Lock } from "lucide-react";
+import type { ReactNode } from "react";
+import { CodeWindow } from "@/components/code/code-window";
+import { SampleTag, StatusBadge } from "@/components/ui/labels";
+import { predictionOptions, sourceLines } from "@/content/demo-lesson";
 import { loopBranches, loopPath } from "@/content/flows";
 import { FlowDiagram } from "./flow-diagram";
 import { SectionHeading } from "./section-heading";
+import { StickySteps, type Step } from "./sticky-steps";
 
-const steps = [
+/** A light card for step visuals on the dark band. */
+function VisualCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-white/10 bg-surface shadow-[0_24px_60px_-30px_rgba(0,0,0,0.7)]">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+        <p className="font-mono text-[0.6875rem] text-secondary">{title}</p>
+        <SampleTag>Demonstration</SampleTag>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const steps: Step[] = [
   {
     name: "Read",
     does: "Read a short piece of real code, the kind an agent might hand you: one endpoint, one model, one query.",
-    artifact: "notes.py · 25 lines",
+    visual: (
+      <CodeWindow
+        file="app/routes/notes.py"
+        meta="agent-generated, under review"
+        start={20}
+        lines={sourceLines.slice(19, 25)}
+        label="The create_note handler, lines 20 to 25"
+      />
+    ),
   },
   {
     name: "Predict",
-    does: "Say what it will do with a specific request, and lock that answer in.",
-    artifact: "201 · row saved?",
+    does: "Say what it will do with a specific request, and lock that answer in before anything runs.",
+    visual: (
+      <VisualCard title="Predict · POST /notes">
+        <div className="px-4 py-4">
+          <p className="text-[0.9375rem] font-medium">What does the API return, and is the note saved?</p>
+          <div className="mt-3 grid gap-2">
+            {predictionOptions.map((option) => {
+              const picked = option.id === "a";
+              return (
+                <div
+                  key={option.id}
+                  className={`flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-[0.8125rem] ${
+                    picked ? "border-foreground" : "border-border"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex size-3.5 items-center justify-center rounded-full border ${picked ? "border-foreground" : "border-border-strong"}`}
+                  >
+                    {picked && <span className="size-1.5 rounded-full bg-foreground" />}
+                  </span>
+                  <span className="rounded bg-surface-muted px-1 font-mono text-[0.75rem]">{option.status}</span>
+                  <span className="font-medium">{option.outcome}</span>
+                  {picked && (
+                    <span className="ml-auto inline-flex items-center gap-1 text-[0.75rem] text-secondary">
+                      <Lock aria-hidden="true" className="size-3" strokeWidth={2} />
+                      Locked
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </VisualCard>
+    ),
   },
   {
     name: "Modify",
-    does: "Change one expression or one line to get the behaviour you want.",
-    artifact: "+ db.commit()",
+    does: "Change one expression or one line to get the behaviour you want. Nothing else moves.",
+    visual: (
+      <CodeWindow
+        file="app/routes/notes.py"
+        meta="your change"
+        start={22}
+        added={[25]}
+        lines={[
+          "    row = Note(title=note.title, content=note.content)",
+          "    db.add(row)",
+          "    db.flush()",
+          "    db.commit()",
+          '    return {"id": row.id, "title": row.title}',
+        ]}
+        label="Diff: db.commit() added on line 25"
+      />
+    ),
   },
   {
     name: "Verify",
-    does: "Check the status, response and database against what you expected.",
-    artifact: "SELECT … → 1 row",
+    does: "Check the status code, the response and the database against what you expected.",
+    visual: (
+      <VisualCard title="Verify · after the change">
+        <dl className="divide-y divide-border text-[0.8125rem]">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <dt className="text-secondary">HTTP response</dt>
+            <dd className="font-mono font-medium">201 Created</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <dt className="text-secondary">SELECT … WHERE id = 14</dt>
+            <dd className="font-mono font-medium">1 row</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <dt className="font-mono text-[0.75rem] text-secondary">test_create_note_persists</dt>
+            <dd>
+              <StatusBadge status="pass">Passed</StatusBadge>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 bg-error-soft/50 px-4 py-3">
+            <dt className="text-secondary">Your first prediction</dt>
+            <dd>
+              <StatusBadge status="differs">Differed</StatusBadge>
+            </dd>
+          </div>
+        </dl>
+      </VisualCard>
+    ),
   },
   {
     name: "Revisit",
-    does: "Meet the same idea later, in different code, with less help.",
-    artifact: "PATCH /notes · no hint",
+    does: "Meet the same idea later, in different code, with less help. No hint this time.",
+    visual: (
+      <div>
+        <CodeWindow
+          file="app/routes/notes.py"
+          meta="changed scenario"
+          start={30}
+          lines={[
+            '@router.patch("/notes/{note_id}")',
+            "def rename_note(note_id: int, body: NoteIn,",
+            "                db: Session = Depends(get_db)):",
+            "    note = db.get(Note, note_id)",
+            "    note.title = body.title",
+            "    db.flush()",
+            '    return {"id": note.id, "title": note.title}',
+          ]}
+          label="A changed scenario: PATCH /notes/{note_id}"
+        />
+        <p className="steps-revisit-note">
+          <Check aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={2.4} />
+          Will the new title still be there on the next request? No hint this time.
+        </p>
+      </div>
+    ),
   },
 ];
 
 export function LearningLoop() {
   return (
     <section id="how-it-works" aria-labelledby="loop-title" className="shell-wide">
-      <div className="overflow-hidden rounded-[clamp(18px,2vw,28px)] bg-editor">
-        {/* Horizontal padding lines the content up with the 1200px content column on wide screens */}
+      <div className="rounded-[clamp(18px,2vw,28px)] bg-editor">
         <div className="relative px-[max(24px,calc((100%-var(--content-max))/2))] py-[clamp(64px,8vw,120px)]">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_60%_at_85%_0%,rgba(255,129,57,0.14),transparent_70%)]"
+            className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] bg-[radial-gradient(50%_60%_at_85%_0%,rgba(255,129,57,0.14),transparent_70%)]"
           />
           <div className="relative">
             <SectionHeading
@@ -51,93 +172,8 @@ export function LearningLoop() {
               Each lesson follows one request through the code, with evidence at the end of each pass.
             </SectionHeading>
 
-            {/* Desktop: horizontal trace */}
-            <div data-reveal="up" className="mt-[clamp(56px,7vw,96px)] hidden lg:block">
-              <ol className="relative grid grid-cols-5 gap-6">
-                <span
-                  aria-hidden="true"
-                  className="absolute top-[11px] right-[10%] left-[10%] h-px bg-editor-line"
-                />
-                <span
-                  aria-hidden="true"
-                  className="trace-fill absolute top-[11px] right-[10%] left-[10%] h-px origin-left bg-primary"
-                />
-                {steps.map((step, index) => (
-                  <li key={step.name} className="relative flex flex-col items-center text-center">
-                    <span
-                      aria-hidden="true"
-                      style={{ "--nd": `${300 + index * 220}ms` } as React.CSSProperties}
-                      className="trace-node relative z-10 flex size-[23px] items-center justify-center rounded-full border border-primary bg-primary"
-                    >
-                      <span className="size-[7px] rounded-full bg-editor" />
-                    </span>
-                    <span className="mt-6 font-mono text-[0.6875rem] text-editor-muted">0{index + 1}</span>
-                    <h3 className="mt-1.5 text-[1.375rem] font-semibold tracking-[-0.03em] text-editor-foreground">
-                      {step.name}
-                    </h3>
-                    <p className="mt-2 max-w-[22ch] flex-1 text-[0.875rem] leading-relaxed text-editor-muted">
-                      {step.does}
-                    </p>
-                    <code className="mt-5 rounded-md border border-editor-line bg-editor-surface px-2.5 py-1 font-mono text-[0.75rem] text-editor-foreground">
-                      {step.artifact}
-                    </code>
-                  </li>
-                ))}
-              </ol>
-
-              {/* Return path: Revisit feeds the next Read */}
-              <div className="mx-[10%] mt-8">
-                <div className="relative h-9">
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-b-2xl border border-t-0 border-dashed border-editor-muted/40"
-                  />
-                  <CornerLeftUp
-                    aria-hidden="true"
-                    className="absolute -top-3 -left-[8px] size-4 text-editor-muted"
-                    strokeWidth={1.6}
-                  />
-                </div>
-                <p className="mt-4 text-center font-mono text-[0.75rem] text-editor-muted">
-                  Revisit becomes the next Read: a changed scenario, fewer hints
-                </p>
-              </div>
-            </div>
-
-            {/* Mobile and tablet: vertical rail */}
-            <div data-reveal="up" className="mt-12 lg:hidden">
-              <ol className="relative">
-                <span aria-hidden="true" className="absolute top-2 bottom-2 left-[11px] w-px bg-editor-line" />
-                <span
-                  aria-hidden="true"
-                  className="trace-fill-y absolute top-2 bottom-2 left-[11px] w-px origin-top bg-primary"
-                />
-                {steps.map((step, index) => (
-                  <li key={step.name} className="relative flex gap-5 pb-9 last:pb-0">
-                    <span
-                      aria-hidden="true"
-                      style={{ "--nd": `${300 + index * 200}ms` } as React.CSSProperties}
-                      className="trace-node relative z-10 mt-0.5 flex size-[23px] shrink-0 items-center justify-center rounded-full border border-primary bg-primary"
-                    >
-                      <span className="size-[7px] rounded-full bg-editor" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-mono text-[0.6875rem] text-editor-muted">0{index + 1}</p>
-                      <h3 className="mt-1 text-[1.25rem] font-semibold tracking-[-0.03em] text-editor-foreground">
-                        {step.name}
-                      </h3>
-                      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-editor-muted">{step.does}</p>
-                      <code className="mt-3 inline-block rounded-md border border-editor-line bg-editor-surface px-2.5 py-1 font-mono text-[0.75rem] text-editor-foreground">
-                        {step.artifact}
-                      </code>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              <p className="mt-9 flex items-start gap-2 border-t border-dashed border-editor-line pt-5 font-mono text-[0.75rem] leading-5 text-editor-muted">
-                <CornerLeftUp aria-hidden="true" className="mt-0.5 size-4 shrink-0" strokeWidth={1.6} />
-                Revisit becomes the next Read: a changed scenario, fewer hints.
-              </p>
+            <div className="mt-[clamp(48px,6vw,80px)]">
+              <StickySteps steps={steps} />
             </div>
 
             <div className="mt-[clamp(56px,7vw,96px)] border-t border-editor-line pt-[clamp(32px,4vw,48px)]">
