@@ -14,7 +14,7 @@ const NAV_CLEARANCE = 76;
 const MIN_SETTLE_SCALE = 0.7;
 
 /**
- * The hero's signature scroll sequence: one pinned, scrubbed GSAP timeline.
+ * The hero's signature scroll sequence: one scrubbed GSAP timeline over a CSS-sticky stage.
  *  A (0–25%)   tilted device rises while the tilt relaxes
  *  B (25–50%)  device flattens fully, shadow deepens, step tracker moves Read → Predict
  *  C (50–75%)  background panel scales in behind it; bezel eases graphite → light
@@ -25,14 +25,16 @@ const MIN_SETTLE_SCALE = 0.7;
  * Phones and reduced motion: no pin, no 3D, just a 0.96 → 1 scale-in on view.
  */
 export function DeviceSequence() {
+  const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [holdRead, setHoldRead] = useState(false);
 
   useEffect(() => {
+    const track = trackRef.current;
     const stage = stageRef.current;
     const frame = frameRef.current;
-    if (!stage || !frame) return;
+    if (!track || !stage || !frame) return;
 
     // Phones (motion allowed): simple scale-in, no pin.
     if (matchMedia(mq.mobile).matches) {
@@ -87,13 +89,13 @@ export function DeviceSequence() {
 
             const tl = gsap.timeline({
               defaults: { ease: "none" },
+              // The stage is CSS-sticky inside a tall track (height set by CSS from first
+              // paint), so nothing is re-parented or transform-offset: no layout shift.
               scrollTrigger: {
-                trigger: stage,
+                trigger: track,
                 start: "top top",
-                end: "+=275%",
-                pin: true,
+                end: "bottom bottom",
                 scrub: 0.8,
-                anticipatePin: 1,
                 invalidateOnRefresh: true,
                 refreshPriority: 1,
                 onUpdate(self) {
@@ -154,15 +156,7 @@ export function DeviceSequence() {
               if (Math.abs(frame.offsetHeight - lastHeight) < 8) return;
               lastHeight = frame.offsetHeight;
               cancelAnimationFrame(pending);
-              pending = requestAnimationFrame(() => {
-                // Refreshing a pin briefly re-parents the pinned element, which blurs a
-                // focused input inside the lesson; put focus back where the learner was.
-                const focused = document.activeElement as HTMLElement | null;
-                ScrollTrigger.refresh();
-                if (focused && frame.contains(focused) && document.activeElement !== focused) {
-                  focused.focus({ preventScroll: true });
-                }
-              });
+              pending = requestAnimationFrame(() => ScrollTrigger.refresh());
             });
             resize.observe(frame);
 
@@ -187,25 +181,27 @@ export function DeviceSequence() {
   }, []);
 
   return (
-    <div id="demo" ref={stageRef} className="device-stage">
-      <h2 className="sr-only">Try a sample lesson</h2>
-      <DevicePanel />
-      <div className="device-perspective">
-        <div className="device-box">
-          <div className="device-streaks" aria-hidden="true">
-            <LightStreaks />
-          </div>
-          <div aria-hidden="true" className="showcase-glow" />
-          <div ref={frameRef} className="device-frame">
-            <div aria-hidden="true" className="device-shadow" />
-            <div aria-hidden="true" className="bezel-light" />
-            <div aria-hidden="true" className="bezel-dark" />
-            <div aria-hidden="true" className="device-notch">
-              <span className="device-notch-pill" />
-              <span className="device-notch-dot" />
+    <div ref={trackRef} className="device-track">
+      <div id="demo" ref={stageRef} className="device-stage">
+        <h2 className="sr-only">Try a sample lesson</h2>
+        <DevicePanel />
+        <div className="device-perspective">
+          <div className="device-box">
+            <div className="device-streaks" aria-hidden="true">
+              <LightStreaks />
             </div>
-            <div className="device-screen">
-              <LessonDemo railHold={holdRead ? 0 : undefined} />
+            <div aria-hidden="true" className="showcase-glow" />
+            <div ref={frameRef} className="device-frame">
+              <div aria-hidden="true" className="device-shadow" />
+              <div aria-hidden="true" className="bezel-light" />
+              <div aria-hidden="true" className="bezel-dark" />
+              <div aria-hidden="true" className="device-notch">
+                <span className="device-notch-pill" />
+                <span className="device-notch-dot" />
+              </div>
+              <div className="device-screen">
+                <LessonDemo railHold={holdRead ? 0 : undefined} />
+              </div>
             </div>
           </div>
         </div>

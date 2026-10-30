@@ -825,11 +825,14 @@ Do not depend on a moving effect to communicate information.
 
 ## Homepage motion system (implemented)
 
-**Libraries.** Motion for React / Motion (`animate`, `inView`) for reveals and hovers. GSAP + ScrollTrigger only for the two pinned, scrubbed sequences (hero device sequence, learning-loop sticky steps), loaded with a dynamic `import()` inside client effects so GSAP is never in the first-load bundle. No smooth-scroll libraries; native scroll only.
+**Libraries.** Motion for React / Motion (`animate`, `inView`) for reveals, sequences and hovers. GSAP + ScrollTrigger only to scrub the two scroll sequences (hero device sequence, learning-loop sticky steps), loaded with a dynamic `import()` inside client effects and only on desktop with motion allowed, so GSAP is never in the first-load bundle. No smooth-scroll libraries; native scroll only.
+
+**Pinning uses CSS `position: sticky`, not GSAP `pin`.** Each sequence is a sticky element inside a taller scroll track whose height is set by CSS from first paint; ScrollTrigger only scrubs. GSAP's pin re-parents the element and offsets it with a large transform on release, which the browser counts as layout shift (measured CLS 0.376 at 1440px) and which blurred focused inputs inside the lesson. Sticky measured CLS 0.0001.
 
 **Tokens.** `src/lib/motion/tokens.ts`, mirrored as CSS custom properties in `globals.css`:
 - Easing: entrance `cubic-bezier(.22,1,.36,1)`; hover/UI `cubic-bezier(.2,.8,.2,1)`.
-- Durations: micro 180ms, state 300ms, entrance 650ms, heading word 700ms (accent word 900ms), large reveal 800ms, connector 500ms, magnifier glide 750ms with a 400ms pause, sticky-step swap 550ms.
+- Durations: micro 180ms, state 300ms, entrance 650ms, heading word 700ms (accent word 900ms), large reveal 800ms, connector 500ms, magnifier glide 750ms with a 400ms pause plus 900ms caption reading time, sticky-step swap 550ms.
+- End keyframes are explicit (`translateY(0px) scale(1)`), never `none`: inside Motion sequences `none` does not interpolate as identity.
 - Stagger: words 70ms, cards 90ms, inner parts 80ms, branches 120ms.
 - No ad-hoc values in components.
 
@@ -840,13 +843,13 @@ Do not depend on a moving effect to communicate information.
 - `<SplitHeading>` (server): word split; each word goes from opacity 0, blur(12px), translateY(18px) to its final state, 70ms apart; the accent word resolves last in its line; a canvas-coloured veil sweeps once in the stagger direction (desktop only). Triggers once at ~85% of the viewport. Full text sits in a visually hidden span; word spans are aria-hidden. The hero headline uses the same reveal as CSS keyframes at load, so it never waits for hydration.
 - `<MotionRuntime>` (client): the single observer that runs all reveals.
 - `<CodeWindow>`: macOS-style window used for every code excerpt; optional magnifier lens that renders a real 1.6× copy of the code clipped to a circle (never blurred), gliding between target lines while in view.
-- `<DeviceSequence>`: the hero's pinned, scrubbed device sequence (tilt, flatten, background panel, settle at ≥0.7 scale).
-- `<StickySteps>`: pinned learning-loop steps with an accessible accordion fallback.
+- `<DeviceSequence>`: the hero's scrubbed device sequence over a sticky stage (375vh track): tilt, flatten, background panel, settle centred at ≥0.7 scale. Re-measures when the lesson grows so every lesson step stays in view; `#demo` links land mid-sequence where the device is flat.
+- `<StickySteps>`: learning-loop steps, sticky just below the viewport centre from 1024px (~85vh per step), with buttons (aria-expanded, roving focus) and an accordion fallback; every step open without JS.
 - `<FlowDiagram>`: sequential node, connector and travelling-dot reveal, with an optional Replay.
 
 **Blur.** `filter: blur` only on individual heading words and the magnifier lens edge. Never on large containers.
 
-**Phones (under 768px).** Word blur 6px, no veil, no pinning, no 3D tilt; simple in-view reveals instead. Sticky steps pin only from 1024px.
+**Phones (under 768px).** Word blur 6px, no veil, no pinning, no 3D tilt; simple in-view reveals instead. Sticky steps stick only from 1024px. The magnifier lens shows from 768px; below that the line highlight moves and a caption bar sits under the code.
 
 **Reduced motion.** No scrub, no pin, no blur, no movement; final states shown immediately. GSAP parts use `gsap.matchMedia()`.
 

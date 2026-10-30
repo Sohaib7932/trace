@@ -468,6 +468,14 @@
 
   /* Desktop with motion: two columns, the large visual swaps on the right */
   @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+    /* Scroll track: the block sticks while ~85vh per step scrolls past */
+    .js:not(.motion-fallback) .steps-track {
+      padding-bottom: var(--steps-scroll, 425vh);
+    }
+    .js:not(.motion-fallback) .steps {
+      position: sticky;
+      top: var(--steps-top, 96px);
+    }
     .js .steps {
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
       align-items: center;
@@ -1117,15 +1125,22 @@
     }
   }
 
-  /* Hero device sequence: pinned stage and tilted "from" pose, applied before GSAP loads
+  /* Hero device sequence: sticky stage, scroll track and tilted "from" pose, applied before GSAP loads
      so nothing jumps. Removed by .motion-fallback if GSAP fails to load. */
   @media (prefers-reduced-motion: no-preference) and (min-width: 768px) {
+    /* Scroll track: 100vh of stage + 275vh of sequence. The stage sticks to the top. */
+    .js:not(.motion-fallback) .device-track {
+      height: 375vh;
+      margin-top: clamp(32px, 4vw, 64px);
+    }
     .js:not(.motion-fallback) .device-stage {
+      position: sticky;
+      top: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       height: 100vh;
-      margin-top: clamp(32px, 4vw, 64px);
+      margin-top: 0;
       padding: 76px 0 0;
     }
     .js:not(.motion-fallback) .device-panel {
