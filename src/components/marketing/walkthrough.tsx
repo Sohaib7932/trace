@@ -1,27 +1,15 @@
 import type { ReactNode } from "react";
 import { CodeWindow } from "@/components/code/code-window";
-import { sourceLines } from "@/content/demo-lesson";
+import { SampleTag, StatusBadge } from "@/components/ui/labels";
+import { caption, changedReply, excerpt, file, line, sample } from "@/content/example";
 import { walkthroughBranches, walkthroughPath } from "@/content/flows";
 import { FlowDiagram } from "./flow-diagram";
-import { SampleTag, StatusBadge } from "@/components/ui/labels";
 import { SectionHeading } from "./section-heading";
 
 /*
- * A second, self-contained exercise: what happens when the request omits `title`.
- * Responses follow FastAPI + Pydantic v2 behaviour; they are written by hand and
- * labelled as sample output.
+ * One exercise, start to finish, on the shared Express example (src/content/example.ts).
+ * Results are sample output written to match a real run, and labelled as such.
  */
-
-const response422 = `{
-  "detail": [
-    {
-      "type": "missing",
-      "loc": ["body", "title"],
-      "msg": "Field required",
-      "input": { "content": "Buy milk" }
-    }
-  ]
-}`;
 
 export function Walkthrough() {
   return (
@@ -29,104 +17,125 @@ export function Walkthrough() {
       <SectionHeading
         id="walkthrough-title"
         eyebrow="An exercise, start to finish"
-        title={["What happens when the request has ", { accent: "no title" }, "?"]}
+        title={["What happens when the request has ", { accent: "no title" }, "?"]}
       >
-        An agent wrote the endpoint. This is how a learner reviews it, start to finish.
+        An agent wrote this route. Here is how a learner checks it, step by step.
       </SectionHeading>
 
       <ol className="mt-[clamp(48px,6vw,88px)] border-t border-border">
-        <Row n="01" title="What you're attempting" text="Your agent wrote this endpoint. Before you accept it, you need to know what it does when a client leaves out the title.">
+        <Row
+          n="01"
+          title="What you're attempting"
+          text="Your agent wrote a route that saves notes. A request arrives with an empty body. What will the route do?"
+        >
           <CodeWindow
-            file="request.http"
+            file="request"
             lang="HTTP"
             plain
-            lines={["POST /notes", "Content-Type: application/json", "", '{ "content": "Buy milk" }']}
-            label="The request: POST /notes with only a content field"
+            lines={["POST /notes", "Content-Type: application/json", "", sample.noTitle.body]}
+            label="The request: POST /notes with an empty body"
+            note="The body is empty, so there is no title."
           />
         </Row>
 
-        <Row n="02" title="Which code runs" text="FastAPI turns the JSON body into a NoteIn before it calls create_note. The model decides what gets through.">
+        <Row
+          n="02"
+          title="Which code runs"
+          text="The route reads the title from the request, checks it, and only then saves it."
+        >
           <CodeWindow
-            file="app/routes/notes.py"
+            file={file}
             meta="agent-generated, under review"
-            start={9}
-            lines={sourceLines.slice(8, 22)}
-            label="app/routes/notes.py, lines 9 to 22"
+            start={line.route}
+            lines={excerpt(line.route, line.route + 9)}
+            label={`${file}, lines ${line.route} to ${line.route + 9}`}
             magnify={[
-              { line: 10, label: "required: no default" },
-              { line: 11, label: "optional: has a default" },
-              { line: 21, label: "runs only if NoteIn is valid" },
+              { line: line.readTitle, label: "title is undefined here" },
+              { line: line.check, label: "checks the input" },
+              { line: line.stop, label: "sends 400 and stops" },
             ]}
+            note={caption.stop}
           />
         </Row>
 
-        <Row n="03" title="What the learner predicts" text="A common first answer: the note is saved with an empty title. It's locked before anything runs.">
+        <Row
+          n="03"
+          title="What the learner predicts"
+          text="A common first answer: the note is saved anyway. The answer is locked before anything runs."
+        >
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3.5">
             <span className="rounded-md bg-surface-muted px-1.5 font-mono text-[0.8125rem] font-medium">201</span>
-            <span className="text-[0.9375rem] font-medium">Saved with an empty title</span>
+            <span className="text-[0.9375rem] font-medium">Note saved</span>
             <span className="ml-auto">
               <StatusBadge status="neutral">Locked before running</StatusBadge>
             </span>
           </div>
         </Row>
 
-        <Row n="04" title="What verification shows" text="The handler never ran. Validation failed first, so FastAPI answered 422 and told you exactly which field was missing.">
+        <Row
+          n="04"
+          title="What really happens"
+          text="The check finds no title, so the route sends back 400 and stops. Nothing is saved."
+        >
           <div className="mb-4">
             <FlowDiagram title="Traced for this request" path={walkthroughPath} branches={walkthroughBranches} />
           </div>
-          <Panel label="Response" tag>
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-              <span className="font-mono text-[0.8125rem] font-medium">422 Unprocessable Content</span>
-              <span className="ml-auto">
-                <StatusBadge status="differs">Prediction differed</StatusBadge>
-              </span>
-            </div>
-            <pre className="code-block overflow-x-auto px-4 py-4 text-[0.75rem] text-secondary">{response422}</pre>
-            <p className="border-t border-border px-4 py-3 font-mono text-[0.75rem]">
-              SELECT count(*) FROM notes WHERE content = &apos;Buy milk&apos;; <span className="font-medium">→ 0</span>
-            </p>
+          <Panel label="POST /notes · empty body">
+            <dl className="divide-y divide-border text-[0.875rem]">
+              <Fact label="HTTP status" hint="a number that says what happened">
+                {sample.noTitle.status} {sample.noTitle.statusText}
+              </Fact>
+              <Fact label="Response body">{sample.noTitle.response}</Fact>
+              <Fact label="notes afterwards" hint="still empty">
+                {sample.noTitle.notes}
+              </Fact>
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-error-soft/50 px-4 py-2.5">
+                <dt className="text-secondary">Your prediction</dt>
+                <dd>
+                  <StatusBadge status="differs">Differed</StatusBadge>
+                </dd>
+              </div>
+            </dl>
           </Panel>
         </Row>
 
-        <Row n="05" title="The change" text="The task: accept notes without a title and store them as “Untitled”. You make the change yourself; one argument changes.">
+        <Row n="05" title="The change" text="The task: make the reply also say how many notes are saved. You add one line yourself.">
           <CodeWindow
-            file="app/routes/notes.py"
+            file={file}
             meta="your change"
-            start={10}
-            removed={[10]}
-            added={[11]}
-            label="Diff of line 10"
-            lines={[
-              "    title: str = Field(min_length=1, max_length=120)",
-              '    title: str = Field(default="Untitled", min_length=1, max_length=120)',
-            ]}
+            start={line.reply}
+            added={[line.saved + 1]}
+            lines={changedReply}
+            label="The change: count: notes.length added on line 14"
+            note={caption.change}
           />
-          <Panel label="Response after the change" tag className="mt-3">
-            <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-              <span className="font-mono text-[0.8125rem] font-medium">201 Created</span>
-              <code className="font-mono text-[0.75rem] text-secondary">{'{ "id": 15, "title": "Untitled" }'}</code>
-              <span className="ml-auto">
-                <StatusBadge status="pass">Row saved</StatusBadge>
-              </span>
-            </div>
+          <Panel label={`Sample result · a request with ${sample.afterChange.body}`} className="mt-3">
+            <dl className="divide-y divide-border text-[0.875rem]">
+              <Fact label="HTTP status">
+                {sample.afterChange.status} {sample.afterChange.statusText}
+              </Fact>
+              <Fact label="Response body">{sample.afterChange.response}</Fact>
+              <Fact label="notes afterwards">{sample.afterChange.notes}</Fact>
+            </dl>
           </Panel>
         </Row>
 
         <Row n="06" title="Why it happened" text="The explanation comes after the evidence, never before it.">
           <div className="space-y-3 text-[0.9375rem] leading-relaxed">
             <p>
-              Pydantic validates the request body before your handler is called. A field with no
-              default is required, so a body without <code className="font-mono text-[0.875em]">title</code>{" "}
-              fails validation and FastAPI returns 422 with the field&apos;s location.
+              <code className="font-mono text-[0.875em]">req.body?.title</code> reads the title. The body
+              is empty, so <code className="font-mono text-[0.875em]">title</code> is{" "}
+              <code className="font-mono text-[0.875em]">undefined</code> (no value).
             </p>
             <p>
-              Because <code className="font-mono text-[0.875em]">create_note</code> never ran, nothing
-              reached the database. Giving <code className="font-mono text-[0.875em]">title</code> a
-              default makes the body valid, so the handler runs and the row is committed.
+              The check <code className="font-mono text-[0.875em]">if (!title)</code> is true, so the route
+              sends back 400. The word <code className="font-mono text-[0.875em]">return</code> stops the
+              function right there. <code className="font-mono text-[0.875em]">notes.push(title)</code>{" "}
+              never runs, so <code className="font-mono text-[0.875em]">notes</code> stays empty.
             </p>
             <p className="text-secondary">
-              Worth remembering: here the 422 means no row because the handler never ran. A 4xx
-              status on its own doesn&apos;t prove nothing was written.
+              Worth remembering: here, 400 means nothing was saved because the code stopped first. A 400
+              on its own doesn&apos;t prove that nothing changed. Check what was saved, too.
             </p>
           </div>
         </Row>
@@ -160,22 +169,24 @@ function Row({
   );
 }
 
-function Panel({
-  label,
-  tag = false,
-  className = "",
-  children,
-}: {
-  label: string;
-  tag?: boolean;
-  className?: string;
-  children: ReactNode;
-}) {
+function Fact({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-2.5">
+      <dt className="text-secondary">
+        {label}
+        {hint && <span className="text-[0.75rem]"> ({hint})</span>}
+      </dt>
+      <dd className="font-mono text-[0.8125rem] font-medium">{children}</dd>
+    </div>
+  );
+}
+
+function Panel({ label, className = "", children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <div className={`overflow-hidden rounded-xl border border-border bg-surface ${className}`}>
       <div className="flex items-center justify-between gap-3 border-b border-border bg-surface-muted/60 px-4 py-2">
         <p className="font-mono text-[0.6875rem] text-secondary">{label}</p>
-        {tag && <SampleTag />}
+        <SampleTag>Sample result</SampleTag>
       </div>
       {children}
     </div>

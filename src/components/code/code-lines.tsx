@@ -20,7 +20,7 @@ export function CodeLines({
   added?: number[];
   removed?: number[];
   tone?: "light" | "dark";
-  /** Plain text (HTTP, JSON): no Python highlighting. */
+  /** Plain text (HTTP, JSON): no JavaScript highlighting. */
   plain?: boolean;
   /** Mark each row for a secondary reveal. */
   revealRows?: boolean;
@@ -53,7 +53,7 @@ export function CodeLines({
             data-line={number}
             data-hl={isActive ? "" : undefined}
             data-reveal-inner={revealRows ? "" : undefined}
-            className={`code-row relative flex pr-6 ${rowTone}`}
+            className={`code-row relative flex pr-4 ${rowTone}`}
           >
             {rail && <span aria-hidden="true" className={`code-rail absolute inset-y-0 left-0 w-[2px] ${rail}`} />}
             <span

@@ -9,6 +9,9 @@ import { SampleTag, StatusBadge } from "@/components/ui/labels";
 import {
   correctOptionId,
   expectedFix,
+  feedbackFor,
+  isExpectedFix,
+  modifyTask,
   explanation,
   hint,
   insertAfterIndex,
@@ -32,9 +35,6 @@ const railIndex: Record<Stage, number> = { predict: 1, observe: 1, modify: 2, ve
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
-function normalise(code: string) {
-  return code.replace(/\s+/g, "");
-}
 
 /**
  * `railHold`: display-only. While the learner hasn't acted yet (stage "predict"), the
@@ -77,29 +77,21 @@ export function LessonDemo({ railHold }: { railHold?: number } = {}) {
   function showResult() {
     setObserved(true);
     setAnnouncement(
-      `Sample result shown: HTTP 201, zero rows in the database. Your prediction ${
+      `Sample result shown: HTTP status 400, and notes is still empty. Your prediction ${
         predictionCorrect ? "matched" : "differed"
       }.`,
     );
   }
 
   function checkChange() {
-    const value = normalise(edit);
     setAttempts((count) => count + 1);
-    if (value === normalise(expectedFix)) {
+    if (isExpectedFix(edit)) {
       setFeedback(null);
       setStage("verify");
-      setAnnouncement("Change accepted. Sample verification shown: one row saved, test passed.");
+      setAnnouncement("Change accepted. Sample result shown: 201 Created, count is 1, notes has one item.");
       return;
     }
-    const message =
-      value === ""
-        ? "Line 25 is still empty. Type the call that ends the transaction."
-        : value.includes("commit") && !value.endsWith(")")
-          ? "Close. commit is a method, so it needs to be called."
-          : value.includes("flush")
-            ? "flush() already ran on line 24. It sends the INSERT but leaves the transaction open."
-            : "That line doesn't end the transaction, so the row would still be rolled back.";
+    const message = feedbackFor(edit);
     setFeedback(message);
     setAnnouncement(message);
   }
@@ -299,28 +291,26 @@ export function LessonDemo({ railHold }: { railHold?: number } = {}) {
                         </div>
                       ) : (
                         <Staggered>
-                          <Evidence title="HTTP response">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="font-mono text-[0.8125rem] font-medium">
-                                {sampleRunBefore.status}
-                              </span>
-                              <StatusBadge status="neutral">Handler finished</StatusBadge>
-                            </div>
-                            <pre className="mt-2 font-mono text-[0.75rem] leading-5 text-secondary">
-                              {sampleRunBefore.response}
-                            </pre>
+                          <Evidence title="Request body">
+                            <span className="font-mono text-[0.8125rem] font-medium">{sampleRunBefore.request}</span>
+                            <span className="ml-2 text-[0.75rem] text-secondary">no title</span>
                           </Evidence>
-                          <Evidence title="Database check">
-                            <p className="font-mono text-[0.75rem] leading-5 text-secondary">
-                              {sampleRunBefore.query}
-                            </p>
-                            <p className="mt-2 font-mono text-[0.8125rem] font-medium">0 rows</p>
+                          <Evidence title="HTTP status">
+                            <span className="font-mono text-[0.8125rem] font-medium">{sampleRunBefore.status}</span>
+                            <p className="mt-1 text-[0.75rem] text-secondary">A number that says what happened.</p>
+                          </Evidence>
+                          <Evidence title="Response body">
+                            <span className="font-mono text-[0.8125rem]">{sampleRunBefore.response}</span>
+                          </Evidence>
+                          <Evidence title="notes afterwards">
+                            <span className="font-mono text-[0.8125rem] font-medium">{sampleRunBefore.notes}</span>
+                            <span className="ml-2 text-[0.75rem] text-secondary">still empty</span>
                           </Evidence>
                           <Evidence title="Prediction vs observed">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="text-[0.875rem]">
                                 <span className="text-secondary">Observed:</span>{" "}
-                                <span className="font-medium">201 · No note saved</span>
+                                <span className="font-medium">400 · Nothing saved</span>
                               </p>
                               {predictionCorrect ? (
                                 <StatusBadge status="match">Prediction matched</StatusBadge>
@@ -334,7 +324,7 @@ export function LessonDemo({ railHold }: { railHold?: number } = {}) {
                             onClick={() => setStage("modify")}
                             className={darkButton + " mt-1"}
                           >
-                            Fix the handler
+                            Try a change
                           </button>
                         </Staggered>
                       )}
@@ -345,9 +335,7 @@ export function LessonDemo({ railHold }: { railHold?: number } = {}) {
                     <div>
                       <StepHeading ref={headingRef} step={3} title="Modify" />
                       <p className="text-[0.9375rem] leading-relaxed">
-                        Line {insertedNumber} is new and empty. Add the one call that makes the INSERT
-                        permanent before <code className="font-mono text-[0.875em]">get_db()</code>{" "}
-                        closes the session.
+                        <span className="font-medium">{modifyTask.title}</span> {modifyTask.detail}
                       </p>
                       <div className="mt-5 flex flex-wrap items-center gap-2">
                         <button type="button" onClick={checkChange} className={darkButton}>
@@ -401,37 +389,21 @@ export function LessonDemo({ railHold }: { railHold?: number } = {}) {
                     <div>
                       <StepHeading ref={headingRef} step={4} title="Verify" />
                       <Staggered>
-                        <Evidence title="HTTP response">
-                          <span className="font-mono text-[0.8125rem] font-medium">
-                            {sampleRunAfter.status}
-                          </span>
+                        <Evidence title="Request body">
+                          <span className="font-mono text-[0.8125rem] font-medium">{sampleRunAfter.request}</span>
                         </Evidence>
-                        <Evidence title="Database check">
-                          <p className="font-mono text-[0.75rem] leading-5 text-secondary">
-                            {sampleRunAfter.query}
-                          </p>
-                          <table className="mt-2 w-full font-mono text-[0.75rem]">
-                            <thead>
-                              <tr className="text-left text-secondary">
-                                <th className="py-1 pr-6 font-normal">id</th>
-                                <th className="py-1 font-normal">title</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sampleRunAfter.rows.map((row) => (
-                                <tr key={row[0]} className="border-t border-border">
-                                  <td className="py-1.5 pr-6 font-medium">{row[0]}</td>
-                                  <td className="py-1.5 font-medium">{row[1]}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </Evidence>
-                        <Evidence title="Test">
+                        <Evidence title="HTTP status">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-mono text-[0.75rem]">{sampleRunAfter.test}</span>
-                            <StatusBadge status="pass">Passed</StatusBadge>
+                            <span className="font-mono text-[0.8125rem] font-medium">{sampleRunAfter.status}</span>
+                            <StatusBadge status="pass">Saved</StatusBadge>
                           </div>
+                        </Evidence>
+                        <Evidence title="Response body">
+                          <span className="font-mono text-[0.8125rem]">{sampleRunAfter.response}</span>
+                          <span className="ml-2 text-[0.75rem] text-secondary">count is new</span>
+                        </Evidence>
+                        <Evidence title="notes afterwards">
+                          <span className="font-mono text-[0.8125rem] font-medium">{sampleRunAfter.notes}</span>
                         </Evidence>
 
                         <div className="pt-2">
@@ -488,7 +460,7 @@ export function LessonDemo({ railHold }: { railHold?: number } = {}) {
         </div>
 
         <p className="border-t border-border bg-surface-muted/60 px-5 py-2.5 text-[0.75rem] leading-5 text-secondary">
-          Demonstration. Responses, database rows and test results here are scripted sample output for
+          Demonstration. Responses and the contents of notes here are sample output for
           this code, not a live run.
         </p>
 

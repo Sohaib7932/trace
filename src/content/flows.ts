@@ -1,33 +1,35 @@
 import type { FlowBranch, FlowNode } from "@/components/marketing/flow-diagram";
 
 /**
- * Request flows for <FlowDiagram>. The labels are real FastAPI concepts; statuses and
- * results are sample output and the diagram labels them "Sample run".
+ * The shared Express example traced as a flow. Labels are real code; statuses are
+ * sample output, and the diagram labels them "Sample run".
  */
 
 export const loopPath: FlowNode[] = [
-  { kicker: "Request", title: "POST /notes", detail: "JSON body" },
-  { kicker: "FastAPI", title: "Pydantic validation", detail: "builds NoteIn" },
+  { kicker: "Request", title: "POST /notes", detail: "a JSON body" },
+  { kicker: "Read", title: "express.json()", detail: "reads the body" },
+  { kicker: "Check", title: "if (!title)", detail: "is there a title?" },
 ];
 
 export const loopBranches: [FlowBranch, FlowBranch] = [
   {
     label: "title present",
     nodes: [
-      { kicker: "Handler", title: "db.add + commit", detail: "row written" },
-      { kicker: "Response", title: "201 Created", tone: "success" },
+      { kicker: "Save", title: "notes.push(title)", detail: "adds it to notes" },
+      { kicker: "Reply", title: "201 Created", tone: "success" },
     ],
   },
   {
     label: "title missing",
-    nodes: [{ kicker: "Response", title: "422 Unprocessable", detail: "handler never runs", tone: "error" }],
+    nodes: [{ kicker: "Reply", title: "400 Bad Request", detail: "stops here, saves nothing", tone: "error" }],
   },
 ];
 
-/** The walkthrough's request has no title, so the success branch is never reached. */
+/** The walkthrough's request has no title, so the save branch is never reached. */
 export const walkthroughPath: FlowNode[] = [
-  { kicker: "Request", title: "POST /notes", detail: '{ "content": … }' },
-  { kicker: "FastAPI", title: "Pydantic validation", detail: "title missing" },
+  { kicker: "Request", title: "POST /notes", detail: "body: {}" },
+  { kicker: "Read", title: "express.json()", detail: "reads the body" },
+  { kicker: "Check", title: "if (!title)", detail: "no title found" },
 ];
 
 export const walkthroughBranches: [FlowBranch, FlowBranch] = [

@@ -16,36 +16,36 @@ const events: Event[] = [
     day: "Day 1",
     kind: "First attempt",
     title: "Predicted the note would be saved",
-    detail: "POST /notes returned 201, but the database check found 0 rows.",
+    detail: "The request had no title. It got 400, and notes stayed empty: [].",
     badge: { status: "differs", text: "Prediction differed" },
   },
   {
     day: "Day 1",
     kind: "Hint",
     title: "Opened one hint",
-    detail: "“get_db() closes the session when the request ends.”",
+    detail: "“return stops the function. Nothing after it runs.”",
     badge: { status: "hint", text: "Hint used" },
   },
   {
     day: "Day 1",
-    kind: "Revision",
-    title: "Added db.commit() on the second try",
-    detail: "Row 14 present after the request. test_create_note_persists passed.",
-    badge: { status: "pass", text: "Verified after revision" },
+    kind: "Change",
+    title: "Added count: notes.length to the reply",
+    detail: "With “Buy milk”, the reply said count: 1. Done on the second try.",
+    badge: { status: "pass", text: "Checked after the change" },
   },
   {
     day: "Day 5",
     kind: "Revisit",
-    title: "PATCH /notes/{id}: same idea, different code",
-    detail: "Predicted the lost update correctly before running it.",
+    title: "POST /tasks: same idea, new code",
+    detail: "Predicted 400 and an empty list before running it.",
     badge: { status: "match", text: "No hint" },
   },
   {
     day: "Day 12",
-    kind: "Changed scenario",
-    title: "Found a missing commit in DELETE /tags",
-    detail: "Explained the rollback in their own words, then fixed it in one attempt.",
-    badge: { status: "pass", text: "Applied independently" },
+    kind: "New code",
+    title: "Spotted a route that saved before checking",
+    detail: "Explained why the check must come first, then fixed it in one try.",
+    badge: { status: "pass", text: "Did it alone" },
   },
 ];
 
@@ -68,7 +68,7 @@ export function ProgressRecord() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-7">
             <div>
               <p className="type-label text-secondary">Concept</p>
-              <p className="mt-1 font-medium">Transactions: flush vs commit</p>
+              <p className="mt-1 font-medium">return stops a function early</p>
             </div>
             <SampleTag>Example record</SampleTag>
           </div>

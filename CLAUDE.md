@@ -465,7 +465,7 @@ The preview should include:
 
 **Code excerpt**
 
-A realistic Python or FastAPI example.
+A simple JavaScript (Node + Express) example: the shared `POST /notes` route (see "Homepage example" below).
 
 **Prediction question**
 
@@ -578,7 +578,7 @@ Do not overload the section with animation.
 
 ## Section 07 — Actual exercise walkthrough
 
-Show a realistic exercise based on a FastAPI backend.
+Show a realistic exercise based on the same simple JavaScript (Node + Express) example.
 
 Explain:
 1. What the user is attempting.
@@ -607,6 +607,43 @@ Example:
 Do not use arbitrary mastery percentages.
 
 A learner's history should describe actual work.
+
+## Homepage example (shared by every section)
+
+All code shown on the marketing site is simple JavaScript (Node + Express). The platform backend remains FastAPI; only the displayed lesson snippets on the marketing site are JavaScript. Those snippets are sample content: the current backend cannot run them live, so their results are always labelled "Sample result".
+
+Use one tiny example everywhere (hero demo, feature cards, steps, flow diagram, walkthrough, learning history), defined once in `src/content/example.ts` and checked by running it on Express 5 and 4:
+
+```js
+const express = require("express");
+const app = express();
+app.use(express.json());
+const notes = [];
+
+app.post("/notes", (req, res) => {
+  const title = req.body?.title;
+  if (!title) {
+    return res.status(400).json({ error: "no title" });
+  }
+  notes.push(title);
+  res.status(201).json({
+    saved: true,
+  });
+});
+```
+
+- Prediction: a request without `title` gets `400` and `notes` stays `[]`, because `return` stops the function before `notes.push`.
+- Modify: add one line to the reply, `count: notes.length,`.
+- Verify: show the request body, HTTP status, response body and the contents of `notes`.
+- Revisit: the same idea in new code, `POST /tasks` needing a `name`.
+
+Code readability:
+- About 14 lines or fewer, lines under about 60 characters, 2-space indentation, meaningful names.
+- At most one new idea per sample; highlight the one line that matters.
+- One short plain-language caption under each code sample.
+- Magnifier targets: 2–3 lines per sample, each with a short plain label.
+
+Sample data: friendly, obvious values ("Buy milk", "Call mom", `title`, `name`). No hashes, UUIDs, long JSON, or numbers that look like statistics. JSON stays at 1–3 short fields.
 
 ## Section 09 — Final CTA
 
@@ -844,7 +881,7 @@ Do not depend on a moving effect to communicate information.
 - `<MotionRuntime>` (client): the single observer that runs all reveals.
 - `<CodeWindow>`: macOS-style window used for every code excerpt; optional magnifier lens that renders a real 1.6× copy of the code clipped to a circle (never blurred), gliding between target lines while in view.
 - `<DeviceSequence>`: the hero's scrubbed device sequence over a sticky stage (375vh track): tilt, flatten, background panel, settle centred at ≥0.7 scale. Re-measures when the lesson grows so every lesson step stays in view; `#demo` links land mid-sequence where the device is flat.
-- `<StickySteps>`: learning-loop steps, sticky just below the viewport centre from 1024px (~85vh per step), with buttons (aria-expanded, roving focus) and an accordion fallback; every step open without JS.
+- `<StickySteps>`: light learning-loop section. From 1024px (motion allowed) a fixed-height two-column block, `max(520px, min(78vh, 680px))`, sticks vertically centred inside a track of exactly that height plus 70vh per step (the track length must be `height`, not padding: sticky only moves within the parent's content box). Left: titles with numbers at the right edge, the active one an elevated white card. Right: one tall 28px-radius warm mesh panel, fixed size, the step's white card centred inside. Buttons with aria-expanded and arrow-key navigation; accordion below 1024px and with reduced motion; every step open without JS.
 - `<FlowDiagram>`: sequential node, connector and travelling-dot reveal, with an optional Replay.
 
 **Blur.** `filter: blur` only on individual heading words and the magnifier lens edge. Never on large containers.
@@ -1138,6 +1175,11 @@ Avoid:
 - "The world's most advanced coding platform."
 
 These claims are either vague or unsupported.
+
+Plain language:
+- Short sentences, everyday words, about an 8th-grade reading level.
+- Explain a term the first time it appears, in a few words, e.g. "HTTP status (a number that says what happened)".
+- Prefer plain words: "checks the input" over "validation", "save" over "persist".
 
 Better:
 

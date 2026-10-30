@@ -2,7 +2,7 @@
 
 import { Check, RotateCcw, X } from "lucide-react";
 import { animate, inView } from "motion";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { SampleTag } from "@/components/ui/labels";
 import { duration, easeEntrance, mq, stagger } from "@/lib/motion/tokens";
 
@@ -57,6 +57,7 @@ export function FlowDiagram({
       ref={rootRef}
       data-flow
       className={`flow ${dark ? "flow-dark" : ""}`}
+      style={{ "--flow-pairs": path.length - 1 } as CSSProperties}
       aria-label={`${title}: ${describe(path, branches)}`}
     >
       <figcaption className="mb-5 flex flex-wrap items-center gap-3">
@@ -175,7 +176,8 @@ type Segment = [Element, Record<string, unknown>, Record<string, unknown>];
 async function play(root: HTMLElement) {
   if (matchMedia(mq.reduced).matches) return;
   root.removeAttribute("data-revealed");
-  const desktop = matchMedia("(min-width: 768px)").matches;
+  // Horizontal when the diagram itself is wide enough (container query in globals.css)
+  const desktop = getComputedStyle(root.querySelector(".flow-grid")!).display === "grid";
   const segments: Segment[] = [];
   const animated: HTMLElement[] = [];
   const add = (element: Element | null | undefined, keyframes: Record<string, unknown>, options: Record<string, unknown>) => {

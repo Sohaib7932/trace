@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CodeWindow } from "@/components/code/code-window";
+import { changedReply, file, line, sample } from "@/content/example";
 import { SampleTag, StatusBadge } from "@/components/ui/labels";
 import { SectionHeading } from "./section-heading";
 
@@ -31,7 +32,7 @@ export function Features() {
         </FeatureCard>
         <FeatureCard
           title="See the evidence"
-          text="Your prediction next to what happened: the status code, the response, the rows in the database."
+          text="Your guess next to what really happened: the HTTP status (a number that says what happened), the reply, and what was saved."
           tile="tile-c"
         >
           <EvidenceFragment />
@@ -55,13 +56,16 @@ function FeatureCard({
   return (
     <article
       data-reveal-item
-      className="group transition-transform duration-[180ms] ease-[var(--ease-ui)] hover:-translate-y-1"
+      className="group transition-[translate] duration-200 ease-[var(--ease-ui)] hover:-translate-y-1"
     >
       <div
         className={`relative aspect-[4/3] overflow-hidden rounded-[14px] border border-black/[0.04] shadow-[0_1px_2px_rgba(21,25,35,0.04)] transition-shadow duration-200 ease-[var(--ease-ui)] group-hover:shadow-[0_22px_44px_-26px_rgba(90,40,20,0.45)] md:aspect-[16/8] lg:aspect-[4/3] ${tile}`}
       >
         <div aria-hidden="true" className="tile-blur absolute -inset-[20%]" />
-        <div className="relative flex h-full items-center justify-center p-[7%] transition-transform duration-200 ease-[var(--ease-ui)] group-hover:scale-[1.02]">
+        <div
+          data-parallax
+          className="relative flex h-full items-center justify-center p-[7%] transition-[scale] duration-200 ease-[var(--ease-ui)] group-hover:scale-[1.02]"
+        >
           {children}
         </div>
       </div>
@@ -82,26 +86,32 @@ function MiniCard({ children, className = "" }: { children: ReactNode; className
 }
 
 
-/* ---------- 01: a magnified code path and two possible outcomes ---------- */
+/* ---------- 01: the check under the magnifier, and two possible outcomes ---------- */
 function PredictFragment() {
   return (
-    <figure className="w-full max-w-[340px]" aria-label="A code path under the magnifier, and two possible outcomes">
+    <figure className="w-full max-w-[340px]" aria-label="The title check under the magnifier, and two possible outcomes">
       <CodeWindow
-        file="notes.py"
+        file={file}
         size="sm"
-        start={21}
+        start={line.readTitle}
         lensSize={112}
-        lines={["def create_note(...):", "    row = Note(...)", "    db.add(row)", "    db.flush()", "    return {...}"]}
+        revealRows
+        lines={[
+          "const title = req.body?.title;",
+          "if (!title) {",
+          "  return res.status(400)…",
+          "}",
+          "notes.push(title);",
+        ]}
         magnify={[
-          { line: 23, label: "row staged" },
-          { line: 24, label: "INSERT sent" },
-          { line: 25, label: "201 returned" },
+          { line: line.check, label: "checks the input" },
+          { line: line.stop, label: "stops here: 400" },
         ]}
       />
       <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Your prediction">
         {[
-          { label: "201 · Row saved", picked: false },
-          { label: "201 · No row saved", picked: true },
+          { label: "201 · note saved", picked: false },
+          { label: "400 · nothing saved", picked: true },
         ].map((option) => (
           <div
             key={option.label}
@@ -127,17 +137,17 @@ function PredictFragment() {
   );
 }
 
-/* ---------- 02: before/after, one added line ---------- */
+/* ---------- 02: one added line ---------- */
 function DiffFragment() {
   return (
-    <figure className="w-full max-w-[320px]" aria-label="A one-line change: db.commit() added after db.flush()">
+    <figure className="w-full max-w-[320px]" aria-label="A one-line change: count: notes.length added to the reply">
       <CodeWindow
-        file="notes.py"
+        file={file}
         meta="your change"
         size="sm"
-        start={23}
-        added={[25]}
-        lines={["    db.add(row)", "    db.flush()", "    db.commit()", "    return {...}"]}
+        start={line.reply}
+        added={[line.saved + 1]}
+        lines={changedReply}
         revealRows
       />
       <p className="mt-3 flex items-center justify-center gap-2 font-mono text-[10.5px] text-foreground/80">
@@ -148,28 +158,31 @@ function DiffFragment() {
   );
 }
 
-/* ---------- 03: HTTP status and database state against the prediction ---------- */
+/* ---------- 03: what happened, next to what you expected ---------- */
 function EvidenceFragment() {
+  const rows = [
+    { label: "Request body", value: sample.noTitle.body },
+    { label: "HTTP status", value: `${sample.noTitle.status} ${sample.noTitle.statusText}` },
+    { label: "notes afterwards", value: sample.noTitle.notes },
+  ];
   return (
-    <figure className="w-full max-w-[320px]" aria-label="Evidence panel: HTTP status and database state">
+    <figure className="w-full max-w-[320px]" aria-label="Sample result: HTTP status and what was saved">
       <MiniCard>
         <div className="flex items-center justify-between gap-2 border-b border-border px-2.5 py-1.5">
-          <p className="font-mono text-[10.5px] text-secondary">POST /notes · run 1</p>
-          <SampleTag>Sample</SampleTag>
+          <p className="font-mono text-[10.5px] text-secondary">POST /notes</p>
+          <SampleTag>Sample result</SampleTag>
         </div>
         <dl className="divide-y divide-border text-[11.5px]">
-          <div data-reveal-inner className="flex items-center justify-between gap-2 px-2.5 py-2">
-            <dt className="text-secondary">HTTP status</dt>
-            <dd className="font-mono font-medium">201 Created</dd>
-          </div>
-          <div data-reveal-inner className="flex items-center justify-between gap-2 px-2.5 py-2">
-            <dt className="text-secondary">Rows in notes</dt>
-            <dd className="font-mono font-medium">0</dd>
-          </div>
+          {rows.map((row) => (
+            <div key={row.label} data-reveal-inner className="flex items-center justify-between gap-2 px-2.5 py-2">
+              <dt className="text-secondary">{row.label}</dt>
+              <dd className="font-mono font-medium">{row.value}</dd>
+            </div>
+          ))}
           <div data-reveal-inner className="flex items-center justify-between gap-2 bg-error-soft/60 px-2.5 py-2">
             <dt className="text-secondary">You expected</dt>
             <dd className="flex items-center gap-2">
-              <span className="font-mono font-medium">1 row</span>
+              <span className="font-mono font-medium">201</span>
               <StatusBadge status="differs">Differs</StatusBadge>
             </dd>
           </div>

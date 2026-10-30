@@ -17,8 +17,8 @@ export function FinalCta() {
         />
         <Reveal variant="up" delay={320}>
           <p className="type-lede mx-auto mt-6 max-w-[32rem] text-secondary">
-            Pick one endpoint. Predict what it does, change one line, and check the evidence. The
-            demo lesson takes about five minutes.
+            Pick one route (a URL your app answers). Guess what it does, change one
+            line, and check what really happened. The demo lesson takes about five minutes.
           </p>
         </Reveal>
         <Reveal variant="up" delay={420} className="mt-9 flex justify-center">

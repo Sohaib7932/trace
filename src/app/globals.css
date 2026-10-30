@@ -330,107 +330,203 @@
       radial-gradient(30% 30% at 82% 60%, rgba(245, 175, 110, 0.18) 0%, transparent 72%);
   }
 
-  /* ----- Sticky steps (no JS: every step open with its visual) ----- */
+  /* ----- Learning-loop steps. Base = the compact, tap-driven accordion (<1024px and
+     reduced motion). No JS: every step open with its visual, stacked. ----- */
   .steps {
+    --steps-h: max(520px, min(78vh, 680px));
+    /* Accordion geometry. Rows have a 1px border; the line is positioned from the row's
+       padding box, so: chip centre x = padding + chip/2, chip centre y = button height/2,
+       and the line spans the row's padding box + both borders + the gap to the next chip. */
+    --chip: 40px;
+    --row-pad: 14px;
+    --row-h: 70px;
+    --row-gap: 10px;
     display: grid;
-    gap: clamp(32px, 4vw, 56px);
+    gap: clamp(48px, 5vw, 64px);
   }
   .steps-list {
     position: relative;
-    padding-left: 22px;
   }
-  .steps-rail {
-    position: absolute;
-    top: 16px;
-    bottom: 16px;
-    left: 6px;
-    width: 2px;
-    overflow: hidden;
-    border-radius: 2px;
-    background: var(--editor-line);
-  }
-  .steps-rail-fill {
-    position: absolute;
-    inset: 0;
-    background: var(--primary);
-    transform-origin: top;
-    transition: transform var(--dur-state) var(--ease-out);
-  }
-  .steps[data-pinned] .steps-rail-fill {
-    transition: none;
+  .steps-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--row-gap);
   }
   .steps-item {
+    position: relative;
+    border: 1px solid transparent;
     border-radius: 18px;
     transition:
       background-color var(--dur-state) var(--ease-ui),
+      border-color var(--dur-state) var(--ease-ui),
       box-shadow var(--dur-state) var(--ease-ui);
   }
-  .steps-item + .steps-item {
-    margin-top: 6px;
-  }
   .steps-item[data-open] {
+    border-color: var(--border);
     background: var(--surface);
-    box-shadow: 0 22px 48px -26px rgba(0, 0, 0, 0.65);
+    box-shadow:
+      0 1px 2px rgba(21, 25, 35, 0.04),
+      0 18px 40px -24px rgba(21, 25, 35, 0.22);
   }
+
+  /* Progress through the chips: each row draws from its chip centre to the next chip
+     centre (100% of the row plus the gap), so the fill always ends exactly at a chip. */
+  .steps-seg {
+    position: absolute;
+    top: calc(var(--row-h) / 2);
+    left: calc(var(--row-pad) + var(--chip) / 2 - 1px);
+    width: 2px;
+    height: calc(100% + 2px + var(--row-gap));
+    border-radius: 2px;
+    background: var(--border);
+  }
+  .steps-seg-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--primary);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 400ms var(--ease-out);
+  }
+  .steps-seg-fill[data-filled] {
+    transform: scaleY(1);
+  }
+
   .steps-button {
+    position: relative;
     display: flex;
     width: 100%;
-    min-height: 48px;
-    align-items: baseline;
-    gap: 14px;
-    padding: 14px 18px;
+    height: var(--row-h);
+    align-items: center;
+    gap: 12px;
+    padding: var(--row-pad);
     border-radius: 18px;
     text-align: left;
-    font-size: 1.125rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    color: var(--editor-muted);
-    transition: color var(--dur-micro) var(--ease-ui);
   }
-  .steps-button:hover {
-    color: var(--editor-foreground);
-  }
-  .steps-item[data-open] .steps-button {
+  .steps-button:hover .steps-name {
     color: var(--foreground);
   }
+  .steps-chip {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    width: var(--chip);
+    height: var(--chip);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    transition:
+      background-color var(--dur-state) var(--ease-ui),
+      border-color var(--dur-state) var(--ease-ui),
+      color var(--dur-state) var(--ease-ui),
+      box-shadow var(--dur-state) var(--ease-ui);
+  }
+  .steps-chip svg {
+    width: 19px;
+    height: 19px;
+  }
+  /* Active: primary tint plus a soft glow marks the end of the progress line.
+     The icon uses --primary-display (3:1 on the tint) for non-text contrast. */
+  .steps-item[data-state="active"] .steps-chip {
+    border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+    background: var(--primary-soft);
+    color: var(--primary-display);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 16%, transparent);
+  }
+  /* Completed: a small check, success-neutral (never orange for success) */
+  .steps-item[data-state="done"] .steps-chip {
+    border-color: color-mix(in oklab, var(--success) 30%, var(--border));
+    background: var(--success-soft);
+    color: var(--success);
+  }
+  .steps-heading {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+  .steps-name {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    /* Inactive titles: darker than secondary text, about 9:1 on the canvas */
+    color: #3d4351;
+    transition: color var(--dur-micro) var(--ease-ui);
+  }
+  .steps-item[data-open] .steps-name {
+    color: var(--foreground);
+  }
+  .steps-teaser-wrap {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows 350ms var(--ease-out),
+      opacity 250ms var(--ease-out);
+  }
+  .steps-teaser {
+    min-height: 0;
+    overflow: hidden;
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+  }
+  @media (max-width: 379px) {
+    .steps-teaser {
+      font-size: 0.75rem;
+    }
+  }
+  .steps-item[data-open] .steps-teaser-wrap {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  html:not(.js) .steps-teaser-wrap {
+    display: none;
+  }
   .steps-number {
+    flex-shrink: 0;
     font-family: var(--font-geist-mono), ui-monospace, monospace;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
+    color: var(--text-secondary);
   }
   .steps-item[data-open] .steps-number {
     color: var(--primary-ink);
   }
   .steps-panel {
+    position: relative;
+    z-index: 1;
     display: grid;
     grid-template-rows: 1fr;
   }
   .steps-panel-inner {
     min-height: 0;
     overflow: hidden;
-    padding: 0 14px 0 18px;
+    padding: 0 var(--row-pad);
   }
-  @media (min-width: 640px) {
-    .steps-panel-inner {
-      padding: 0 18px 0 49px;
-    }
-  }
+  /* Description aligns with the title (chip + gap) */
   .steps-does {
-    padding-bottom: 16px;
+    padding: 0 0 14px calc(var(--chip) + 12px);
     font-size: 0.9375rem;
     line-height: 1.6;
     color: var(--text-secondary);
   }
-  .steps-item:not([data-open]) .steps-does {
-    color: var(--editor-muted);
-  }
   .steps-inline-visual {
-    padding-bottom: 18px;
+    padding-bottom: var(--row-pad);
   }
-  .steps-visuals {
+  .steps-rail,
+  .steps-stage {
     display: none;
   }
-  /* Revisit note: on the dark band (desktop visual) or inside the white open card (accordion) */
+
   .steps-revisit-note {
     display: inline-flex;
     align-items: center;
@@ -439,61 +535,169 @@
     padding: 6px 12px;
     border-radius: 999px;
     font-size: 0.8125rem;
-    background: var(--surface-muted);
+    background: var(--surface);
     color: var(--foreground);
+    box-shadow: 0 0 0 1px var(--border);
   }
   .steps-revisit-note svg {
     color: var(--success);
   }
-  .steps-visual .steps-revisit-note {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--editor-foreground);
-  }
-  .steps-visual .steps-revisit-note svg {
-    color: #7fd1a4;
-  }
 
-  /* JS: one step open at a time; height animates via grid rows */
+  /* JS: one step open at a time. Height via grid rows + opacity (350ms); the visual
+     fades and rises 12px about 100ms after the card opens. */
   .js .steps-panel {
     grid-template-rows: 0fr;
     opacity: 0;
     transition:
-      grid-template-rows 450ms var(--ease-out),
-      opacity var(--dur-state) var(--ease-out);
+      grid-template-rows 350ms var(--ease-out),
+      opacity 350ms var(--ease-out);
   }
   .js .steps-item[data-open] .steps-panel {
     grid-template-rows: 1fr;
     opacity: 1;
   }
+  .js .steps-inline-visual {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 300ms var(--ease-out),
+      transform 300ms var(--ease-out);
+  }
+  .js .steps-item[data-open] .steps-inline-visual {
+    opacity: 1;
+    transform: none;
+    transition-delay: 100ms;
+  }
 
-  /* Desktop with motion: two columns, the large visual swaps on the right */
+  /* Desktop with motion: fixed-height two-column block, sticky inside its scroll track */
   @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
-    /* Scroll track: the block sticks while ~85vh per step scrolls past */
+    /* Track length is real height (content box), not padding: sticky can only move
+       within the parent's content box. Grid height + 70vh per step, nothing more. */
     .js:not(.motion-fallback) .steps-track {
-      padding-bottom: var(--steps-scroll, 425vh);
+      height: calc(max(520px, min(78vh, 680px)) + var(--steps-scroll, 350vh));
+    }
+    /* ~5/12 and 7/12; at 1024-1279px the panel takes a little more so code fits unscrolled */
+    .js .steps {
+      grid-template-columns: minmax(0, 4.6fr) minmax(0, 7.4fr);
+      height: var(--steps-h);
     }
     .js:not(.motion-fallback) .steps {
       position: sticky;
-      top: var(--steps-top, 96px);
+      top: var(--steps-top, 112px);
     }
-    .js .steps {
-      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-      align-items: center;
+    .js .steps-list {
+      height: 100%;
+    }
+    .js .steps-rows {
+      display: flex;
+      height: 100%;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .js .steps-item + .steps-item {
+      margin-top: 0;
     }
     .js .steps-inline-visual {
       display: none;
     }
-    .js .steps-visuals {
-      display: grid;
-      align-items: center;
+    /* Desktop keeps its scroll-driven rail on the far left; no per-row line or teaser */
+    .js .steps-list {
+      padding-left: 20px;
+    }
+    .js .steps-rail {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 0;
+      display: block;
+      width: 2px;
+      overflow: hidden;
+      border-radius: 2px;
+      background: var(--border);
+    }
+    .js .steps-rail-fill {
+      position: absolute;
+      inset: 0;
+      background: var(--primary);
+      transform-origin: top;
+      transition: transform var(--dur-state) var(--ease-out);
+    }
+    .js .steps[data-scrubbing] .steps-rail-fill {
+      transition: none;
+    }
+    .js .steps-seg,
+    .js .steps-teaser-wrap {
+      display: none;
+    }
+    .js .steps-rows {
+      gap: 0;
+    }
+    .js .steps {
+      --chip: 36px;
+    }
+    .js .steps-item {
+      border-radius: 20px;
+    }
+    .js .steps-button {
+      height: auto;
+      min-height: 52px;
+      gap: 14px;
+      padding: 12px 22px;
+      border-radius: 20px;
+    }
+    .js .steps-chip {
+      border-radius: 11px;
+    }
+    .js .steps-chip svg {
+      width: 18px;
+      height: 18px;
+    }
+    .js .steps-name {
+      font-size: clamp(1.125rem, 1rem + 0.4vw, 1.375rem);
+      letter-spacing: -0.025em;
+    }
+    .js .steps-panel-inner {
+      padding: 0 22px;
+    }
+    .js .steps-does {
+      max-width: 44ch;
+      padding: 0 0 18px calc(var(--chip) + 14px);
+    }
+    .js .steps-stage {
+      position: relative;
+      display: block;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 28px;
+      background: #f2cdb6;
+      isolation: isolate;
+    }
+    .js .steps-mesh {
+      position: absolute;
+      inset: -18%;
+      z-index: -1;
+      background:
+        radial-gradient(38% 42% at 24% 28%, #f8c19c 0%, transparent 70%),
+        radial-gradient(40% 45% at 78% 22%, #eea86a 0%, transparent 70%),
+        radial-gradient(42% 46% at 70% 80%, #ea8566 0%, transparent 70%),
+        radial-gradient(34% 40% at 18% 78%, #c7cfd6 0%, transparent 70%),
+        radial-gradient(30% 34% at 50% 52%, #fbe2d0 0%, transparent 70%);
+      /* Shifts a little per step for a sense of progression (transform only) */
+      transform: translate3d(calc(var(--step, 0) * -2.4%), calc(var(--step, 0) * 1.6%), 0)
+        rotate(calc(var(--step, 0) * 4deg));
+      transition: transform 600ms var(--ease-out);
     }
     .js .steps-visual {
-      grid-area: 1 / 1;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       opacity: 0;
-      transform: translateY(24px);
+      transform: translateY(22px);
       transition:
-        opacity 550ms var(--ease-out),
-        transform 550ms var(--ease-out);
+        opacity 500ms var(--ease-out),
+        transform 500ms var(--ease-out);
     }
     .js .steps-visual[data-state="active"] {
       opacity: 1;
@@ -502,11 +706,24 @@
     .js .steps-visual[data-state="past"] {
       transform: translateY(-12px);
     }
+    .js .steps-card {
+      width: 94%;
+    }
+  }
+  @media (min-width: 1280px) and (prefers-reduced-motion: no-preference) {
+    .js .steps {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    }
+    .js .steps-card {
+      width: min(85%, 620px);
+    }
+
   }
 
   /* ----- Flow diagram (static = final, fully drawn) ----- */
   .flow {
     --flow-line: var(--text-secondary);
+    container: flow / inline-size;
   }
   .flow-dark {
     --flow-line: var(--editor-muted);
@@ -672,12 +889,13 @@
     display: inline-flex;
   }
 
-  @media (min-width: 768px) {
+  /* Horizontal only when the diagram is wide enough for every card (container query) */
+  @container flow (min-width: 820px) {
     .flow-grid {
       display: grid;
       grid-template-columns:
-        minmax(0, 1fr) clamp(24px, 3vw, 44px) minmax(0, 1fr) 96px
-        minmax(0, 2.15fr);
+        repeat(var(--flow-pairs, 1), minmax(0, 1fr) clamp(24px, 3vw, 44px))
+        minmax(0, 1fr) 96px minmax(0, 2.15fr);
       align-items: center;
     }
     .flow-conn {
@@ -962,6 +1180,25 @@
 }
 
 @layer utilities {
+  /* Step visuals: 20px cards. In the utilities layer so it outranks the windows' own radius/shadow classes. */
+  .steps-card > * {
+    border-radius: 20px;
+  }
+  @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+    .js .steps-card > * {
+      box-shadow:
+        0 1px 2px rgba(21, 25, 35, 0.05),
+        0 28px 56px -28px rgba(90, 40, 20, 0.4);
+    }
+  }
+  /* Copy button only works with JS */
+  .copy-code {
+    display: none;
+  }
+  .js .copy-code {
+    display: inline-flex;
+  }
+
   /* Nav: a slightly deeper shadow once the page has scrolled past 40px */
   .site-header nav[aria-label="Main"] {
     transition: box-shadow var(--dur-state) var(--ease-ui);
@@ -1026,7 +1263,7 @@
     }
     .js [data-reveal="card"]:not([data-revealed]) {
       opacity: 0;
-      transform: translateY(32px) scale(0.98);
+      transform: translateY(40px) scale(0.97);
     }
     .js [data-reveal="fade"]:not([data-revealed]) {
       opacity: 0;
@@ -1037,7 +1274,7 @@
     }
     .js [data-reveal-stagger="card"]:not([data-revealed]) [data-reveal-item] {
       opacity: 0;
-      transform: translateY(32px) scale(0.98);
+      transform: translateY(40px) scale(0.97);
     }
     .js [data-reveal-stagger="fade"]:not([data-revealed]) [data-reveal-item] {
       opacity: 0;
@@ -1171,11 +1408,33 @@
   @media (prefers-reduced-motion: reduce) {
     .js .steps-panel,
     .steps-item,
-    .steps-rail-fill {
+    .steps-rail-fill,
+    .steps-seg-fill,
+    .steps-chip,
+    .steps-teaser-wrap,
+    .js .steps-inline-visual {
       transition: none;
+    }
+    .js .steps-inline-visual {
+      transform: none;
     }
     .js .flow-replay {
       display: none;
+    }
+  }
+
+  /* Cards: a shorter rise on phones (matches cardRiseMobile in tokens.ts) */
+  @media (prefers-reduced-motion: no-preference) and (max-width: 767px) {
+    .js [data-reveal="card"]:not([data-revealed]),
+    .js [data-reveal-stagger="card"]:not([data-revealed]) [data-reveal-item] {
+      transform: translateY(24px) scale(0.97);
+    }
+  }
+  /* Reduced motion: card grids start transparent and fade in over 150ms; no movement */
+  @media (prefers-reduced-motion: reduce) {
+    .js [data-reveal="card"]:not([data-revealed]),
+    .js [data-reveal-stagger="card"]:not([data-revealed]) [data-reveal-item] {
+      opacity: 0;
     }
   }
 

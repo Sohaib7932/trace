@@ -1,186 +1,243 @@
-import { Check, Lock } from "lucide-react";
+import { Check, Crosshair, FileCode, Lock, PencilLine, RotateCcw, ShieldCheck, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { CodeWindow } from "@/components/code/code-window";
-import { SampleTag, StatusBadge } from "@/components/ui/labels";
-import { predictionOptions, sourceLines } from "@/content/demo-lesson";
+import { SampleTag } from "@/components/ui/labels";
+import { predictionOptions } from "@/content/demo-lesson";
+import { caption, changedReply, excerpt, file, line, revisitLines, sample } from "@/content/example";
 import { loopBranches, loopPath } from "@/content/flows";
 import { FlowDiagram } from "./flow-diagram";
 import { SectionHeading } from "./section-heading";
 import { StickySteps, type Step } from "./sticky-steps";
 
-/** A light card for step visuals on the dark band. */
+/** White evidence card used for the non-code step visuals. */
 function VisualCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-[14px] border border-white/10 bg-surface shadow-[0_24px_60px_-30px_rgba(0,0,0,0.7)]">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-        <p className="font-mono text-[0.6875rem] text-secondary">{title}</p>
-        <SampleTag>Demonstration</SampleTag>
+    <div className="overflow-hidden rounded-[20px] border border-border bg-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+        <p className="font-mono text-[0.75rem] text-secondary">{title}</p>
+        <SampleTag>Sample result</SampleTag>
       </div>
       {children}
     </div>
   );
 }
 
+function Outcome({ ok, children }: { ok: boolean; children: ReactNode }) {
+  return ok ? (
+    <span className="inline-flex items-center gap-1 text-[0.8125rem] font-medium text-success">
+      <Check aria-hidden="true" className="size-3.5" strokeWidth={2.4} />
+      <span className="max-sm:sr-only">{children}</span>
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[0.8125rem] font-medium text-error">
+      <X aria-hidden="true" className="size-3.5" strokeWidth={2.4} />
+      <span className="max-sm:sr-only">{children}</span>
+    </span>
+  );
+}
+
+/*
+ * Every visual is created by a function and used twice (desktop panel + accordion), so
+ * no single element is rendered in two places (React DevTools can't handle that).
+ */
+
+function ReadVisual({ compact = false }: { compact?: boolean }) {
+  const from = compact ? line.readTitle : line.route;
+  const to = compact ? line.push : line.route + 9;
+  return (
+    <CodeWindow
+      file={file}
+      meta="agent-generated, under review"
+      size="sm"
+      start={from}
+      lines={excerpt(from, to)}
+      highlight={[line.check]}
+      label={`${file}, lines ${from} to ${to}`}
+      note={compact ? caption.stop : caption.route}
+    />
+  );
+}
+
+function PredictCard({ options }: { options: ReadonlyArray<(typeof predictionOptions)[number]> }) {
+  return (
+    <VisualCard title="Predict · a request with no title">
+      <div className="px-5 py-4">
+        <p className="text-[0.9375rem] font-medium">What does the API return, and what is in notes afterwards?</p>
+        <ul className="mt-3 grid gap-2" aria-label="Possible answers (example)">
+          {options.map((option) => {
+            const picked = option.id === "a";
+            return (
+              <li
+                key={option.id}
+                className={`flex items-center gap-2.5 rounded-[12px] border px-3 py-2.5 text-[0.875rem] ${
+                  picked ? "border-foreground bg-surface-muted/60" : "border-border"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${picked ? "border-foreground" : "border-border-strong"}`}
+                >
+                  {picked && <span className="size-2 rounded-full bg-foreground" />}
+                </span>
+                <span className="rounded bg-surface-muted px-1.5 font-mono text-[0.75rem]">{option.status}</span>
+                <span className="font-medium">{option.outcome}</span>
+                {picked && (
+                  <span className="ml-auto inline-flex items-center gap-1 text-[0.75rem] text-secondary">
+                    <Lock aria-hidden="true" className="size-3" strokeWidth={2} />
+                    Locked<span className="sr-only"> (the learner&apos;s prediction)</span>
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </VisualCard>
+  );
+}
+
+function ModifyVisual() {
+  return (
+    <CodeWindow
+      file={file}
+      meta="your change"
+      size="sm"
+      start={line.reply}
+      added={[line.saved + 1]}
+      lines={changedReply}
+      label="The change: count: notes.length added on line 14"
+      note={caption.change}
+    />
+  );
+}
+
+function VerifyVisual() {
+  const rows: { label: string; value: string; hint?: string }[] = [
+    { label: "Request body", value: sample.noTitle.body, hint: "no title" },
+    { label: "HTTP status", value: `${sample.noTitle.status} ${sample.noTitle.statusText}`, hint: "a number that says what happened" },
+    { label: "Response body", value: sample.noTitle.response },
+    { label: "notes afterwards", value: sample.noTitle.notes, hint: "still empty" },
+  ];
+  return (
+    <VisualCard title="Verify · POST /notes">
+      <dl className="divide-y divide-border text-[0.875rem]">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-5 py-2.5">
+            <dt className="text-secondary">
+              {row.label}
+              {row.hint && <span className="text-[0.75rem]"> ({row.hint})</span>}
+            </dt>
+            <dd className="font-mono text-[0.8125rem] font-medium">{row.value}</dd>
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 bg-error-soft/50 px-5 py-2.5">
+          <dt className="text-secondary">Your prediction</dt>
+          <dd className="flex items-center gap-3">
+            <span className="font-mono text-[0.8125rem]">201 · note saved</span>
+            <Outcome ok={false}>Differed</Outcome>
+          </dd>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-2.5">
+          <dt className="text-secondary">Then, with a title</dt>
+          <dd className="flex items-center gap-3">
+            <span className="font-mono text-[0.8125rem]">
+              {sample.withTitle.status} · notes: {sample.withTitle.notes}
+            </span>
+            <Outcome ok>Saved</Outcome>
+          </dd>
+        </div>
+      </dl>
+    </VisualCard>
+  );
+}
+
+function RevisitVisual() {
+  return (
+    <div className="overflow-hidden rounded-[20px]">
+      <CodeWindow
+        file={file}
+        meta="changed scenario"
+        size="sm"
+        start={18}
+        lines={revisitLines}
+        highlight={[22]}
+        className="rounded-b-none border-b-0"
+        label="A changed scenario: POST /tasks needs a name"
+        note={caption.revisit}
+      />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border border-t-0 border-border bg-surface px-5 py-3 text-[0.8125rem]">
+        <span className="font-mono text-[0.75rem] text-secondary">Sample result</span>
+        <span>
+          Hints used: <span className="font-mono font-medium">0</span>
+        </span>
+        <Outcome ok>Predicted 400 and an empty list</Outcome>
+      </div>
+    </div>
+  );
+}
+
+const ICON = { strokeWidth: 1.75, "aria-hidden": true } as const;
+
 const steps: Step[] = [
   {
     name: "Read",
-    does: "Read a short piece of real code, the kind an agent might hand you: one endpoint, one model, one query.",
-    visual: (
-      <CodeWindow
-        file="app/routes/notes.py"
-        meta="agent-generated, under review"
-        start={20}
-        lines={sourceLines.slice(19, 25)}
-        label="The create_note handler, lines 20 to 25"
-      />
-    ),
+    icon: <FileCode {...ICON} />,
+    teaser: "Real code, one route at a time.",
+    does: "Read a short piece of real code, like the code an agent writes for you: one route, a few lines.",
+    visual: <ReadVisual />,
+    compact: <ReadVisual compact />,
   },
   {
     name: "Predict",
-    does: "Say what it will do with a specific request, and lock that answer in before anything runs.",
-    visual: (
-      <VisualCard title="Predict · POST /notes">
-        <div className="px-4 py-4">
-          <p className="text-[0.9375rem] font-medium">What does the API return, and is the note saved?</p>
-          <div className="mt-3 grid gap-2">
-            {predictionOptions.map((option) => {
-              const picked = option.id === "a";
-              return (
-                <div
-                  key={option.id}
-                  className={`flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-[0.8125rem] ${
-                    picked ? "border-foreground" : "border-border"
-                  }`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`flex size-3.5 items-center justify-center rounded-full border ${picked ? "border-foreground" : "border-border-strong"}`}
-                  >
-                    {picked && <span className="size-1.5 rounded-full bg-foreground" />}
-                  </span>
-                  <span className="rounded bg-surface-muted px-1 font-mono text-[0.75rem]">{option.status}</span>
-                  <span className="font-medium">{option.outcome}</span>
-                  {picked && (
-                    <span className="ml-auto inline-flex items-center gap-1 text-[0.75rem] text-secondary">
-                      <Lock aria-hidden="true" className="size-3" strokeWidth={2} />
-                      Locked
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </VisualCard>
-    ),
+    icon: <Crosshair {...ICON} />,
+    teaser: "Commit to an outcome first.",
+    does: "Say what will happen before you run it, and lock in your answer.",
+    visual: <PredictCard options={predictionOptions} />,
+    compact: <PredictCard options={predictionOptions.slice(0, 3)} />,
   },
   {
     name: "Modify",
-    does: "Change one expression or one line to get the behaviour you want. Nothing else moves.",
-    visual: (
-      <CodeWindow
-        file="app/routes/notes.py"
-        meta="your change"
-        start={22}
-        added={[25]}
-        lines={[
-          "    row = Note(title=note.title, content=note.content)",
-          "    db.add(row)",
-          "    db.flush()",
-          "    db.commit()",
-          '    return {"id": row.id, "title": row.title}',
-        ]}
-        label="Diff: db.commit() added on line 25"
-      />
-    ),
+    icon: <PencilLine {...ICON} />,
+    teaser: "Change one line, nothing else.",
+    does: "Change one line to get what you want. Nothing else moves.",
+    visual: <ModifyVisual />,
+    compact: <ModifyVisual />,
   },
   {
     name: "Verify",
-    does: "Check the status code, the response and the database against what you expected.",
-    visual: (
-      <VisualCard title="Verify · after the change">
-        <dl className="divide-y divide-border text-[0.8125rem]">
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <dt className="text-secondary">HTTP response</dt>
-            <dd className="font-mono font-medium">201 Created</dd>
-          </div>
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <dt className="text-secondary">SELECT … WHERE id = 14</dt>
-            <dd className="font-mono font-medium">1 row</dd>
-          </div>
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <dt className="font-mono text-[0.75rem] text-secondary">test_create_note_persists</dt>
-            <dd>
-              <StatusBadge status="pass">Passed</StatusBadge>
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-3 bg-error-soft/50 px-4 py-3">
-            <dt className="text-secondary">Your first prediction</dt>
-            <dd>
-              <StatusBadge status="differs">Differed</StatusBadge>
-            </dd>
-          </div>
-        </dl>
-      </VisualCard>
-    ),
+    icon: <ShieldCheck {...ICON} />,
+    teaser: "Check what really happened.",
+    does: "Check what really happened: the HTTP status, the reply, and what was saved.",
+    visual: <VerifyVisual />,
+    compact: <VerifyVisual />,
   },
   {
     name: "Revisit",
-    does: "Meet the same idea later, in different code, with less help. No hint this time.",
-    visual: (
-      <div>
-        <CodeWindow
-          file="app/routes/notes.py"
-          meta="changed scenario"
-          start={30}
-          lines={[
-            '@router.patch("/notes/{note_id}")',
-            "def rename_note(note_id: int, body: NoteIn,",
-            "                db: Session = Depends(get_db)):",
-            "    note = db.get(Note, note_id)",
-            "    note.title = body.title",
-            "    db.flush()",
-            '    return {"id": note.id, "title": note.title}',
-          ]}
-          label="A changed scenario: PATCH /notes/{note_id}"
-        />
-        <p className="steps-revisit-note">
-          <Check aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={2.4} />
-          Will the new title still be there on the next request? No hint this time.
-        </p>
-      </div>
-    ),
+    icon: <RotateCcw {...ICON} />,
+    teaser: "Same idea, new code, fewer hints.",
+    does: "Meet the same idea later, in different code, with less help.",
+    visual: <RevisitVisual />,
+    compact: <RevisitVisual />,
   },
 ];
 
 export function LearningLoop() {
   return (
-    <section id="how-it-works" aria-labelledby="loop-title" className="shell-wide">
-      <div className="rounded-[clamp(18px,2vw,28px)] bg-editor">
-        <div className="relative px-[max(24px,calc((100%-var(--content-max))/2))] py-[clamp(64px,8vw,120px)]">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] bg-[radial-gradient(50%_60%_at_85%_0%,rgba(255,129,57,0.14),transparent_70%)]"
-          />
-          <div className="relative">
-            <SectionHeading
-              id="loop-title"
-              eyebrow="How it works"
-              tone="dark"
-              title={["One loop. Five moves.", { br: true }, "Less help each time."]}
-            >
-              Each lesson follows one request through the code, with evidence at the end of each pass.
-            </SectionHeading>
+    <section id="how-it-works" aria-labelledby="loop-title" className="shell section">
+      <SectionHeading
+        id="loop-title"
+        eyebrow="How it works"
+        title={["One loop. Five moves.", { br: true }, "Less help each time."]}
+      >
+        Each lesson follows one request through the code. At the end, you check what really happened.
+      </SectionHeading>
 
-            <div className="mt-[clamp(48px,6vw,80px)]">
-              <StickySteps steps={steps} />
-            </div>
+      <div className="mt-[clamp(40px,5vw,64px)]">
+        <StickySteps steps={steps} />
+      </div>
 
-            <div className="mt-[clamp(56px,7vw,96px)] border-t border-editor-line pt-[clamp(32px,4vw,48px)]">
-              <FlowDiagram title="One request, traced" tone="dark" path={loopPath} branches={loopBranches} />
-            </div>
-          </div>
-        </div>
+      <div className="mt-[var(--section-space)] border-t border-border pt-[clamp(32px,4vw,48px)]">
+        <FlowDiagram title="One request, traced" path={loopPath} branches={loopBranches} />
       </div>
     </section>
   );

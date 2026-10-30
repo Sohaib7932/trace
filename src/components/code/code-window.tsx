@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { lang as defaultLang } from "@/content/example";
 import { CodeLens, type LensTarget } from "./code-lens";
 import { CodeLines } from "./code-lines";
+import { CopyCode } from "./copy-code";
 import { LensCaption } from "./lens-caption";
 
 /**
@@ -11,7 +13,7 @@ import { LensCaption } from "./lens-caption";
  */
 export function CodeWindow({
   file,
-  lang = "Python",
+  lang = defaultLang,
   meta,
   lines,
   start = 1,
@@ -26,6 +28,8 @@ export function CodeWindow({
   className = "",
   label,
   revealRows = false,
+  copy,
+  note,
 }: {
   file: string;
   lang?: string;
@@ -47,21 +51,19 @@ export function CodeWindow({
   label?: string;
   /** Rows reveal one after another inside a <Reveal stagger> item. */
   revealRows?: boolean;
+  /** Copy button in the title bar; on by default except for small windows. */
+  copy?: boolean;
+  /** One short plain-language caption under the code. */
+  note?: ReactNode;
 }) {
   const dark = tone === "dark";
   const staticHighlight = magnify?.length ? [...highlight, magnify[0].line] : highlight;
-  const code = (
-    <CodeLines
-      lines={lines}
-      start={start}
-      highlight={staticHighlight}
-      added={added}
-      removed={removed}
-      tone={tone}
-      plain={plain}
-      revealRows={revealRows}
-    />
-  );
+  // Two separate elements for the same code: React allows reusing one element in two
+  // places, but React DevTools (8.x) throws "The children should not have changed if we
+  // pass in the same set" for a server element rendered twice in the client tree.
+  const codeProps = { lines, start, highlight: staticHighlight, added, removed, tone, plain };
+  const code = <CodeLines {...codeProps} revealRows={revealRows} />;
+  const lensCopy = <CodeLines {...codeProps} />;
 
   return (
     <figure
@@ -88,12 +90,15 @@ export function CodeWindow({
           {file}
           {meta && <span className="hidden sm:inline"> · {meta}</span>}
         </span>
-        <span
-          className={`shrink-0 rounded-[5px] border px-1.5 py-px font-mono text-[0.625rem] tracking-[0.04em] uppercase ${
-            dark ? "border-editor-line text-editor-muted" : "border-border text-secondary"
-          }`}
-        >
-          {lang}
+        <span className="flex shrink-0 items-center gap-1">
+          <span
+            className={`rounded-[5px] border px-1.5 py-px font-mono text-[0.625rem] tracking-[0.04em] uppercase ${
+              dark ? "border-editor-line text-editor-muted" : "border-border text-secondary"
+            }`}
+          >
+            {lang}
+          </span>
+          {(copy ?? size !== "sm") && <CopyCode text={lines.join("\n")} dark={dark} />}
         </span>
       </figcaption>
 
@@ -108,9 +113,18 @@ export function CodeWindow({
         <pre data-code-base className="relative z-[1] min-w-max">
           {code}
         </pre>
-        {magnify?.length ? <CodeLens targets={magnify} size={lensSize} copy={code} /> : null}
+        {magnify?.length ? <CodeLens targets={magnify} size={lensSize} copy={lensCopy} /> : null}
       </div>
       {magnify?.length ? <LensCaption targets={magnify} /> : null}
+      {note && (
+        <p
+          className={`border-t px-4 py-2.5 text-[0.8125rem] leading-snug ${
+            dark ? "border-editor-line text-editor-muted" : "border-border bg-surface text-secondary"
+          }`}
+        >
+          {note}
+        </p>
+      )}
     </figure>
   );
 }
