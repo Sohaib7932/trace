@@ -143,16 +143,15 @@ export function CodeLens({ targets, size, copy }: { targets: LensTarget[]; size:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry, reduced, inView]);
 
-  if (reduced) return null;
-
   const current = geometry?.points[index];
   const label = targets[index]?.label;
 
   return (
     // No z-index on this wrapper: it must not form a stacking context, so the band can sit
     // under the code (z-0) and the lens above it (z-[2]) within the code body.
+    // Keep this wrapper identical during server render and initial hydration.
     <div ref={rootRef} aria-hidden="true" className="pointer-events-none absolute inset-0">
-      {geometry && current && (
+      {!reduced && geometry && current && (
         <>
           {/* Moving line highlight in the base code */}
           <motion.div

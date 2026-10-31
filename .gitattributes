@@ -1,0 +1,2 @@
+# Native transcript payloads can intentionally end in blank lines; retain them.
+.claude-logs/*.md whitespace=-blank-at-eof

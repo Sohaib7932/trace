@@ -39,3 +39,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python/backend local state (agent session logs remain tracked)
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+backend/*.db
+backend/*.db-*
+backend/*.sqlite*
+!backend/.env.example
+!.env.local.example
+
+# Browser test output
+/playwright-report/
+/test-results/

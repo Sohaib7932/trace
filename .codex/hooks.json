@@ -1,0 +1,31 @@
+{
+  "description": "Trace cohort logging: actual human prompts and final Codex answers only; one stable .claude-logs file per session.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B -c \"import runpy,subprocess;runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/scripts/codex_session_log.py',run_name='__main__')\"",
+            "commandWindows": "python -B -c \"import runpy,subprocess;runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/scripts/codex_session_log.py',run_name='__main__')\"",
+            "timeout": 20,
+            "statusMessage": "Saving cohort prompt and final-response log"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B -c \"import runpy,subprocess;runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/scripts/codex_session_log.py',run_name='__main__')\"",
+            "commandWindows": "python -B -c \"import runpy,subprocess;runpy.run_path(subprocess.check_output(['git','rev-parse','--show-toplevel'],text=True).strip()+'/scripts/codex_session_log.py',run_name='__main__')\"",
+            "timeout": 20,
+            "statusMessage": "Saving cohort prompt and final-response log"
+          }
+        ]
+      }
+    ]
+  }
+}
