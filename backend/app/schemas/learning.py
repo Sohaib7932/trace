@@ -68,11 +68,17 @@ class AttemptCreate(Contract):
     explanation: str = Field(default="", max_length=2000)
 
 
+class TransferAttemptCreate(Contract):
+    change_type: Literal["nest_payload_field"]
+    field_name: Literal["flat", "nested"]
+    explanation: str = Field(default="", max_length=2000)
+
+
 class AttemptResponse(Contract):
     id: UUID
     number: int
-    change_type: Literal["rename_payload_field"] = "rename_payload_field"
-    field_name: Literal["body", "content"]
+    change_type: Literal["rename_payload_field", "nest_payload_field"] = "rename_payload_field"
+    field_name: Literal["body", "content", "flat", "nested"]
     explanation: str
     hints_before: int
     created_at: datetime

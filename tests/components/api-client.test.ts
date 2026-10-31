@@ -24,3 +24,13 @@ test("network failures remain errors instead of invented successful progress", a
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
   await expect(learningApi.progress("session")).rejects.toBeInstanceOf(ApiError);
 });
+
+test("returning identities use protected bootstrap so the server can renew near-expiry cookies", async () => {
+  const identity = { learner_id: "fixture", expires_at: "2026-12-01T00:00:00Z" };
+  const fetch = vi.fn().mockImplementation(async () => new Response(JSON.stringify(identity)));
+  vi.stubGlobal("fetch", fetch);
+  await expect(learningApi.identity()).resolves.toEqual(identity);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch.mock.calls[1][0]).toContain("/learners/anonymous");
+  expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", credentials: "include", headers: { "X-Trace-Client": "learning-web" } });
+});

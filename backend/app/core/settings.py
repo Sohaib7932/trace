@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     ai_provider: Literal["fake"] = "fake"
     cookie_secure: bool = True
     allow_insecure_local_cookies: bool = False
-    credential_lifetime_seconds: int = Field(default=604800, ge=60, le=2592000)
+    credential_lifetime_seconds: int = Field(default=2592000, ge=60, le=2592000)
     verification_timeout_seconds: float = Field(default=10, gt=0, le=30)
 
     @model_validator(mode="after")

@@ -2,10 +2,10 @@
 
 Trace develops independent code-reading and engineering judgment through a bounded
 scenario → prediction → investigation → correction → evidence → reflection loop.
-Module 2 implements one real Python/FastAPI lesson. It is not a chatbot, a code
+Modules 2 and 3 implement original, transfer and scheduled retrieval activities. It is not a chatbot, a code
 executor or a course-authoring platform.
 
-## Current implementation and audit
+## Historical Module 2 audit
 
 The actual checkout remains `C:\Users\soore\OneDrive\Dokumen\ChatGPT\Trace-v1`,
 branch main tracking origin/main, HEAD a3ea7434ec51f1d70a69ccc7096069d684733a8d.
@@ -62,7 +62,9 @@ Only SHA-256 digests of 32-byte random credentials are stored. The raw token is
 issued in an HttpOnly, SameSite=Lax, host-only cookie at `/api/v1`, never ordinary
 JSON/JS storage/logs. Secure is the default; explicit local-HTTP settings allow a
 non-Secure cookie only with loopback frontend origins. Credentials expire after a
-configurable interval (example: seven days) and can be revoked. IDs are not auth.
+configurable interval (default: 30 days) and can be revoked. The protected bootstrap
+renews a still-valid credential in its latter half of life; expiry/revocation is
+checked again inside the write transaction. IDs are not auth.
 The public lesson projection is educational content; owner-specific routes require
 credentials and return the same 404 for another owner's session or an absent one.
 
@@ -118,8 +120,53 @@ The API client uses the browser hostname on port 8000 unless its public API-base
 is configured. No credentials or AI keys belong in public environment variables.
 Keep the SQLite file local and out of Git. PostgreSQL, public deployment, abuse
 controls, account recovery, retention/deletion tooling and real providers remain
-future work. Transfer/revisit are not implemented. Do not infer learning improvement
+future work. Do not infer learning improvement
 from the engineering verification tests.
 
 See the data model, API contract, testing strategy, seven ADRs and Module 2 report.
 The Module 1 report is a historical record and has not been rewritten.
+
+## Module 3 — transfer and return
+
+Work began only after PR #1 was verified merged into main. The new branch is
+feat/trace-module-3-transfer-retention. The nested task lesson has its own stable ID,
+published version/hash, prediction and append-only attempts. Transfer availability
+requires an owned completed original; prediction and observed flat-request rejection
+precede the nested correction. The original lesson and canonical hash are unchanged.
+
+The shared verification orchestration selects its trusted adapter by the pinned
+lesson identity. A private /tasks FastAPI route validates TaskMetadata/TaskCreate,
+commits runtime_tasks and independently reads that run through a fresh session.
+HTTP/body/priority/row-ID evidence must agree. Errors cannot complete a session.
+Task and note runtime tables never substitute for each other's evidence.
+
+```mermaid
+flowchart LR
+  Original[Verified original session] --> Transfer[Owned pinned transfer session]
+  Transfer --> ASGI[Real private task API and fresh DB read]
+  ASGI --> Complete[Server completion transaction]
+  Complete --> One[Checkpoint due +1 UTC day]
+  Complete --> Seven[Checkpoint due +7 UTC days]
+  One --> History[Append-only responses and deterministic feedback]
+  Seven --> History
+```
+
+Session/version rows already identify original and transfer phases. The journey API
+projects phase availability, completion, attempt counts and last completed activity;
+it does not duplicate mutable phase state in another table. Checkpoints are separate
+persisted activities linked to their completed transfer session. Scheduling shares
+the completion transaction and is unique per source session/ordinal. An interrupted
+finalization cannot leave a completed transfer without its schedule.
+
+UTC-aware injected time controls due boundaries (+24/+168 hours); production uses
+UTC now, while authentication still uses real security time. There is no public clock
+override. Missed checkpoints remain due. New shipping/report questions are versioned
+with hashes, have hidden answer keys, and reveal feedback only after submission.
+Responses are immutable, numbered and idempotent; first correct response completes
+once. The existing SQLite write gate/ownership/CSRF/error boundaries are reused.
+
+Both learning routes show the small factual journey/revisit panel. Server-owned
+history can restore a session even when its optional local-storage link is absent.
+Refreshing checkpoints recalculates availability on the server. No mastery, retention
+percentage, delivered reminder or empirical benefit is claimed. See ADR-008 and the
+Module 3 report for the credential-lifetime adjustment and retention limitations.

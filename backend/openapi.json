@@ -35,8 +35,11 @@
         "additionalProperties": false,
         "properties": {
           "change_type": {
-            "const": "rename_payload_field",
             "default": "rename_payload_field",
+            "enum": [
+              "rename_payload_field",
+              "nest_payload_field"
+            ],
             "title": "Change Type",
             "type": "string"
           },
@@ -52,7 +55,9 @@
           "field_name": {
             "enum": [
               "body",
-              "content"
+              "content",
+              "flat",
+              "nested"
             ],
             "title": "Field Name",
             "type": "string"
@@ -120,6 +125,66 @@
           "created_at"
         ],
         "title": "CheckResponse",
+        "type": "object"
+      },
+      "CheckpointSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "due_at": {
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "upcoming",
+              "due",
+              "completed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transfer_session_id": {
+            "format": "uuid",
+            "title": "Transfer Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transfer_session_id",
+          "ordinal",
+          "due_at",
+          "completed_at",
+          "status",
+          "attempt_count"
+        ],
+        "title": "CheckpointSummary",
         "type": "object"
       },
       "Contract": {
@@ -377,6 +442,50 @@
         "title": "IdentityResponse",
         "type": "object"
       },
+      "JourneyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/CheckpointSummary"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "last_completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Completed At"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/PhaseResponse"
+            },
+            "title": "Phases",
+            "type": "array"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "server_time",
+          "phases",
+          "checkpoints",
+          "last_completed_at"
+        ],
+        "title": "JourneyResponse",
+        "type": "object"
+      },
       "LessonResponse": {
         "additionalProperties": false,
         "properties": {
@@ -437,6 +546,43 @@
           }
         },
         "title": "LivenessResponse",
+        "type": "object"
+      },
+      "PhaseResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "boolean"
+          },
+          "lesson_id": {
+            "title": "Lesson Id",
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionResponse"
+            },
+            "title": "Sessions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "available",
+          "completed",
+          "sessions",
+          "attempt_count"
+        ],
+        "title": "PhaseResponse",
         "type": "object"
       },
       "PredictionCreate": {
@@ -567,6 +713,30 @@
         "title": "ProgressResponse",
         "type": "object"
       },
+      "QuestionOption": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "enum": [
+              "a",
+              "b",
+              "c"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "QuestionOption",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "properties": {
           "status": {
@@ -577,6 +747,163 @@
           }
         },
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RetrievalAttemptCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "reasoning": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Reasoning",
+            "type": "string"
+          },
+          "selection": {
+            "enum": [
+              "a",
+              "b",
+              "c"
+            ],
+            "title": "Selection",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "title": "RetrievalAttemptCreate",
+        "type": "object"
+      },
+      "RetrievalAttemptResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "correct": {
+            "title": "Correct",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "feedback": {
+            "title": "Feedback",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "reasoning": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Reasoning",
+            "type": "string"
+          },
+          "selection": {
+            "enum": [
+              "a",
+              "b",
+              "c"
+            ],
+            "title": "Selection",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection",
+          "id",
+          "number",
+          "correct",
+          "feedback",
+          "created_at"
+        ],
+        "title": "RetrievalAttemptResponse",
+        "type": "object"
+      },
+      "RetrievalQuestionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "payload": {
+            "title": "Payload",
+            "type": "string"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "schema_code": {
+            "title": "Schema Code",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "prompt",
+          "payload",
+          "schema_code",
+          "options"
+        ],
+        "title": "RetrievalQuestionResponse",
+        "type": "object"
+      },
+      "RetrievalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievalAttemptResponse"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "checkpoint": {
+            "$ref": "#/components/schemas/CheckpointSummary"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetrievalQuestionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkpoint",
+          "server_time",
+          "question",
+          "attempts"
+        ],
+        "title": "RetrievalResponse",
         "type": "object"
       },
       "RunResponse": {
@@ -717,6 +1044,36 @@
           "completed_at"
         ],
         "title": "SessionResponse",
+        "type": "object"
+      },
+      "TransferAttemptCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "change_type": {
+            "const": "nest_payload_field",
+            "title": "Change Type",
+            "type": "string"
+          },
+          "explanation": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Explanation",
+            "type": "string"
+          },
+          "field_name": {
+            "enum": [
+              "flat",
+              "nested"
+            ],
+            "title": "Field Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "change_type",
+          "field_name"
+        ],
+        "title": "TransferAttemptCreate",
         "type": "object"
       },
       "ValidationIssue": {
@@ -1064,6 +1421,87 @@
         ]
       }
     },
+    "/api/v1/learners/me/journey": {
+      "get": {
+        "operationId": "get_journey",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JourneyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Journey",
+        "tags": [
+          "learning"
+        ]
+      }
+    },
     "/api/v1/learners/me/revoke": {
       "post": {
         "operationId": "revoke_learner",
@@ -1253,6 +1691,212 @@
           }
         },
         "summary": "Lesson",
+        "tags": [
+          "learning"
+        ]
+      }
+    },
+    "/api/v1/retrievals/{checkpoint_id}": {
+      "get": {
+        "operationId": "get_retrieval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Retrieval",
+        "tags": [
+          "learning"
+        ]
+      }
+    },
+    "/api/v1/retrievals/{checkpoint_id}/attempts": {
+      "post": {
+        "operationId": "submit_retrieval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalAttemptCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalAttemptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Retrieval Attempt",
         "tags": [
           "learning"
         ]
@@ -1681,7 +2325,22 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AttemptCreate"
+                "discriminator": {
+                  "mapping": {
+                    "nest_payload_field": "#/components/schemas/TransferAttemptCreate",
+                    "rename_payload_field": "#/components/schemas/AttemptCreate"
+                  },
+                  "propertyName": "change_type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AttemptCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TransferAttemptCreate"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },

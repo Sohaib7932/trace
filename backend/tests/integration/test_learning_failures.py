@@ -291,6 +291,8 @@ def test_constraint_name_forward_migration_preserves_populated_history(tmp_path:
         migrate(database, "0001_foundation")
         legacy = MetaData()
         for table in m.Base.metadata.sorted_tables:
+            if table.name in {"runtime_tasks", "retrieval_checkpoints", "retrieval_attempts"}:
+                continue  # This fixture deliberately reconstructs the pre-Module-3 schema.
             copy = table.to_metadata(legacy)
             for constraint in copy.constraints:
                 if isinstance(constraint, UniqueConstraint):

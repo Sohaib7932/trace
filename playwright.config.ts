@@ -1,8 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { resolve } from "node:path";
 
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
+  // One fixture clock is shared by the test server; serialize controlled-time journeys.
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
@@ -17,6 +20,7 @@ export default defineConfig({
   ],
   webServer: [{
     command: "uv run --directory backend --locked python -m scripts.e2e_server",
+    env: { TRACE_E2E_CLOCK_FILE: resolve("test-results/e2e-clock.json") },
     url: "http://127.0.0.1:8000/api/v1/health/ready",
     reuseExistingServer: false,
     timeout: 60_000,

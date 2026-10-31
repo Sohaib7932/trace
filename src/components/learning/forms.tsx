@@ -12,7 +12,7 @@ export const predictionLabels = {
   server_error: "The application will crash",
 } as const;
 
-export function PredictionForm({ onSubmit, pending }: { onSubmit: (value: Schema["PredictionCreate"]) => void; pending: boolean }) {
+export function PredictionForm({ onSubmit, pending, task = false }: { onSubmit: (value: Schema["PredictionCreate"]) => void; pending: boolean; task?: boolean }) {
   const [answer, setAnswer] = useState<Schema["PredictionCreate"]["selected_answer"] | "">("");
   const [reasoning, setReasoning] = useState("");
   return <form aria-label="Initial prediction" onSubmit={(event) => {
@@ -25,7 +25,7 @@ export function PredictionForm({ onSubmit, pending }: { onSubmit: (value: Schema
       <div className="mt-4 grid gap-2">
         {Object.entries(predictionLabels).map(([value, label]) => <label key={value} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border p-3 has-[:checked]:border-foreground">
           <input type="radio" name="prediction" value={value} checked={answer === value} onChange={() => setAnswer(value as Schema["PredictionCreate"]["selected_answer"])} />
-          {label}
+          {task && value === "saved" ? "The task will be saved" : label}
         </label>)}
       </div>
       <label className="mt-5 block font-medium">Why do you expect that?
@@ -36,10 +36,10 @@ export function PredictionForm({ onSubmit, pending }: { onSubmit: (value: Schema
   </form>;
 }
 
-export function LockedPrediction({ prediction }: { prediction: Prediction }) {
+export function LockedPrediction({ prediction, task = false }: { prediction: Prediction; task?: boolean }) {
   return <section aria-label="Locked prediction" className={panelStyle}>
     <p className="type-label text-secondary">Original prediction · locked</p>
-    <h2 className="mt-2 font-semibold">{predictionLabels[prediction.selected_answer]}</h2>
+    <h2 className="mt-2 font-semibold">{task && prediction.selected_answer === "saved" ? "The task will be saved" : predictionLabels[prediction.selected_answer]}</h2>
     <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-secondary">{prediction.reasoning}</p>
     <p className="mt-3 text-xs text-secondary">Saved before later corrections and Trace guidance.</p>
   </section>;
@@ -64,5 +64,27 @@ export function AttemptForm({ onSubmit, pending }: { onSubmit: (value: Schema["A
       <textarea className={inputStyle} value={explanation} onChange={(event) => setExplanation(event.target.value)} maxLength={2000} rows={2} disabled={pending} />
     </label>
     <button className={`${actionStyle} mt-4`} disabled={pending}>{pending ? "Saving attempt…" : "Submit correction"}</button>
+  </form>;
+}
+
+export function TransferAttemptForm({ onSubmit, pending, investigated }: { onSubmit: (value: Schema["TransferAttemptCreate"]) => void; pending: boolean; investigated: boolean }) {
+  const [mapping, setMapping] = useState<"flat" | "nested">("flat");
+  const [explanation, setExplanation] = useState("");
+  return <form aria-label="Transfer mapping" onSubmit={(event) => {
+    event.preventDefault();
+    onSubmit({ change_type: "nest_payload_field", field_name: investigated ? mapping : "flat", explanation });
+  }}>
+    <h2 className="text-lg font-semibold">{investigated ? "Trace the JSON levels" : "Investigate the original request"}</h2>
+    <p className="mt-2 text-sm leading-6 text-secondary">{investigated ? "Use the observed validation and receiving schema to decide where priority belongs." : "Record the flat mapping, then run verification to inspect the actual validation evidence before building a correction."}</p>
+    {investigated && <label className="mt-4 block font-medium">Priority location
+      <select className={inputStyle} disabled={pending} value={mapping} onChange={(event) => setMapping(event.target.value as "flat" | "nested")}>
+        <option value="flat">At the root (flat)</option><option value="nested">Inside metadata (nested)</option>
+      </select>
+    </label>}
+    <pre className="mt-4 overflow-x-auto rounded-xl bg-surface-muted p-4 font-mono text-sm">{investigated && mapping === "nested" ? 'payload = {\n    "title": task.title,\n    "metadata": {\n        "priority": task.priority,\n    },\n}' : 'payload = {\n    "title": task.title,\n    "priority": task.priority,\n}'}</pre>
+    <label className="mt-4 block font-medium">Explain the structure you expect (optional)
+      <textarea className={inputStyle} value={explanation} onChange={(event) => setExplanation(event.target.value)} disabled={pending} maxLength={2000} rows={3} />
+    </label>
+    <button className={`${actionStyle} mt-4`} disabled={pending}>{pending ? "Saving attempt…" : investigated ? "Submit correction" : "Record original flat request"}</button>
   </form>;
 }

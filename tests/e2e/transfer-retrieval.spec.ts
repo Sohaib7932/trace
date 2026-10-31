@@ -1,0 +1,95 @@
+import { expect, test, type Page } from "@playwright/test";
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+test.use({ trace: "off" });
+const clockPath = resolve("test-results/e2e-clock.json");
+async function setClock(now: string) {
+  await mkdir(dirname(clockPath), { recursive: true });
+  await writeFile(`${clockPath}.tmp`, JSON.stringify({ now }), "utf8");
+  await rename(`${clockPath}.tmp`, clockPath);
+}
+async function lockPrediction(page: Page, reasoning: string) {
+  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await page.getByLabel("Why do you expect that?").fill(reasoning);
+  await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Locked prediction" }).getByText(reasoning)).toBeVisible();
+}
+
+test("original completion unlocks real transfer and persisted timed retrieval", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/api/v1/**", (route) => new URL(route.request().url()).origin === "http://127.0.0.1:8000" ? route.continue() : route.abort("blockedbyclient"));
+  await setClock("2026-11-01T09:00:00Z");
+  await page.goto("/learn/fastapi-payload-mismatch");
+  await expect(page.getByText("Transfer challenge: locked")).toBeVisible();
+  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
+  await lockPrediction(page, "The outgoing key differs from the receiver.");
+  await page.getByLabel("Payload field").selectOption("content");
+  await page.getByRole("button", { name: "Submit correction", exact: true }).click();
+  await page.getByRole("button", { name: "Run verification", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Continue to transfer challenge", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "The Nested Payload Problem", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
+  const original = "The priority value is present, but the receiving model requires a nested object.";
+  await lockPrediction(page, original);
+  await expect(page.getByLabel("Priority location")).toHaveCount(0);
+  await page.getByRole("button", { name: "Record original flat request", exact: true }).click();
+  await page.getByRole("button", { name: "Run verification", exact: true }).click();
+  const failed = page.getByRole("region", { name: "Verification evidence, attempt 1" });
+  await expect(failed.getByText("422", { exact: true })).toBeVisible();
+  await expect(failed.getByText("0", { exact: true })).toBeVisible();
+  await expect(failed.getByText('["missing:metadata", "extra_forbidden:priority"]', { exact: true })).toBeVisible();
+  await page.getByLabel("Priority location").selectOption("nested");
+  await page.getByRole("button", { name: "Submit correction", exact: true }).click();
+  await page.getByRole("button", { name: "Run verification", exact: true }).click();
+  const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
+  await expect(passed.getByText("201", { exact: true })).toBeVisible();
+  await expect(passed.getByText("1", { exact: true })).toBeVisible();
+  await expect(passed.getByText(/Prepare the product demo/).last()).toBeVisible();
+  await expect(passed.getByText(/"priority": "high"/).last()).toBeVisible();
+  await expect(page.getByText(/Transfer completed. Retrieval checkpoints scheduled/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Checkpoint 1 · upcoming", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Checkpoint 2 · upcoming", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Locked prediction" }).getByText(original)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Attempt 1 · flat", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Attempt 2 · nested", exact: true })).toBeVisible();
+
+  await setClock("2026-11-02T08:59:59.999999Z");
+  await page.getByRole("button", { name: "Refresh due checkpoints" }).click();
+  await expect(page.getByRole("heading", { name: "Checkpoint 1 · upcoming", exact: true })).toBeVisible();
+  await setClock("2026-11-02T09:00:00Z");
+  await page.getByRole("button", { name: "Refresh due checkpoints" }).click();
+  const first = page.getByRole("region", { name: "Retrieval checkpoint 1", exact: true });
+  await expect(first.getByRole("heading", { name: "Checkpoint 1 · due", exact: true })).toBeVisible();
+  await first.getByRole("button", { name: "Open checkpoint 1" }).click();
+  await expect(first.getByText("Recall the shipment contract", { exact: true })).toBeVisible();
+  await expect(first.getByText(/Values and structure both matter/)).toHaveCount(0);
+  await first.getByLabel("Any request containing zone must be accepted.").check();
+  await first.getByRole("button", { name: "Save retrieval response" }).click();
+  await expect(first.getByText("Response 1 · needs revision", { exact: true })).toBeVisible();
+  await first.getByLabel("The zone value is at a different JSON level than the schema expects.").check();
+  await first.getByRole("button", { name: "Save retrieval response" }).click();
+  await expect(first.getByRole("heading", { name: "Checkpoint 1 · completed", exact: true })).toBeVisible();
+  await expect(first.getByText("Response 2 · correct", { exact: true })).toBeVisible();
+  await setClock("2026-11-09T09:00:00Z");
+  await page.getByRole("button", { name: "Refresh due checkpoints" }).click();
+  const second = page.getByRole("region", { name: "Retrieval checkpoint 2", exact: true });
+  await expect(second.getByRole("heading", { name: "Checkpoint 2 · due", exact: true })).toBeVisible();
+  await second.getByRole("button", { name: "Open checkpoint 2" }).click();
+  await second.getByLabel("Place format inside an output object and retain name at the root.").check();
+  await second.getByRole("button", { name: "Save retrieval response" }).click();
+  await expect(second.getByRole("heading", { name: "Checkpoint 2 · completed", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Checkpoint 1 · completed", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Checkpoint 2 · completed", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open checkpoint 1" }).click();
+  await expect(page.getByText("Response 1 · needs revision", { exact: true })).toBeVisible();
+  await expect(page.getByText("Response 2 · correct", { exact: true })).toBeVisible();
+  await page.getByRole("region", { name: "Retrieval checkpoint 1", exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("retrieval-complete.png"), fullPage: false });
+  expect(errors).toEqual([]);
+});

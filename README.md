@@ -1,12 +1,16 @@
 # Trace
 
 Trace helps AI-assisted builders read, diagnose, change and verify code themselves.
-Module 2 implements the first real lesson: a Python/FastAPI request uses `body`
-while the receiving schema requires `content`.
+Modules 2 and 3 implement a connected journey: a Python/FastAPI field-name mismatch,
+a different nested-payload transfer problem, then retrieval checkpoints at +1/+7 days.
 
 The existing marketing homepage and Express sample demo are preserved and still
 labelled sample output. The real learning journey is separate:
 **http://localhost:3000/learn/fastapi-payload-mismatch**.
+After completing it, continue to
+**http://localhost:3000/learn/fastapi-nested-payload-transfer**.
+Both routes show persisted original/transfer progress and upcoming/due/completed
+retrieval checkpoints when this anonymous learner returns.
 
 ## Requirements
 
@@ -44,8 +48,10 @@ uv run --locked python -m scripts.seed
 uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --reload --no-access-log
 ```
 
-Seeding is idempotent and refuses changed published content; use a new version
-instead of overwriting 1.0.0. Startup never creates tables or seeds implicitly.
+Seeding publishes both lessons idempotently and refuses changed published content;
+use a new version instead of overwriting either 1.0.0. Startup never creates tables
+or seeds implicitly. Module 3 adds migration `0004_transfer_retrieval`, which preserves
+existing history and refuses downgrade if transfer history would be lost.
 The local `backend/trace.db` file is ignored by Git. Relative DB paths resolve from
 backend independently of shell cwd.
 
@@ -67,6 +73,14 @@ there. Default CORS permits only localhost:3000 and 127.0.0.1:3000, with credent
 - Individual checks, deterministic feedback and completion are saved on the server.
   Infrastructure/readback failures are errors, not learner mistakes.
 - Reload restores the owned session, original prediction, both corrections and hints.
+- Original completion unlocks a separate task exercise: flat `priority` actually
+  produces HTTP 422/zero tasks; nested `metadata.priority` produces 201 and an exact
+  fresh-session read of the committed task. Task fixtures never count as notes.
+- Transfer requires predicting and investigating the original flat request's real
+  validation evidence before a nested correction. The original lesson is unchanged.
+- Transfer completion atomically schedules two checkpoints at +24/+168 UTC hours.
+  New shipping/report questions use deterministic choices, retain every response,
+  and reveal feedback only after submission. Missed checkpoints remain available.
 
 This is a controlled field-mapping exercise: no arbitrary Python is executed. Hints
 are labelled fixtures, not live model output. Factual progress is not a mastery or
@@ -81,6 +95,13 @@ The session ID is not a credential. Do not copy/export raw cookies to inspect da
 OpenAPI/docs: http://localhost:8000/docs; schema inspection/read endpoints are useful
 there, but protected writes require the allowed frontend Origin and Trace client
 header. Liveness/readiness remain at `/api/v1/health/live` and `/health/ready`.
+
+The credential lifetime now defaults to 30 days (`TRACE_CREDENTIAL_LIFETIME_SECONDS=2592000`),
+so the +7-day return does not exceed the old seven-day default. On return, the protected
+anonymous bootstrap renews a still-valid credential in the latter half of its configured
+lifetime and reissues its HttpOnly cookie. Existing local configs using 604800 should
+be changed deliberately if seven days would prevent return access. Explicit shorter
+lifetimes remain supported. Expired/revoked credentials are never renewed.
 
 No cookie/account recovery is provided. Expiry or revocation prevents access; it
 does not erase history. Explicit retention/deletion/export and production hardening
@@ -123,7 +144,8 @@ For E2E, leave the API-base override unset when building, or build with
 It refuses existing servers and aborts learning API requests outside the fixture
 origin rather than touching participant data. Credential-bearing test traces are
 disabled. No successful API response is mocked. The production build can fetch
-existing Google fonts. GitHub Actions is configured; it has not run remotely here.
+existing Google fonts. GitHub Actions runs on push/PR; observed remote results are
+reported separately from local checks in delivery reports.
 
 OpenAPI export requires no DB/network access. The generated TS declaration is the
 shared contract; check a second generation for drift. No live SDK is installed.
@@ -137,13 +159,17 @@ shared contract; check a second generation for drift. No live SDK is installed.
 - [Ownership ADR](docs/architecture/adr/007-pseudonymous-ownership.md)
 - [Historical Module 1 report](docs/architecture/module-1-report.md)
 - [Module 2 delivery report](docs/architecture/module-2-report.md)
+- [Module 3 delivery report](docs/architecture/module-3-report.md)
+- [Transfer/retrieval ADR](docs/architecture/adr/008-transfer-and-retrieval.md)
 
 The monolith keeps HTTP, services, domain rules and repository/provider adapters
 separate. SQLite writes use explicit transactions and DB-backed coordination.
-Public deployment, PostgreSQL, live providers, transfer/revisit, accounts/recovery
-and learning-effectiveness evaluation remain outside Module 2.
+Transfer/revisit uses the same owned session/evidence boundaries. Public deployment,
+PostgreSQL, live providers, accounts/recovery and empirical learning-effectiveness
+evaluation remain future work.
 
 Sohaib owns the existing UI/design; Soorej owns backend/lesson engineering. Agent
 transcripts use only the tracked shared `.claude-logs/`, separate from learner data.
 Include logs with user-authorized commits. Do not stage, commit or push without
-explicit approval; this task authorizes none of those operations.
+explicit approval. Genuine logs accompany authorized commits; app-generated suggestion
+records are excluded and preserved without being presented as human prompts.

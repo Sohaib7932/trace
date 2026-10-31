@@ -44,17 +44,21 @@ async function request<T>(path: string, body?: object, key?: string): Promise<T>
 
 export const learningApi = {
   async identity(): Promise<Schema["IdentityResponse"]> {
-    try { return await request("/learners/me"); }
+    try { await request("/learners/me"); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
-      return request("/learners/anonymous", {});
     }
+    // The protected bootstrap also renews a still-valid credential near expiry.
+    return request("/learners/anonymous", {});
   },
   lesson: (id: string) => request<Lesson>(`/lessons/${encodeURIComponent(id)}`),
   createSession: (body: Schema["SessionCreate"], key: string) => request<Schema["SessionResponse"]>("/sessions", body, key),
   progress: (id: string) => request<Progress>(`/sessions/${encodeURIComponent(id)}/progress`),
   predict: (id: string, body: Schema["PredictionCreate"], key: string) => request<Prediction>(`/sessions/${encodeURIComponent(id)}/prediction`, body, key),
-  attempt: (id: string, body: Schema["AttemptCreate"], key: string) => request<Attempt>(`/sessions/${encodeURIComponent(id)}/attempts`, body, key),
+  attempt: (id: string, body: Schema["AttemptCreate"] | Schema["TransferAttemptCreate"], key: string) => request<Attempt>(`/sessions/${encodeURIComponent(id)}/attempts`, body, key),
   hint: (id: string, attemptId: string | undefined, key: string) => request<Hint>(`/sessions/${encodeURIComponent(id)}/hints`, { attempt_id: attemptId ?? null }, key),
   verify: (id: string, attemptId: string, key: string) => request<Verification>(`/sessions/${encodeURIComponent(id)}/attempts/${encodeURIComponent(attemptId)}/verify`, {}, key),
+  journey: () => request<Schema["JourneyResponse"]>("/learners/me/journey"),
+  retrieval: (id: string) => request<Schema["RetrievalResponse"]>(`/retrievals/${encodeURIComponent(id)}`),
+  retrieve: (id: string, body: Schema["RetrievalAttemptCreate"], key: string) => request<Schema["RetrievalAttemptResponse"]>(`/retrievals/${encodeURIComponent(id)}/attempts`, body, key),
 };

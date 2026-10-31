@@ -108,7 +108,7 @@ class Attempt(Row, Base):
         UniqueConstraint("session_id", "idempotency_key"),
         UniqueConstraint("id", "session_id"),
         CheckConstraint("number > 0", name="positive_number"),
-        CheckConstraint("field_name IN ('body','content')", name="supported_field"),
+        CheckConstraint("field_name IN ('body','content','flat','nested')", name="supported_field"),
         CheckConstraint("hints_before >= 0 AND hints_before <= 3", name="hint_count"),
     )
     session_id: Mapped[UUID] = mapped_column(ForeignKey("learning_sessions.id"), index=True)
@@ -179,3 +179,44 @@ class RuntimeNote(Row, Base):
     run_id: Mapped[UUID] = mapped_column(ForeignKey("verification_runs.id"), unique=True)
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[str] = mapped_column(String(2000))
+
+
+class RuntimeTask(Row, Base):
+    __tablename__ = "runtime_tasks"
+    __table_args__ = (CheckConstraint("priority IN ('low','normal','high')", name="priority"),)
+    run_id: Mapped[UUID] = mapped_column(ForeignKey("verification_runs.id"), unique=True)
+    title: Mapped[str] = mapped_column(String(200))
+    priority: Mapped[str] = mapped_column(String(16))
+
+
+class RetrievalCheckpoint(Row, Base):
+    __tablename__ = "retrieval_checkpoints"
+    __table_args__ = (
+        UniqueConstraint("transfer_session_id", "ordinal"),
+        CheckConstraint("ordinal IN (1,2)", name="ordinal"),
+    )
+    transfer_session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("learning_sessions.id"), index=True
+    )
+    ordinal: Mapped[int]
+    question_id: Mapped[str] = mapped_column(String(64))
+    question_hash: Mapped[str] = mapped_column(String(64))
+    due_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class RetrievalAttempt(Row, Base):
+    __tablename__ = "retrieval_attempts"
+    __table_args__ = (
+        UniqueConstraint("checkpoint_id", "number"),
+        UniqueConstraint("checkpoint_id", "idempotency_key"),
+        CheckConstraint("number > 0", name="positive_number"),
+        CheckConstraint("selection IN ('a','b','c')", name="selection"),
+    )
+    checkpoint_id: Mapped[UUID] = mapped_column(ForeignKey("retrieval_checkpoints.id"), index=True)
+    number: Mapped[int]
+    selection: Mapped[str] = mapped_column(String(1))
+    reasoning: Mapped[str] = mapped_column(String(2000))
+    correct: Mapped[bool] = mapped_column(Boolean)
+    feedback: Mapped[str] = mapped_column(String(2000))
+    idempotency_key: Mapped[str] = mapped_column(String(64))

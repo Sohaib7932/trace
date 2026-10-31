@@ -1,7 +1,7 @@
 # Testing strategy
 
 Tests prove engineering behaviour, not a learner's understanding or improved retention.
-Module 1's checks remain, with schema/path inventories extended for real Module 2
+Module 1's checks remain, with schema/path inventories extended for real Module 2/3
 features rather than removing their assertions. Its historical report stays unchanged.
 
 | Level | What it proves | What it does not prove |
@@ -46,7 +46,8 @@ Next type generation/TypeScript, Vitest/Testing Library, production build and
 Playwright desktop/mobile Chromium. Shared: generated-schema/type drift check and
 existing Codex logger regression tests without edits to the logger or trust state.
 CI runs backend on Windows/Linux and provisions Python for the browser backend.
-Configured CI is distinct from remotely executed CI; no push is authorized.
+Configured CI is distinct from remotely executed CI; actual observed run results
+belong to the delivery report. Module 3 explicitly authorizes its feature-branch push.
 
 Coverage is a gap detector, not proof. Aim to preserve the 97.48% Module 1 baseline
 without tests that merely mirror constants. The critical Module 2 tests cover original
@@ -54,3 +55,34 @@ answer preservation, all ownership states, actual body/422/zero-row evidence,
 content/201/exact fresh read, failed/error distinction, replay/no duplicate notes,
 old-run isolation, commit/readback faults, hint limits, and server completion rules.
 Exact local results and limitations belong in the Module 2 report, never guessed.
+
+## Module 3 transfer and retrieval
+
+The original 95 backend, 14 frontend, four browser and 24 logging tests are retained.
+New integration tests cover transfer prerequisite/prediction/investigation enforcement,
+independent seed/hash/version pinning, actual flat/nested HTTP and fresh task reads,
+separation from notes, idempotent no-duplicate writes, commit/readback/forged-response
+failures, and atomic completion/schedule rollback/recovery. The migration test upgrades
+real populated Module 2 history and verifies immutability afterwards; downgrade with
+transfer history is refused rather than deleting it.
+
+An injected mutable clock checks one microsecond before/exactly at due boundaries,
+UTC durations across offset changes, late/missed checkpoints, retry/completion/history,
+owner/origin/input protections, question-key nondisclosure and concurrent independent
+write transactions for scheduling and response sequences. Credential tests cover
+near-expiry renewal without owner/token changes and invalidation between read/write.
+Authentication remains on real security time; advancing the retrieval fixture clock
+does not silently extend or bypass credentials.
+
+Frontend tests exercise transfer navigation/gating/mapping, factual journey dates,
+answer/feedback timing, query failures and stable submission retry keys/drafts.
+Desktop/mobile E2E completes original then actual transfer (422/zero, 201/fresh task),
+checks both schedules, advances the test-bootstrap-only clock file, submits incorrect
+then correct retrieval, completes a missed checkpoint and reloads persisted history.
+Successful API responses are never mocked in these browser tests. No public clock
+endpoint or production test-time setting exists. One worker serializes the fixture
+clock; traces remain off for credential-bearing journeys. Screenshots are inspected
+but ignored by Git. All old homepage/lesson browser tests remain active.
+
+Keep Module 1/2 reports historical. Module 3 records fresh counts/coverage, generated
+contract drift, actual browser runs, local commands and separately observed remote CI.

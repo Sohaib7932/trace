@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.domain.learning import LearningError, LessonVersion
+from app.domain.transfer import TRANSFER_ID
 from app.repositories.learning import LearningRepository
 
 LESSON_ID = "fastapi-payload-mismatch"
@@ -59,6 +60,71 @@ def seed_first_lesson(repository: LearningRepository) -> LessonVersion:
             LESSON_VERSION,
             dict(PUBLIC_CONTENT),
             "content",
+            "rejected",
+            digest,
+            datetime.now(UTC),
+        )
+        store.publish(version)
+        return version
+
+
+TRANSFER_CONTENT = {
+    "title": "The Nested Payload Problem",
+    "objective": (
+        "Trace the shape of JSON into a nested receiving contract, then verify a committed task."
+    ),
+    "scenario": (
+        "A task-management form has a title and priority. The outgoing "
+        "request contains both values, but the task is not saved. Inspect "
+        "the JSON levels and the nested receiving schema; diagnose the "
+        "structure before proposing a change."
+    ),
+    "outgoing_code": (
+        'payload = {\n    "title": task.title,\n    "priority": '
+        'task.priority,\n}\nresponse = client.post("/tasks", json=payload)'
+    ),
+    "schema_code": (
+        "from typing import Literal\nfrom pydantic import BaseModel, "
+        "ConfigDict\n\nclass TaskMetadata(BaseModel):\n    model_config = "
+        'ConfigDict(extra="forbid")\n    priority: Literal["low", '
+        '"normal", "high"]\n\nclass TaskCreate(BaseModel):\n    model_config '
+        '= ConfigDict(extra="forbid")\n    title: str\n    metadata: '
+        "TaskMetadata"
+    ),
+}
+
+
+def transfer_hash(content: dict[str, str]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "public_content": content,
+                "expected_field": "nested",
+                "prediction_answer": "rejected",
+                "adapter": "tasks-nested-v1",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
+def seed_transfer_lesson(repository: LearningRepository) -> LessonVersion:
+    digest = transfer_hash(TRANSFER_CONTENT)
+    with repository.write() as store:
+        existing = store.version(TRANSFER_ID, "1.0.0")
+        if existing:
+            if existing.content_hash != digest:
+                raise LearningError(
+                    "conflict", "Published transfer content differs; publish a new version."
+                )
+            return existing
+        version = LessonVersion(
+            uuid4(),
+            TRANSFER_ID,
+            "1.0.0",
+            dict(TRANSFER_CONTENT),
+            "nested",
             "rejected",
             digest,
             datetime.now(UTC),

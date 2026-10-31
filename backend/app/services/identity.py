@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from app.domain.learning import Credential, LearningError
@@ -31,7 +32,22 @@ class IdentityService:
 
     def bootstrap(self, raw: str | None) -> tuple[Credential, str | None]:
         try:
-            return self.authenticate(raw), None
+            credential = self.authenticate(raw)
+            now = datetime.now(UTC)
+            if credential.expires_at - now > timedelta(seconds=self.lifetime_seconds / 2):
+                return credential, None
+            assert raw is not None
+            with self.repository.write() as store:
+                now = datetime.now(UTC)
+                current = store.credential(credential_digest(raw))
+                if current is None or current.revoked_at is not None or current.expires_at <= now:
+                    raise LearningError("unauthenticated", "The credential is no longer valid.")
+                if current.expires_at - now <= timedelta(seconds=self.lifetime_seconds / 2):
+                    current = replace(
+                        current, expires_at=now + timedelta(seconds=self.lifetime_seconds)
+                    )
+                    store.renew(current.id, current.expires_at)
+                return current, raw  # Only reissue the existing HttpOnly cookie, never JSON.
         except LearningError as exc:
             if exc.code != "unauthenticated":
                 raise

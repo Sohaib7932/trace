@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from app.ai.interface import TutorProvider
+from app.domain.clock import Clock, as_utc, utc_now
 from app.domain.learning import (
     Attempt,
     LearningError,
@@ -16,8 +17,10 @@ from app.domain.learning import (
     VerificationRun,
     transition,
 )
+from app.domain.transfer import TRANSFER_ID
 from app.repositories.learning import LearningRepository, LearningStore
 from app.schemas.tutoring import HintRequest, TutorContext
+from app.services.catalog import LESSON_ID
 
 
 def owned(store: LearningStore, owner: UUID, session_id: UUID) -> LearningSession:
@@ -43,8 +46,10 @@ class Progress:
 
 
 class LearningService:
-    def __init__(self, repository: LearningRepository, tutor: TutorProvider) -> None:
-        self.repository, self.tutor = repository, tutor
+    def __init__(
+        self, repository: LearningRepository, tutor: TutorProvider, clock: Clock = utc_now
+    ) -> None:
+        self.repository, self.tutor, self.clock = repository, tutor, clock
 
     def create_session(
         self, owner: UUID, lesson_id: str, version: str, key: str
@@ -60,13 +65,21 @@ class LearningService:
                         "conflict", "Idempotency key was used for another lesson version."
                     )
                 return existing
+            if lesson_id == TRANSFER_ID and not any(
+                s.state == "completed"
+                and store.version_by_id(s.lesson_version_id).lesson_id == LESSON_ID
+                for s in store.owned_sessions(owner)
+            ):
+                raise LearningError(
+                    "invalid_state", "Complete the original lesson before starting transfer."
+                )
             session = LearningSession(
                 uuid4(),
                 owner,
                 lesson.id,
                 SessionState.AWAITING_PREDICTION,
                 key,
-                datetime.now(UTC),
+                as_utc(self.clock()),
                 None,
             )
             store.add_session(session)
@@ -104,7 +117,9 @@ class LearningService:
                     "conflict", "The original prediction is locked and cannot be replaced."
                 )
             state = transition(session.state, SessionState.READY_FOR_ATTEMPT)
-            prediction = Prediction(uuid4(), session_id, answer, reasoning, key, datetime.now(UTC))
+            prediction = Prediction(
+                uuid4(), session_id, answer, reasoning, key, as_utc(self.clock())
+            )
             store.add_prediction(prediction)
             store.set_state(session_id, state)
             event(store, session_id, "prediction_submitted", prediction.id)
@@ -123,8 +138,26 @@ class LearningService:
                         "conflict", "Idempotency key was used for different attempt content."
                     )
                 return existing
-            if field not in {"body", "content"}:
+            lesson = store.version_by_id(session.lesson_version_id)
+            choices = {"flat", "nested"} if lesson.lesson_id == TRANSFER_ID else {"body", "content"}
+            if field not in choices:
                 raise LearningError("unsupported_change", "Unsupported payload mapping.")
+            if (
+                lesson.lesson_id == TRANSFER_ID
+                and field == "nested"
+                and not any(
+                    run.status == "failed"
+                    and any(a.id == run.attempt_id and a.field_name == "flat" for a in attempts)
+                    for run in store.runs(session_id)
+                )
+            ):
+                raise LearningError(
+                    "invalid_state",
+                    (
+                        "Investigate the original flat request's validation evidence be"
+                        "fore proposing a nested correction."
+                    ),
+                )
             state = transition(session.state, SessionState.VERIFICATION_PENDING)
             attempt = Attempt(
                 uuid4(),
@@ -134,7 +167,7 @@ class LearningService:
                 explanation,
                 len(store.hints(session_id)),
                 key,
-                datetime.now(UTC),
+                as_utc(self.clock()),
             )
             store.add_attempt(attempt)
             store.set_state(session_id, state)
@@ -204,7 +237,7 @@ class LearningService:
                 text,
                 status,
                 key,
-                datetime.now(UTC),
+                as_utc(self.clock()),
             )
             store.add_hint(hint)
             event(store, session_id, f"hint_{status}", hint.id)
