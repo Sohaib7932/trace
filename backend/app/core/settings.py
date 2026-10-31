@@ -31,6 +31,40 @@ class Settings(BaseSettings):
     allow_insecure_local_cookies: bool = False
     credential_lifetime_seconds: int = Field(default=2592000, ge=60, le=2592000)
     verification_timeout_seconds: float = Field(default=10, gt=0, le=30)
+    supabase_url: str = ""
+    supabase_issuer: str = ""
+    supabase_jwks_url: str = ""
+    supabase_audience: str = "authenticated"
+    auth_allow_insecure_loopback: bool = False
+    auth_jwks_cache_seconds: int = Field(default=300, ge=1, le=600)
+
+    @model_validator(mode="after")
+    def validate_auth_config(self) -> "Settings":
+        values = (self.supabase_url, self.supabase_issuer, self.supabase_jwks_url)
+        if any(values):
+            if not all(values) or not self.supabase_audience:
+                raise ValueError("Set the complete Supabase URL, issuer, JWKS and audience config.")
+            url = urlsplit(self.supabase_url)
+            if (
+                not url.hostname
+                or url.username
+                or url.password
+                or url.query
+                or url.fragment
+                or url.path not in {"", "/"}
+                or not (
+                    url.scheme == "https"
+                    or (
+                        url.scheme == "http"
+                        and self.auth_allow_insecure_loopback
+                        and url.hostname in {"localhost", "127.0.0.1", "::1"}
+                    )
+                )
+                or self.supabase_issuer != self.supabase_url.rstrip("/") + "/auth/v1"
+                or self.supabase_jwks_url != self.supabase_issuer + "/.well-known/jwks.json"
+            ):
+                raise ValueError("Use the project's HTTPS Auth issuer and public JWKS endpoint.")
+        return self
 
     @model_validator(mode="after")
     def validate_cookie_security(self) -> "Settings":

@@ -1,13 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 test.use({ trace: "off" });
 const clockPath = resolve("test-results/e2e-clock.json");
 async function setClock(now: string) {
   await mkdir(dirname(clockPath), { recursive: true });
   await writeFile(`${clockPath}.tmp`, JSON.stringify({ now }), "utf8");
-  await rename(`${clockPath}.tmp`, clockPath);
+  for (let attempt = 0; ; attempt++) {
+    try { await rename(`${clockPath}.tmp`, clockPath); break; }
+    catch (error) {
+      if (attempt >= 10 || !["EPERM", "EBUSY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+      // Windows can briefly lock the old file during the test server's atomic read.
+      await delay(25);
+    }
+  }
 }
 async function lockPrediction(page: Page, reasoning: string) {
   await page.getByLabel("The request will be rejected", { exact: true }).check();

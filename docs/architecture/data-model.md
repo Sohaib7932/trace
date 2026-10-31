@@ -1,8 +1,33 @@
-# Data architecture — implemented Modules 2 and 3
+# Data architecture — implemented Modules 2–4
 
-There are 16 product/infrastructure tables plus Alembic's revision table. UUIDs
+There are 22 product/infrastructure tables plus Alembic's revision table. UUIDs
 identify rows except the lesson slug and singleton integer write gate. Timestamps
 are UTC-aware through the SQLAlchemy UTC type, including after SQLite readback.
+
+## Module 4 identity tables
+
+| Table | Responsibility/invariants |
+|---|---|
+| users | Permanent Trace UUID, active/disabled status, created/updated time |
+| auth_subjects | Unique issuer/subject to user FK; immutable mapping, created/last-seen; no email identity key |
+| user_roles | User/role PK; learner/creator/admin only, multiple grants; default learner |
+| role_grant_events | Append-only elevated grant audit: user, role, operator, reason, creation time |
+| account_learners | User PK/FK, unique learner FK, creation; optional paired claim credential FK/retry key; immutable ownership |
+| account_action_limits | User/action PK; minute window and count for account inspection/claim limits |
+
+Migration `0005_account_identity` adds tables without rebuilding learning tables.
+Each learner has guest authority or one account owner. Account attachment requires
+all guest credentials revoked; guards forbid adding, reactivating or moving account
+credentials. Guest lookup also excludes account learners. Session owners and all
+evidence FKs remain unchanged; ownership follows the existing learner UUID.
+
+Bootstrap/claim reserve the existing write gate before reads. Inspection allocates
+no learner; first authenticated learning does unless history was claimed first.
+Claim rechecks the guest, revokes every guest credential and attaches ownership
+atomically. The paired receipt permits exact same-user/key retries after cookie
+deletion, never a new transfer. Existing learners conflict instead of merging.
+Downgrade refuses if users exist before dropping any table. See
+[ADR 009](adr/009-supabase-account-identity.md).
 
 ```mermaid
 erDiagram

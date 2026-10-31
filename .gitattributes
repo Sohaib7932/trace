@@ -1,2 +1,3 @@
-# Native transcript payloads can intentionally end in blank lines; retain them.
-.claude-logs/*.md whitespace=-blank-at-eof
+# Native transcript whitespace includes trailing blank lines and Markdown hard breaks.
+# Preserve captured payloads; ordinary source-file whitespace checks remain enabled.
+.claude-logs/*.md whitespace=-blank-at-eof,-blank-at-eol

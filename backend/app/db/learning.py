@@ -28,7 +28,12 @@ class SqlLearningStore:
 
     def credential(self, token_hash: str) -> d.Credential | None:
         row = self.session.scalar(
-            select(m.LearnerCredential).where(m.LearnerCredential.token_hash == token_hash)
+            select(m.LearnerCredential).where(
+                m.LearnerCredential.token_hash == token_hash,
+                ~select(m.AccountLearner.user_id)
+                .where(m.AccountLearner.learner_id == m.LearnerCredential.learner_id)
+                .exists(),
+            )
         )
         return snapshot(d.Credential, row) if row else None
 

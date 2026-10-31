@@ -31,6 +31,8 @@ def register_error_handlers(app: FastAPI) -> None:
     async def learning_error(request: Request, exc: LearningError) -> JSONResponse:
         statuses = {
             "unauthenticated": 401,
+            "forbidden": 403,
+            "rate_limited": 429,
             "not_found": 404,
             "conflict": 409,
             "invalid_state": 409,

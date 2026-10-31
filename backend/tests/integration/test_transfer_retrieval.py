@@ -493,11 +493,19 @@ def test_real_module_2_history_survives_forward_migration(
 ) -> None:
     original = complete_original(learner)
     before = progress(learner, original)
+    with database.session() as db:
+        old_sessions = [
+            (s.id, s.learner_id, s.state) for s in db.scalars(select(m.LearningSession))
+        ]
     config = migration_config()
     with database.engine.begin() as connection:
         config.attributes["connection"] = connection
         command.downgrade(config, "0003_constraint_names")
-    assert progress(learner, original) == before
+    # Current authentication needs the current schema. Inspect old rows directly before upgrade.
+    with database.session() as db:
+        assert [
+            (s.id, s.learner_id, s.state) for s in db.scalars(select(m.LearningSession))
+        ] == old_sessions
     with database.engine.begin() as connection:
         config.attributes["connection"] = connection
         command.upgrade(config, "head")

@@ -1,5 +1,27 @@
 # Trace architecture
 
+## Current account foundation (Module 4)
+
+Supabase Auth is the credential/session authority. Trace retains SQLAlchemy/SQLite
+and its existing boundaries: verified JWT → internal user/subject mapping → trusted
+database roles → exclusively owned learner → existing learning services. New users
+receive learner only; creator/admin grants are audited local operator actions.
+There is no Supabase Data API or application database migration.
+
+Official browser/SSR SDK clients share cookies. Next 16 `proxy.ts` refreshes them;
+protected server components verify claims under Suspense and wait for a real
+request before SDK clock reads. The central browser client sends access tokens;
+FastAPI independently verifies ES256/RS256 against bounded cached JWKS. Invalid
+supplied Authorization fails without guest fallback.
+
+Account inspection leaves the learner unallocated, allowing explicit guest claim
+before starting separate authenticated learning. One ownership association
+preserves every history row while atomically revoking guest credentials. Conflicting
+histories remain separate. See [ADR 009](adr/009-supabase-account-identity.md),
+[authentication](authentication.md), [setup](account-setup.md) and the
+[Module 4 report](module-4-report.md). Historical audits below describe their own
+delivery-time state.
+
 Trace develops independent code-reading and engineering judgment through a bounded
 scenario → prediction → investigation → correction → evidence → reflection loop.
 Modules 2 and 3 implement original, transfer and scheduled retrieval activities. It is not a chatbot, a code

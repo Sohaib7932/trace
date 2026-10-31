@@ -1,5 +1,39 @@
 # Testing strategy
 
+## Module 4 authentication evidence
+
+Generated local ES256 and RS256 keys test signature, algorithm/kid, issuer/audience,
+claim types, expiry/nbf, malformed tokens, unknown keys/rotation, bounded caching and
+safe JWKS outages. No production key is used. Injectable sources and clocks avoid
+external network/time dependence. Token-bearing request logs are checked for leaks.
+
+Account tests use real SQLite transactions for concurrent first login/learner
+creation, role isolation/operator audits, claim replay, conflicting histories,
+invalid/missing/expired/revoked guests, competing claims and rollback after writes.
+A populated Module 3 history (original/transfer attempts, runtime evidence and a
+retrieval response) survives downgrade to 0004, re-upgrade and explicit account claim
+with every learning row unchanged. Account-data downgrade refuses before deleting.
+Legacy migration tests freeze only the historical credential query while creating
+old-schema evidence; post-upgrade assertions use the current owner guard.
+
+Frontend tests cover provider forms, safe errors, pending confirmation/resend,
+Google initiation, reset/logout, claim confirmation/conflict/retry and trusted role
+display. SDK refresh failures cannot trigger anonymous fallback. Callback tests
+check pinned origins, allowed confirmation/recovery types and verified server gates.
+
+Playwright adds a separate loopback Auth protocol fixture with generated public
+keys, synthetic in-memory users/mailbox and rotating refresh sessions. The official
+SDK makes real HTTP calls to it; FastAPI independently fetches JWKS/verifies JWTs.
+Browser tests exercise confirmation, password login/recovery, actual refresh,
+authenticated learning/reload, explicit guest claim, second-user rejection and
+logout/protected pages on desktop/mobile. Original six guest journeys stay enabled.
+Credential-bearing traces are off. No real Google consent, Supabase project or SMTP
+delivery is claimed. See [fixture build instructions](account-setup.md).
+
+Current results belong in [Module 4 report](module-4-report.md); older numbers below
+are historical. CI uses pinned loopback auth settings for the browser build and
+retains Windows/Linux backend checks. Production startup has no fixture bypass.
+
 Tests prove engineering behaviour, not a learner's understanding or improved retention.
 Module 1's checks remain, with schema/path inventories extended for real Module 2/3
 features rather than removing their assertions. Its historical report stays unchanged.
