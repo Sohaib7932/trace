@@ -1,4 +1,5 @@
 import { Wordmark } from "@/components/brand/trace-mark";
+import { AccountLink } from "@/components/auth/account-link";
 import { ButtonLink } from "@/components/ui/button-link";
 import { MobileNav } from "./mobile-nav";
 import { NavScroll } from "./nav-scroll";
@@ -31,6 +32,7 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-1">
+          <AccountLink />
           <ButtonLink href={primaryCta.href} size="sm">
             {primaryCta.label}
           </ButtonLink>

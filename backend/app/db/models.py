@@ -55,6 +55,60 @@ class LearnerCredential(Row, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
+class User(Row, Base):
+    __tablename__ = "users"
+    __table_args__ = (CheckConstraint("status IN ('active','disabled')", name="status"),)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class AuthSubject(Row, Base):
+    __tablename__ = "auth_subjects"
+    __table_args__ = (UniqueConstraint("issuer", "subject"),)
+    issuer: Mapped[str] = mapped_column(String(512))
+    subject: Mapped[str] = mapped_column(String(36))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+    __table_args__ = (CheckConstraint("role IN ('learner','creator','admin')", name="role"),)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16), primary_key=True)
+
+
+class RoleGrantEvent(Row, Base):
+    __tablename__ = "role_grant_events"
+    __table_args__ = (CheckConstraint("role IN ('creator','admin')", name="role"),)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16))
+    operator: Mapped[str] = mapped_column(String(200))
+    reason: Mapped[str] = mapped_column(String(1000))
+
+
+class AccountLearner(Base):
+    __tablename__ = "account_learners"
+    __table_args__ = (
+        CheckConstraint(
+            "(claim_key IS NULL) = (claimed_credential_id IS NULL)", name="claim_receipt"
+        ),
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    learner_id: Mapped[UUID] = mapped_column(ForeignKey("learners.id"), unique=True)
+    claim_key: Mapped[str | None] = mapped_column(String(36))
+    claimed_credential_id: Mapped[UUID | None] = mapped_column(ForeignKey("learner_credentials.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class AccountActionLimit(Base):
+    __tablename__ = "account_action_limits"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    action: Mapped[str] = mapped_column(String(32), primary_key=True)
+    window: Mapped[int] = mapped_column()
+    count: Mapped[int] = mapped_column()
+
+
 class Lesson(Base):
     __tablename__ = "lessons"
     id: Mapped[str] = mapped_column(String(80), primary_key=True)

@@ -12,6 +12,14 @@ After completing it, continue to
 Both routes show persisted original/transfer progress and upcoming/due/completed
 retrieval checkpoints when this anonymous learner returns.
 
+Module 4 adds permanent Trace accounts through Supabase Auth: Google and confirmed
+email/password, recovery, session handling and explicit guest-history claims.
+Learning data stays in SQLAlchemy/SQLite; guest learning needs no provider setup.
+See [account setup](docs/architecture/account-setup.md) for manual Supabase/Google/
+SMTP configuration and [authentication](docs/architecture/authentication.md) for
+ownership, roles and security limits. Automated provider tests use a controlled
+fixture; real Google login and email delivery still need configuration/verification.
+
 ## Requirements
 
 Node 24.x/npm, Python 3.13.x, uv and Git. Use the existing npm and uv lockfiles.
@@ -54,6 +62,13 @@ or seeds implicitly. Module 3 adds migration `0004_transfer_retrieval`, which pr
 existing history and refuses downgrade if transfer history would be lost.
 The local `backend/trace.db` file is ignored by Git. Relative DB paths resolve from
 backend independently of shell cwd.
+
+Module 4 adds `0005_account_identity`. Upgrade before running the current app; no
+learning history is rewritten. Downgrade refuses once any account exists. Accounts
+map validated provider issuer/subject to a separate Trace UUID, local roles and one
+permanent learner. Explicit guest claim requires a valid cookie. An account with
+another learner receives a non-destructive conflict; lost/expired guest credentials
+cannot establish a claim.
 
 Open the learning route. The client uses the browser hostname on port 8000 unless
 `NEXT_PUBLIC_API_BASE_URL` is set. Keep hostnames matched: localhost frontend with

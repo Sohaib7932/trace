@@ -2,6 +2,7 @@ import importlib.util
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,10 +17,10 @@ from sqlalchemy.exc import IntegrityError, OperationalError, StatementError
 from alembic import command
 from app.core.settings import Settings
 from app.db import models as m
-from app.db.learning import SqlLearningRepository, SqlLearningStore
+from app.db.learning import SqlLearningRepository, SqlLearningStore, snapshot
 from app.db.migrations import migration_config
 from app.db.session import Database
-from app.domain.learning import LearningError, VerificationRun
+from app.domain.learning import Credential, LearningError, VerificationRun
 from app.main import create_app
 from app.services.catalog import LESSON_ID, seed_first_lesson
 from app.verification.asgi_notes import AsgiNotesVerifier
@@ -291,7 +292,17 @@ def test_constraint_name_forward_migration_preserves_populated_history(tmp_path:
         migrate(database, "0001_foundation")
         legacy = MetaData()
         for table in m.Base.metadata.sorted_tables:
-            if table.name in {"runtime_tasks", "retrieval_checkpoints", "retrieval_attempts"}:
+            if table.name in {
+                "runtime_tasks",
+                "retrieval_checkpoints",
+                "retrieval_attempts",
+                "users",
+                "auth_subjects",
+                "user_roles",
+                "role_grant_events",
+                "account_learners",
+                "account_action_limits",
+            }:
                 continue  # This fixture deliberately reconstructs the pre-Module-3 schema.
             copy = table.to_metadata(legacy)
             for constraint in copy.constraints:
@@ -313,12 +324,22 @@ def test_constraint_name_forward_migration_preserves_populated_history(tmp_path:
             client.headers.update(
                 {"Origin": "http://localhost:3000", "X-Trace-Client": "learning-web"}
             )
-            client.post("/api/v1/learners/anonymous", json={})
-            session = start(client)
-            predict(client, session)
-            a = attempt(client, session, "content")
-            assert verify(client, session, a["id"]).json()["status"] == "passed"
-            before = progress(client, session)
+
+            # Freeze the historical credential lookup while exercising the real legacy schema.
+            # Module 4's ownership anti-join correctly requires its migration in the running app.
+            def legacy_credential(store, token_hash):
+                row = store.session.scalar(
+                    select(m.LearnerCredential).where(m.LearnerCredential.token_hash == token_hash)
+                )
+                return snapshot(Credential, row) if row else None
+
+            with patch.object(SqlLearningStore, "credential", legacy_credential):
+                client.post("/api/v1/learners/anonymous", json={})
+                session = start(client)
+                predict(client, session)
+                a = attempt(client, session, "content")
+                assert verify(client, session, a["id"]).json()["status"] == "passed"
+                before = progress(client, session)
             with database.engine.begin() as connection:
                 config.attributes["connection"] = connection
                 command.upgrade(config, "head")

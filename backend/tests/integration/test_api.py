@@ -43,6 +43,9 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
         "/api/v1/learners/me/journey",
         "/api/v1/retrievals/{checkpoint_id}",
         "/api/v1/retrievals/{checkpoint_id}/attempts",
+        "/api/v1/account/me",
+        "/api/v1/account/me/learner",
+        "/api/v1/account/claim-anonymous",
     }
     assert schema["paths"]["/api/v1/health/ready"]["get"]["responses"]["503"]
 

@@ -2,19 +2,24 @@ from collections.abc import Iterator
 from typing import Annotated, cast
 
 from fastapi import Depends, Request, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.ai.interface import TutorProvider
 from app.ai.providers.fake import FakeTutorProvider
+from app.auth.jwt import JwtVerifier
 from app.core.errors import ApplicationError
 from app.core.settings import Settings
+from app.db.accounts import SqlAccountRepository
 from app.db.health import SqlReadinessProbe
 from app.db.learning import SqlLearningRepository
 from app.db.session import Database
+from app.domain.accounts import AuthenticatedAccount, Principal
 from app.domain.clock import Clock
-from app.domain.learning import Credential
+from app.domain.learning import LearningError
 from app.repositories.learning import LearningRepository
 from app.repositories.verification import NotesVerifier
+from app.services.accounts import AccountService
 from app.services.catalog import CatalogService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
@@ -62,10 +67,42 @@ def get_identity_service(
     return IdentityService(repository, settings.credential_lifetime_seconds)
 
 
+def get_account_service(database: Annotated[Database, Depends(get_database)]) -> AccountService:
+    return AccountService(SqlAccountRepository(database))
+
+
+def optional_account(
+    request: Request,
+    service: Annotated[AccountService, Depends(get_account_service)],
+    bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))],
+) -> AuthenticatedAccount | None:
+    value = request.headers.get("authorization")
+    if value is None:
+        return None
+    if len(request.headers.getlist("authorization")) != 1:
+        raise LearningError("unauthenticated", "Use one Bearer authorization header.")
+    identity = cast(JwtVerifier, request.app.state.jwt_verifier).authorization(value)
+    return AuthenticatedAccount(service.bootstrap(identity), identity)
+
+
+def current_account(
+    auth: Annotated[AuthenticatedAccount | None, Depends(optional_account)],
+) -> AuthenticatedAccount:
+    if auth is None:
+        raise LearningError("unauthenticated", "Sign in to access your Trace account.")
+    return auth
+
+
 def current_learner(
-    request: Request, service: Annotated[IdentityService, Depends(get_identity_service)]
-) -> Credential:
-    return service.authenticate(request.cookies.get(COOKIE_NAME))
+    request: Request,
+    service: Annotated[IdentityService, Depends(get_identity_service)],
+    accounts: Annotated[AccountService, Depends(get_account_service)],
+    auth: Annotated[AuthenticatedAccount | None, Depends(optional_account)],
+) -> Principal:
+    if auth:
+        return Principal(accounts.learner(auth.account), auth.identity.expires_at, auth.account)
+    credential = service.authenticate(request.cookies.get(COOKIE_NAME))
+    return Principal(credential.learner_id, credential.expires_at, credential=credential)
 
 
 def get_catalog_service(

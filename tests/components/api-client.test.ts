@@ -1,7 +1,10 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { ApiError, learningApi } from "@/lib/api/client";
+import { browserAuth } from "@/lib/supabase/browser";
 
-afterEach(() => vi.unstubAllGlobals());
+vi.mock("@/lib/supabase/browser", () => ({ browserAuth: vi.fn(() => null) }));
+
+afterEach(() => { vi.unstubAllGlobals(); vi.mocked(browserAuth).mockReset().mockReturnValue(null); });
 
 test("API requests include cookies, the client header and the stable retry key", async () => {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "attempt-fixture" }), { status: 201 }));
@@ -33,4 +36,27 @@ test("returning identities use protected bootstrap so the server can renew near-
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(fetch.mock.calls[1][0]).toContain("/learners/anonymous");
   expect(fetch.mock.calls[1][1]).toMatchObject({ method: "POST", credentials: "include", headers: { "X-Trace-Client": "learning-web" } });
+});
+
+test("all authenticated API operations use the current SDK access token centrally", async () => {
+  const getSession = vi.fn().mockResolvedValue({ data: { session: { access_token: "controlled-test-token" } }, error: null });
+  vi.mocked(browserAuth).mockReturnValue({ auth: { getSession } } as unknown as NonNullable<ReturnType<typeof browserAuth>>);
+  const fetch = vi.fn().mockResolvedValue(new Response("{}")); vi.stubGlobal("fetch", fetch);
+  await learningApi.lesson("fixture");
+  expect(getSession).toHaveBeenCalledOnce();
+  expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer controlled-test-token" }) }));
+});
+
+test("SDK refresh failures never fall back to anonymous requests", async () => {
+  vi.mocked(browserAuth).mockReturnValue({ auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: {} }) } } as unknown as NonNullable<ReturnType<typeof browserAuth>>);
+  const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+  await expect(learningApi.identity()).rejects.toThrow("could not be refreshed");
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test("a thrown SDK refresh error also fails closed with a safe message", async () => {
+  vi.mocked(browserAuth).mockReturnValue({ auth: { getSession: vi.fn().mockRejectedValue(new Error("private SDK details")) } } as unknown as NonNullable<ReturnType<typeof browserAuth>>);
+  const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+  await expect(learningApi.identity()).rejects.toThrow("could not be refreshed");
+  expect(fetch).not.toHaveBeenCalled();
 });

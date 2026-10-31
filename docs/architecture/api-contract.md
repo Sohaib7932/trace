@@ -1,4 +1,32 @@
-# API contracts — Modules 2 and 3
+# API contracts — Modules 2–4
+
+## Account API and unified principals
+
+| Method/path (relative to `/api/v1`) | Request | Result |
+|---|---|---|
+| GET /account/me | Verified Supabase Bearer | Internal UUID, created/status, trusted roles, nullable learner, valid guest availability |
+| GET /account/me/learner | Verified Bearer | Nullable learner; inspection never allocates one |
+| POST /account/claim-anonymous | Bearer + guest cookie + `{}` + UUID Idempotency-Key + exact Origin/client | Atomic receipt, clears guest cookie; 409 for other account history |
+
+These are application ownership operations, not duplicate provider login/signup/
+reset endpoints. The backend verifies ES256/RS256 JWT signature/kid/issuer/audience/
+time/subject/structure. First verified requests bootstrap the internal user/subject/
+default learner role atomically. Email/metadata never decide identity or permission.
+
+Valid Bearer accounts take priority on learning requests. Without Authorization,
+the guest flow remains. Invalid supplied headers return 401, never guest fallback;
+unavailable keys/config return 503. Authenticated learning creates/resolves an
+account learner without issuing a guest cookie. Identity response expiry is the
+access-token expiry for accounts and credential expiry for guests. Guest revoke
+rejects account sessions with 409; sign out through the provider SDK. Catalog stays
+public but rejects invalid supplied Authorization. IDs never authorize resources.
+
+Claim derives its guest from the cookie, never submitted IDs/hashes. An exact-key
+same-user receipt can replay after cookie deletion; new transfers require a valid
+unexpired/unrevoked credential. Conflicts never merge histories. Account inspect
+and claim each enforce a per-user 30/minute fixed window and return 429 on excess;
+failed claims count. CORS adds Authorization while retaining exact Origin/client
+and credentials controls. Account responses are no-store. No public role-grant API.
 
 FastAPI-generated `backend/openapi.json` and `src/lib/api/schema.d.ts` describe the
 implemented API. Regenerate with `npm run api:generate`; a second generation must

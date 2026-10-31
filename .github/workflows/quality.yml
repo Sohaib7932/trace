@@ -37,6 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:8001
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_controlled_test_fixture
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

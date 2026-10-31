@@ -39,6 +39,10 @@ def main() -> None:
             cookie_secure=False,
             allow_insecure_local_cookies=True,
             cors_origins=("http://127.0.0.1:3100",),
+            supabase_url="http://127.0.0.1:8001",
+            supabase_issuer="http://127.0.0.1:8001/auth/v1",
+            supabase_jwks_url="http://127.0.0.1:8001/auth/v1/.well-known/jwks.json",
+            auth_allow_insecure_loopback=True,
         )
         database = Database(settings)
         try:

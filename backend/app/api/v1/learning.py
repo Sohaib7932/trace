@@ -5,18 +5,21 @@ from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response
 
 from app.api.dependencies import (
     current_learner,
+    get_account_service,
     get_catalog_service,
     get_identity_service,
     get_learning_service,
     get_retrieval_service,
     get_settings,
     get_verification_service,
+    optional_account,
     require_write_origin,
 )
 from app.api.presentation import present_lesson, present_progress, present_run
 from app.api.retrieval_presentation import present_journey, present_retrieval
 from app.core.settings import Settings
-from app.domain.learning import Credential
+from app.domain.accounts import AuthenticatedAccount, Principal
+from app.domain.learning import LearningError
 from app.schemas.errors import ErrorResponse
 from app.schemas.learning import (
     AttemptCreate,
@@ -40,6 +43,7 @@ from app.schemas.retrieval import (
     RetrievalAttemptResponse,
     RetrievalResponse,
 )
+from app.services.accounts import AccountService
 from app.services.catalog import CatalogService
 from app.services.identity import COOKIE_NAME, COOKIE_PATH, IdentityService
 from app.services.learning import LearningService
@@ -49,10 +53,10 @@ from app.services.verification import VerificationService
 router = APIRouter(
     prefix="/api/v1",
     tags=["learning"],
-    dependencies=[Depends(require_write_origin)],
+    dependencies=[Depends(require_write_origin), Depends(optional_account)],
     responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 503)},
 )
-Owner = Annotated[Credential, Depends(current_learner)]
+Owner = Annotated[Principal, Depends(current_learner)]
 Learning = Annotated[LearningService, Depends(get_learning_service)]
 Identity = Annotated[IdentityService, Depends(get_identity_service)]
 Key = Annotated[UUID, Header(alias="Idempotency-Key")]
@@ -94,7 +98,13 @@ def anonymous(
     service: Identity,
     settings: Annotated[Settings, Depends(get_settings)],
     body: Contract,
+    auth: Annotated[AuthenticatedAccount | None, Depends(optional_account)],
+    accounts: Annotated[AccountService, Depends(get_account_service)],
 ) -> IdentityResponse:
+    if auth:
+        return IdentityResponse(
+            learner_id=accounts.learner(auth.account), expires_at=auth.identity.expires_at
+        )
     credential, raw = service.bootstrap(request.cookies.get(COOKIE_NAME))
     if raw is not None:
         response.set_cookie(
@@ -119,7 +129,9 @@ def me(owner: Owner, response: Response) -> IdentityResponse:
 
 @router.post("/learners/me/revoke", status_code=204, operation_id="revoke_learner")
 def revoke(owner: Owner, service: Identity, response: Response, body: Contract) -> None:
-    service.revoke(owner)
+    if owner.credential is None:
+        raise LearningError("conflict", "Use account sign-out to end an authenticated session.")
+    service.revoke(owner.credential)
     response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH, httponly=True, samesite="lax")
 
 

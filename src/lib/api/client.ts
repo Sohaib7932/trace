@@ -1,4 +1,5 @@
 import type { components } from "./schema";
+import { browserAuth } from "@/lib/supabase/browser";
 
 export type Schema = components["schemas"];
 export type Lesson = Schema["LessonResponse"];
@@ -18,6 +19,12 @@ function baseUrl(): string {
 }
 
 async function request<T>(path: string, body?: object, key?: string): Promise<T> {
+  const auth = browserAuth();
+  const session = auth ? await auth.auth.getSession().catch(() => {
+    throw new ApiError(401, "Your sign-in session could not be refreshed. Sign in again.");
+  }) : null;
+  if (session?.error) throw new ApiError(401, "Your sign-in session could not be refreshed. Sign in again.");
+  const token = session?.data.session?.access_token;
   let response: Response;
   try {
     response = await fetch(`${baseUrl()}/api/v1${path}`, {
@@ -28,6 +35,7 @@ async function request<T>(path: string, body?: object, key?: string): Promise<T>
       headers: {
         "Content-Type": "application/json",
         "X-Trace-Client": "learning-web",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(key ? { "Idempotency-Key": key } : {}),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -61,4 +69,10 @@ export const learningApi = {
   journey: () => request<Schema["JourneyResponse"]>("/learners/me/journey"),
   retrieval: (id: string) => request<Schema["RetrievalResponse"]>(`/retrievals/${encodeURIComponent(id)}`),
   retrieve: (id: string, body: Schema["RetrievalAttemptCreate"], key: string) => request<Schema["RetrievalAttemptResponse"]>(`/retrievals/${encodeURIComponent(id)}/attempts`, body, key),
+};
+
+export const accountApi = {
+  me: () => request<Schema["AccountResponse"]>("/account/me"),
+  learner: () => request<Schema["AccountLearnerResponse"]>("/account/me/learner"),
+  claim: (key: string) => request<Schema["ClaimResponse"]>("/account/claim-anonymous", {}, key),
 };

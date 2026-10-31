@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.accounts import router as account_router
 from app.api.v1.learning import router as learning_router
 from app.api.v1.router import router
+from app.auth.jwt import JwtVerifier
 from app.core.errors import register_error_handlers
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
@@ -16,7 +18,10 @@ from app.domain.clock import Clock, utc_now
 
 
 def create_app(
-    settings: Settings | None = None, database: Database | None = None, clock: Clock = utc_now
+    settings: Settings | None = None,
+    database: Database | None = None,
+    clock: Clock = utc_now,
+    jwt_verifier: JwtVerifier | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
@@ -36,9 +41,11 @@ def create_app(
     app.state.migration_heads = expected_heads()
     app.state.logger = logger
     app.state.clock = clock
+    app.state.jwt_verifier = jwt_verifier or JwtVerifier(config)
     register_error_handlers(app)
     app.include_router(router)
     app.include_router(learning_router)
+    app.include_router(account_router)
     # Request context wraps CORS, which wraps safe error/limit handling.
     app.add_middleware(
         RequestLimitsMiddleware,
@@ -51,7 +58,13 @@ def create_app(
         allow_origins=list(config.cors_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Request-ID", "X-Trace-Client", "Idempotency-Key"],
+        allow_headers=[
+            "Content-Type",
+            "X-Request-ID",
+            "X-Trace-Client",
+            "Idempotency-Key",
+            "Authorization",
+        ],
         expose_headers=["X-Request-ID"],
     )
     app.add_middleware(RequestContextMiddleware, logger=logger)
