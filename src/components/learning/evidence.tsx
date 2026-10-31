@@ -62,7 +62,7 @@ export function ProgressSummary({ progress }: { progress: Progress }) {
     <h2 className="text-lg font-semibold">{progress.session.state === "completed" ? "Session complete" : "Your saved progress"}</h2>
     <p className="mt-2 text-sm leading-6 text-secondary">{summary.attempt_count} attempts recorded. {summary.hints_delivered} fixture hints delivered.</p>
     {summary.prediction_correct !== null && <p className="mt-2 text-sm">{summary.prediction_correct ? "Your initial prediction matched the lesson's expected outcome." : "Your initial prediction differed from the lesson's expected outcome."}</p>}
-    {summary.correct_after_revision && <p className="mt-2 text-sm">The saved note was verified after a revision.</p>}
+    {summary.correct_after_revision && <p className="mt-2 text-sm">The saved record was verified after a revision.</p>}
     {summary.hint_assisted_correction && <p className="mt-2 text-sm">Trace guidance was delivered before the successful correction.</p>}
     {summary.verification_errors > 0 && <p className="mt-2 text-sm">{summary.verification_errors} verification infrastructure errors recorded separately.</p>}
     {progress.session.completed_at && <p className="mt-3 text-sm text-success">Completion is saved with verified API and database evidence.</p>}

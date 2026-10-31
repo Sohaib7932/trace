@@ -91,6 +91,14 @@ class Attempt:
     idempotency_key: str
     created_at: datetime
 
+    @property
+    def change_type(self) -> str:
+        return (
+            "nest_payload_field"
+            if self.field_name in {"flat", "nested"}
+            else "rename_payload_field"
+        )
+
 
 @dataclass(frozen=True)
 class TutorInteraction:

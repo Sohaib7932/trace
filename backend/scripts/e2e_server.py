@@ -1,5 +1,8 @@
 """Explicit Playwright-only bootstrap: a new migrated/seeded temporary DB per run."""
 
+import json
+import os
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -11,8 +14,19 @@ from app.core.settings import Settings
 from app.db.learning import SqlLearningRepository
 from app.db.migrations import migration_config
 from app.db.session import Database
+from app.domain.clock import as_utc, utc_now
 from app.main import create_app
-from app.services.catalog import seed_first_lesson
+from app.services.catalog import seed_first_lesson, seed_transfer_lesson
+
+
+def fixture_clock() -> datetime:
+    # Test-bootstrap-only local file. No production setting or public time-control route.
+    name = os.environ.get("TRACE_E2E_CLOCK_FILE")
+    if name and Path(name).is_file():
+        return as_utc(
+            datetime.fromisoformat(json.loads(Path(name).read_text(encoding="utf-8"))["now"])
+        )
+    return utc_now()
 
 
 def main() -> None:
@@ -33,8 +47,9 @@ def main() -> None:
                 config.attributes["connection"] = connection
                 command.upgrade(config, "head")
             seed_first_lesson(SqlLearningRepository(database))
+            seed_transfer_lesson(SqlLearningRepository(database))
             uvicorn.run(
-                create_app(settings, database),
+                create_app(settings, database, fixture_clock),
                 host="127.0.0.1",
                 port=8000,
                 access_log=False,

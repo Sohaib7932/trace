@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/learners/me/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Journey */
+        get: operations["get_journey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/learners/me/revoke": {
         parameters: {
             query?: never;
@@ -100,6 +117,40 @@ export interface paths {
         get: operations["get_lesson"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/retrievals/{checkpoint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieval */
+        get: operations["get_retrieval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/retrievals/{checkpoint_id}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retrieval Attempt */
+        post: operations["submit_retrieval"];
         delete?: never;
         options?: never;
         head?: never;
@@ -268,8 +319,8 @@ export interface components {
         /** AttemptCreate */
         AttemptCreate: {
             /**
-             * Change Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             change_type: "rename_payload_field";
             /**
@@ -288,9 +339,9 @@ export interface components {
             /**
              * Change Type
              * @default rename_payload_field
-             * @constant
+             * @enum {string}
              */
-            change_type: "rename_payload_field";
+            change_type: "rename_payload_field" | "nest_payload_field";
             /**
              * Created At
              * Format: date-time
@@ -302,7 +353,7 @@ export interface components {
              * Field Name
              * @enum {string}
              */
-            field_name: "body" | "content";
+            field_name: "body" | "content" | "flat" | "nested";
             /** Hints Before */
             hints_before: number;
             /**
@@ -330,6 +381,35 @@ export interface components {
             observed: string;
             /** Source */
             source: string;
+        };
+        /** CheckpointSummary */
+        CheckpointSummary: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Due At
+             * Format: date-time
+             */
+            due_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "due" | "completed";
+            /**
+             * Transfer Session Id
+             * Format: uuid
+             */
+            transfer_session_id: string;
         };
         /** Contract */
         Contract: Record<string, never>;
@@ -433,6 +513,20 @@ export interface components {
              */
             learner_id: string;
         };
+        /** JourneyResponse */
+        JourneyResponse: {
+            /** Checkpoints */
+            checkpoints: components["schemas"]["CheckpointSummary"][];
+            /** Last Completed At */
+            last_completed_at: string | null;
+            /** Phases */
+            phases: components["schemas"]["PhaseResponse"][];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+        };
         /** LessonResponse */
         LessonResponse: {
             /** Id */
@@ -463,6 +557,19 @@ export interface components {
              * @constant
              */
             status: "alive";
+        };
+        /** PhaseResponse */
+        PhaseResponse: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Available */
+            available: boolean;
+            /** Completed */
+            completed: boolean;
+            /** Lesson Id */
+            lesson_id: string;
+            /** Sessions */
+            sessions: components["schemas"]["SessionResponse"][];
         };
         /** PredictionCreate */
         PredictionCreate: {
@@ -509,6 +616,16 @@ export interface components {
             /** Verifications */
             verifications: components["schemas"]["RunResponse"][];
         };
+        /** QuestionOption */
+        QuestionOption: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "a" | "b" | "c";
+            /** Label */
+            label: string;
+        };
         /** ReadinessResponse */
         ReadinessResponse: {
             /**
@@ -517,6 +634,75 @@ export interface components {
              * @constant
              */
             status: "ready";
+        };
+        /** RetrievalAttemptCreate */
+        RetrievalAttemptCreate: {
+            /**
+             * Reasoning
+             * @default
+             */
+            reasoning: string;
+            /**
+             * Selection
+             * @enum {string}
+             */
+            selection: "a" | "b" | "c";
+        };
+        /** RetrievalAttemptResponse */
+        RetrievalAttemptResponse: {
+            /** Correct */
+            correct: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Feedback */
+            feedback: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            /**
+             * Reasoning
+             * @default
+             */
+            reasoning: string;
+            /**
+             * Selection
+             * @enum {string}
+             */
+            selection: "a" | "b" | "c";
+        };
+        /** RetrievalQuestionResponse */
+        RetrievalQuestionResponse: {
+            /** Id */
+            id: string;
+            /** Options */
+            options: components["schemas"]["QuestionOption"][];
+            /** Payload */
+            payload: string;
+            /** Prompt */
+            prompt: string;
+            /** Schema Code */
+            schema_code: string;
+            /** Title */
+            title: string;
+        };
+        /** RetrievalResponse */
+        RetrievalResponse: {
+            /** Attempts */
+            attempts: components["schemas"]["RetrievalAttemptResponse"][];
+            checkpoint: components["schemas"]["CheckpointSummary"];
+            question: components["schemas"]["RetrievalQuestionResponse"] | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
         };
         /** RunResponse */
         RunResponse: {
@@ -581,6 +767,24 @@ export interface components {
              * @enum {string}
              */
             state: "awaiting_prediction" | "ready_for_attempt" | "verification_pending" | "needs_revision" | "completed" | "abandoned";
+        };
+        /** TransferAttemptCreate */
+        TransferAttemptCreate: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            change_type: "nest_payload_field";
+            /**
+             * Explanation
+             * @default
+             */
+            explanation: string;
+            /**
+             * Field Name
+             * @enum {string}
+             */
+            field_name: "flat" | "nested";
         };
         /** ValidationIssue */
         ValidationIssue: {
@@ -876,6 +1080,80 @@ export interface operations {
             };
         };
     };
+    get_journey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JourneyResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     revoke_learner: {
         parameters: {
             query?: never;
@@ -972,6 +1250,164 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LessonResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_retrieval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                checkpoint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetrievalResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submit_retrieval: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                checkpoint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetrievalAttemptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetrievalAttemptResponse"];
                 };
             };
             /** @description Unauthorized */
@@ -1355,7 +1791,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AttemptCreate"];
+                "application/json": components["schemas"]["AttemptCreate"] | components["schemas"]["TransferAttemptCreate"];
             };
         };
         responses: {

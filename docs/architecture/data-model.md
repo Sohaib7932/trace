@@ -1,6 +1,6 @@
-# Data architecture — implemented Module 2
+# Data architecture — implemented Modules 2 and 3
 
-There are 13 product/infrastructure tables plus Alembic's revision table. UUIDs
+There are 16 product/infrastructure tables plus Alembic's revision table. UUIDs
 identify rows except the lesson slug and singleton integer write gate. Timestamps
 are UTC-aware through the SQLAlchemy UTC type, including after SQLite readback.
 
@@ -17,14 +17,17 @@ erDiagram
   ATTEMPT ||--o{ VERIFICATION_RUN : checked_by
   VERIFICATION_RUN ||--o{ VERIFICATION_CHECK : contains
   VERIFICATION_RUN ||--o| RUNTIME_NOTE : isolates
+  VERIFICATION_RUN ||--o| RUNTIME_TASK : isolates
   LEARNING_SESSION ||--o{ LEARNING_EVENT : emits
+  LEARNING_SESSION ||--o{ RETRIEVAL_CHECKPOINT : schedules_on_transfer_completion
+  RETRIEVAL_CHECKPOINT ||--o{ RETRIEVAL_ATTEMPT : preserves
 ```
 
 | Table | Relationships and invariants |
 |---|---|
 | learners | Pseudonymous UUID and creation time; no name/email/profile |
 | learner_credentials | Owner FK, unique SHA-256 digest, expiry and revocation; no raw token |
-| lessons | Stable slug; only the first lesson is seeded |
+| lessons | Stable slug; original and nested-transfer lessons are seeded independently |
 | lesson_versions | Unique lesson/version; immutable public content, internal evaluator fields and canonical SHA-256 hash; creation is publication |
 | learning_sessions | Owner FK, pinned version FK, state/completion time; unique owner/idempotency key; identity/version cannot change |
 | predictions | Unique session FK, original selection/reasoning, retry key and timestamp; append once |
@@ -33,6 +36,9 @@ erDiagram
 | verification_runs | Same-session attempt FK, unique attempt/key; pending then exactly one final passed/failed/error result; feedback/timing |
 | verification_checks | Unique run/check code; expected and observed rendered evidence, match flag, source/timestamp |
 | runtime_notes | Unique run FK; actual committed note title/content; other runs' rows never count |
+| runtime_tasks | Unique run FK; committed title/priority; only pending transfer runs may insert; note runs cannot substitute |
+| retrieval_checkpoints | Completed transfer session FK, unique source/ordinal (1 or 2), immutable question ID/hash and UTC due/creation dates; completion can be set once after a correct saved response |
+| retrieval_attempts | Checkpoint FK, unique checkpoint/number and checkpoint/key; immutable selected option/reasoning/outcome/feedback/time |
 | learning_events | Append-only session facts with server timestamp and optional server-generated reference |
 | write_gate | One row used to reserve SQLite's writer before transactional decisions |
 
@@ -59,8 +65,21 @@ configuration is stored separately and never included in the public lesson proje
 
 Guidance records count requests (including explicit provider errors); delivered
 fixture hints are counted separately. `hints_before` is derived on the server.
-The first lesson has only original attempts; transfer/revisit phases and schedules
-are future schema changes, not currently implemented entities.
+Original and transfer phases use separate pinned lesson sessions. Their availability,
+completion and counts are projected from those records, without a duplicate mutable
+phase-status table. Attempts permit body/content only for the original and flat/nested
+only for transfer; both application policy and DB guards enforce the lesson scope.
+The transfer session requires original completion and follows the same terminal-state
+rules. Retrieval checkpoints are distinct scheduled activities, not new session states.
+
+Transfer completion and both checkpoint inserts commit atomically. Ordinals map to
+central +1/+7-day UTC durations, anchored to the saved completion time. Replays do not
+duplicate checkpoints; genuine separate transfer sessions retain separate schedules.
+Upcoming/due/completed is calculated from server time and the saved completion date.
+Missed dates remain due. Checkpoint responses append under the existing write gate;
+the first correct response sets completion in that same transaction. Earlier failed
+responses and explanations are preserved. Question content is a versioned immutable
+code registry with a hash stored in each checkpoint; changing it requires a new ID.
 
 ## Migrations and initialization
 
@@ -71,6 +90,11 @@ are future schema changes, not currently implemented entities.
   canonical names. A full foreign-key integrity check precedes ending temporary FK
   deferral; foreign-key enforcement remains enabled. The populated-history regression
   covers a real completed session before/after this repair.
+- 0004_transfer_retrieval widens the constrained mapping set with a data-preserving
+  SQLite batch rebuild, restores all previous triggers and checks FK integrity, then
+  adds tasks/checkpoints/responses and their guards. Populated original history is
+  tested through downgrade-to-0003/upgrade-to-head. Empty-schema down/up remains
+  supported; a populated transfer history deliberately prevents destructive downgrade.
 
 No automatic startup DDL or seeding. Use Alembic then the idempotent seed CLI.
 A changed published content/evaluator hash is a conflict, not an overwrite. Publish
@@ -86,3 +110,11 @@ cookies stay out of Git; development transcripts stay in the tracked shared
 `.claude-logs/`, separate from learner evidence. Playwright and pytest use isolated
 fixture databases, not the development file. No raw credentials appear in application
 logs, database rows, JSON responses or frontend storage.
+
+Module 3 adds task fixtures, source-linked schedules, question identity/hash and
+selected retrieval answers, optional reasoning, deterministic outcomes and dates.
+They are retained to inspect factual transfer/revisit activity. No retention percentage
+or empirical improvement is inferred. The default credential life is 30 days with
+protected renewal of still-valid near-expiry credentials; explicit shorter TTLs,
+expiry/revocation and cookie loss can still prevent returning. No recovery, export,
+deletion API, backup-expiry policy or automatic deletion guarantee is implemented.

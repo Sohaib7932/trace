@@ -1,18 +1,20 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response
 
 from app.api.dependencies import (
     current_learner,
     get_catalog_service,
     get_identity_service,
     get_learning_service,
+    get_retrieval_service,
     get_settings,
     get_verification_service,
     require_write_origin,
 )
 from app.api.presentation import present_lesson, present_progress, present_run
+from app.api.retrieval_presentation import present_journey, present_retrieval
 from app.core.settings import Settings
 from app.domain.learning import Credential
 from app.schemas.errors import ErrorResponse
@@ -30,10 +32,18 @@ from app.schemas.learning import (
     RunResponse,
     SessionCreate,
     SessionResponse,
+    TransferAttemptCreate,
+)
+from app.schemas.retrieval import (
+    JourneyResponse,
+    RetrievalAttemptCreate,
+    RetrievalAttemptResponse,
+    RetrievalResponse,
 )
 from app.services.catalog import CatalogService
 from app.services.identity import COOKIE_NAME, COOKIE_PATH, IdentityService
 from app.services.learning import LearningService
+from app.services.retrieval import RetrievalService
 from app.services.verification import VerificationService
 
 router = APIRouter(
@@ -46,6 +56,33 @@ Owner = Annotated[Credential, Depends(current_learner)]
 Learning = Annotated[LearningService, Depends(get_learning_service)]
 Identity = Annotated[IdentityService, Depends(get_identity_service)]
 Key = Annotated[UUID, Header(alias="Idempotency-Key")]
+Retrieval = Annotated[RetrievalService, Depends(get_retrieval_service)]
+
+
+@router.get("/learners/me/journey", response_model=JourneyResponse, operation_id="get_journey")
+def journey(owner: Owner, service: Retrieval) -> JourneyResponse:
+    return present_journey(service.journey(owner.learner_id))
+
+
+@router.get(
+    "/retrievals/{checkpoint_id}", response_model=RetrievalResponse, operation_id="get_retrieval"
+)
+def retrieval(checkpoint_id: UUID, owner: Owner, service: Retrieval) -> RetrievalResponse:
+    return present_retrieval(*service.retrieve(owner.learner_id, checkpoint_id))
+
+
+@router.post(
+    "/retrievals/{checkpoint_id}/attempts",
+    response_model=RetrievalAttemptResponse,
+    status_code=201,
+    operation_id="submit_retrieval",
+)
+def retrieval_attempt(
+    checkpoint_id: UUID, body: RetrievalAttemptCreate, owner: Owner, service: Retrieval, key: Key
+) -> RetrievalAttemptResponse:
+    return RetrievalAttemptResponse.model_validate(
+        service.submit(owner.learner_id, checkpoint_id, body.selection, body.reasoning, str(key))
+    )
 
 
 @router.post(
@@ -151,7 +188,11 @@ def prediction(session_id: UUID, owner: Owner, service: Learning) -> PredictionR
     operation_id="submit_attempt",
 )
 def attempt(
-    session_id: UUID, body: AttemptCreate, owner: Owner, service: Learning, key: Key
+    session_id: UUID,
+    body: Annotated[AttemptCreate | TransferAttemptCreate, Body(discriminator="change_type")],
+    owner: Owner,
+    service: Learning,
+    key: Key,
 ) -> AttemptResponse:
     return AttemptResponse.model_validate(
         service.attempt(owner.learner_id, session_id, body.field_name, body.explanation, str(key))

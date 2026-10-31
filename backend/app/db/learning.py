@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.db import models as m
 from app.db.session import Database
 from app.domain import learning as d
+from app.domain.retrieval import RetrievalAttempt, RetrievalCheckpoint
+from app.domain.transfer import TaskSnapshot
 from app.repositories.learning import LearningStore
 
 
@@ -54,6 +56,13 @@ class SqlLearningStore:
             query = query.where(m.LessonVersion.version == version)
         row = self.session.scalar(query.order_by(m.LessonVersion.created_at.desc()))
         return snapshot(d.LessonVersion, row) if row else None
+
+    def renew(self, credential_id: UUID, expires_at: datetime) -> None:
+        self.session.execute(
+            update(m.LearnerCredential)
+            .where(m.LearnerCredential.id == credential_id)
+            .values(expires_at=expires_at)
+        )
 
     def version_by_id(self, version_id: UUID) -> d.LessonVersion:
         row = self.session.get(m.LessonVersion, version_id)
@@ -192,6 +201,69 @@ class SqlLearningStore:
             for row in self.session.scalars(
                 select(m.RuntimeNote).where(m.RuntimeNote.run_id == run_id)
             )
+        )
+
+    def add_task(self, run_id: UUID, title: str, priority: str) -> TaskSnapshot:
+        row = m.RuntimeTask(run_id=run_id, title=title, priority=priority)
+        self.session.add(row)
+        self.session.flush()
+        return TaskSnapshot(row.id, row.title, row.priority)
+
+    def tasks(self, run_id: UUID) -> tuple[TaskSnapshot, ...]:
+        return tuple(
+            TaskSnapshot(row.id, row.title, row.priority)
+            for row in self.session.scalars(
+                select(m.RuntimeTask).where(m.RuntimeTask.run_id == run_id)
+            )
+        )
+
+    def owned_sessions(self, owner: UUID) -> list[d.LearningSession]:
+        return [
+            snapshot(d.LearningSession, row)
+            for row in self.session.scalars(
+                select(m.LearningSession)
+                .where(m.LearningSession.learner_id == owner)
+                .order_by(m.LearningSession.created_at, m.LearningSession.id)
+            )
+        ]
+
+    def checkpoints(self, owner: UUID) -> list[RetrievalCheckpoint]:
+        return [
+            snapshot(RetrievalCheckpoint, row)
+            for row in self.session.scalars(
+                select(m.RetrievalCheckpoint)
+                .join(
+                    m.LearningSession,
+                    m.RetrievalCheckpoint.transfer_session_id == m.LearningSession.id,
+                )
+                .where(m.LearningSession.learner_id == owner)
+                .order_by(m.RetrievalCheckpoint.due_at, m.RetrievalCheckpoint.id)
+            )
+        ]
+
+    def add_checkpoint(self, checkpoint: RetrievalCheckpoint) -> None:
+        self.session.add(m.RetrievalCheckpoint(**asdict(checkpoint)))
+        self.session.flush()
+
+    def retrieval_attempts(self, checkpoint_id: UUID) -> list[RetrievalAttempt]:
+        return [
+            snapshot(RetrievalAttempt, row)
+            for row in self.session.scalars(
+                select(m.RetrievalAttempt)
+                .where(m.RetrievalAttempt.checkpoint_id == checkpoint_id)
+                .order_by(m.RetrievalAttempt.number)
+            )
+        ]
+
+    def add_retrieval_attempt(self, attempt: RetrievalAttempt) -> None:
+        self.session.add(m.RetrievalAttempt(**asdict(attempt)))
+        self.session.flush()
+
+    def complete_checkpoint(self, checkpoint_id: UUID, at: datetime) -> None:
+        self.session.execute(
+            update(m.RetrievalCheckpoint)
+            .where(m.RetrievalCheckpoint.id == checkpoint_id)
+            .values(completed_at=at)
         )
 
 

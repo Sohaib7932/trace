@@ -1,4 +1,4 @@
-# API contracts — Module 2
+# API contracts — Modules 2 and 3
 
 FastAPI-generated `backend/openapi.json` and `src/lib/api/schema.d.ts` describe the
 implemented API. Regenerate with `npm run api:generate`; a second generation must
@@ -7,7 +7,10 @@ produce identical bytes. No planned endpoints are inserted into OpenAPI as stubs
 ## Identity, authorization and writes
 
 `POST /api/v1/learners/anonymous` accepts `{}` and creates/reuses an anonymous identity.
-It returns learner ID/expiry, never the credential. The host-only HttpOnly cookie
+It returns learner ID/expiry, never the credential. A valid credential in the latter
+half of its configured lifetime is renewed under the write gate and reissued only
+as the HttpOnly cookie; it is rechecked for expiry/revocation before renewal. Default
+life is 30 days so a +7-day checkpoint can be revisited. The host-only HttpOnly cookie
 `trace_learner` at `/api/v1` contains the random credential; only its hash is stored.
 Secure is default; non-Secure cookies require explicit loopback development mode.
 SameSite=Lax and matching browser/API hostnames are required locally.
@@ -51,6 +54,9 @@ All paths below are relative to `/api/v1`.
 | POST /sessions/{session_id}/attempts/{attempt_id}/verify | Owner, empty object, key | Real verification run and checks; passed/failed/error |
 | GET /sessions/{session_id}/verifications | Owner | Stored runs/checks, including any pending/interrupted state |
 | GET /sessions/{session_id}/progress | Owner | Pinned lesson, state, original, attempts, guidance, runs/checks, events and factual summary |
+| GET /learners/me/journey | Owner | Explicit original/transfer phase projections, counts, saved session links, checkpoints, server time and last completed activity |
+| GET /retrievals/{checkpoint_id} | Owner | Server-derived status, history and a question only when due/completed; no answer key |
+| POST /retrievals/{checkpoint_id}/attempts | Owner, selection a/b/c, optional reasoning, retry key | 201 preserved response/outcome/feedback; first correct response completes once |
 
 Request objects reject unknown fields. Predictions use one of rejected/saved/server_error
 and bounded original reasoning. The correction schema accepts only:
@@ -59,7 +65,12 @@ and bounded original reasoning. The correction schema accepts only:
 {"change_type":"rename_payload_field","field_name":"body","explanation":"My proposal"}
 ```
 
-The only field choices are body/content. There is no source-code, URL, SQL or arbitrary
+The original field choices remain body/content. Transfer uses a discriminated
+`nest_payload_field` request with field_name flat/nested and optional explanation.
+Each variant rejects fields from the other lesson. The service checks the pinned
+lesson and requires a saved prediction and observed failed flat verification before
+the nested correction; transfer creation requires an owned completed original.
+There is no source-code, URL, SQL or arbitrary
 payload execution endpoint. A client-supplied success flag or session state is rejected.
 
 ## Actual verification boundary
@@ -77,6 +88,33 @@ Actual body/422/zero-row evidence is failed correction feedback; content/201/exa
 fresh-read evidence passes. API/commit/readback failure or contradictory evidence is
 error and does not classify the learner as incorrect. Completion is server-controlled.
 
+The transfer adapter is selected by the pinned lesson identity, separately from its
+expected answer. It calls a private real /tasks route with TaskCreate and nested
+TaskMetadata (`extra=forbid`, bounded title, allowlisted priority). Flat priority
+produces actual 422/missing metadata/extra priority and a fresh zero-task read;
+nested metadata.priority produces actual 201 and a committed row with matching
+ID/title/priority. The five evidence codes and infrastructure-error distinction are
+shared. runtime_tasks and runtime_notes are isolated, each linked to its exact run.
+
+## Retrieval contract
+
+Completion schedules two records atomically, due +24/+168 UTC hours from that
+transfer session's completion. Source/ordinal is unique and schedule/question identity
+is immutable. There are no client-supplied due dates or completion flags. GET responses
+return server_time and a status of upcoming, due or completed. A missed checkpoint
+stays due. A pre-due read returns question=null; pre-due submission conflicts. A due
+question contains new payload/schema/options, not previous hints or an answer key.
+Feedback appears only in stored submitted responses. Upcoming question content is
+not prefetched by the UI.
+
+Submission uses the same UUID Idempotency-Key header and origin/client protections.
+Same key/payload replays the original response, including after completion; changed
+payload conflicts. New responses append with unique sequence numbers while due;
+new-key submissions after completion conflict. Foreign/missing checkpoints both 404.
+Journey phase completion is derived from persisted sessions, not editable phase flags.
+The public schema now contains 18 paths / 20 operations; neither /notes nor /tasks
+nor any production clock-control endpoint is exposed.
+
 ## Errors
 
 Application errors retain Module 1's envelope:
@@ -93,6 +131,6 @@ CORS preflight rejections retain Starlette's standard access-policy response.
 
 ## Not implemented
 
-Transfer/revisit/follow-up scheduling, aggregate course progress, live providers,
-accounts/recovery and deployment endpoints remain future work. The current progress
+External reminder delivery, adaptive scheduling, live providers,
+accounts/recovery, export/deletion and deployment endpoints remain future work. The current progress
 summary describes stored events, not mastery, retention or learning improvement.

@@ -76,6 +76,7 @@ test("workspace resumes the saved session and original prediction through API re
   localStorage.setItem("trace.session.fastapi-payload-mismatch", "session-fixture");
   vi.spyOn(learningApi, "identity").mockResolvedValue({ learner_id: "learner-fixture", expires_at: "2026-11-01T00:00:00Z" });
   vi.spyOn(learningApi, "lesson").mockResolvedValue(lesson);
+  vi.spyOn(learningApi, "journey").mockResolvedValue({ server_time: "2026-10-31T06:00:00Z", phases: [{ lesson_id: lesson.id, available: true, completed: false, sessions: [savedProgress.session], attempt_count: 1 }], checkpoints: [], last_completed_at: null });
   const read = vi.spyOn(learningApi, "progress").mockResolvedValue(savedProgress);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><Workspace /></QueryClientProvider>);

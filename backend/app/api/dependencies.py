@@ -11,6 +11,7 @@ from app.core.settings import Settings
 from app.db.health import SqlReadinessProbe
 from app.db.learning import SqlLearningRepository
 from app.db.session import Database
+from app.domain.clock import Clock
 from app.domain.learning import Credential
 from app.repositories.learning import LearningRepository
 from app.repositories.verification import NotesVerifier
@@ -18,8 +19,10 @@ from app.services.catalog import CatalogService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
 from app.services.learning import LearningService
+from app.services.retrieval import RetrievalService
 from app.services.verification import VerificationService
 from app.verification.asgi_notes import AsgiNotesVerifier
+from app.verification.asgi_tasks import AsgiTasksVerifier
 
 
 def get_settings(request: Request) -> Settings:
@@ -74,8 +77,9 @@ def get_catalog_service(
 def get_learning_service(
     repository: Annotated[LearningRepository, Depends(get_learning_repository)],
     tutor: Annotated[TutorProvider, Depends(get_tutor_provider)],
+    request: Request,
 ) -> LearningService:
-    return LearningService(repository, tutor)
+    return LearningService(repository, tutor, cast(Clock, request.app.state.clock))
 
 
 def get_notes_verifier(
@@ -89,8 +93,22 @@ def get_verification_service(
     repository: Annotated[LearningRepository, Depends(get_learning_repository)],
     verifier: Annotated[NotesVerifier, Depends(get_notes_verifier)],
     settings: Annotated[Settings, Depends(get_settings)],
+    request: Request,
 ) -> VerificationService:
-    return VerificationService(repository, verifier, settings.verification_timeout_seconds)
+    return VerificationService(
+        repository,
+        verifier,
+        settings.verification_timeout_seconds,
+        AsgiTasksVerifier(repository, settings.verification_timeout_seconds),
+        cast(Clock, request.app.state.clock),
+    )
+
+
+def get_retrieval_service(
+    request: Request,
+    repository: Annotated[LearningRepository, Depends(get_learning_repository)],
+) -> RetrievalService:
+    return RetrievalService(repository, cast(Clock, request.app.state.clock))
 
 
 def require_write_origin(

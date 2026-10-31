@@ -12,9 +12,12 @@ from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddlewar
 from app.core.settings import Settings
 from app.db.migrations import expected_heads
 from app.db.session import Database
+from app.domain.clock import Clock, utc_now
 
 
-def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, database: Database | None = None, clock: Clock = utc_now
+) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
 
@@ -32,6 +35,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.state.settings = config
     app.state.migration_heads = expected_heads()
     app.state.logger = logger
+    app.state.clock = clock
     register_error_handlers(app)
     app.include_router(router)
     app.include_router(learning_router)
