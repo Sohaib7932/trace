@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.learning import NOTE_CONTENT, NOTE_TITLE, LearningError, Observation
-from app.repositories.learning import LearningRepository
+from app.repositories.exercise import ExerciseRepository
 from app.services.notes import NotesService
 
 
@@ -25,7 +25,7 @@ class SavedNote(BaseModel):
     content: str
 
 
-def create_notes_app(repository: LearningRepository, run_id: UUID) -> FastAPI:
+def create_notes_app(repository: ExerciseRepository, run_id: UUID) -> FastAPI:
     """Private real FastAPI route: normal validation, dependency and committed service write."""
     app = FastAPI(title="Controlled notes exercise", docs_url=None, openapi_url=None)
 
@@ -42,7 +42,7 @@ def create_notes_app(repository: LearningRepository, run_id: UUID) -> FastAPI:
 
 
 class AsgiNotesVerifier:
-    def __init__(self, repository: LearningRepository, timeout_seconds: float) -> None:
+    def __init__(self, repository: ExerciseRepository, timeout_seconds: float) -> None:
         self.repository, self.timeout_seconds = repository, timeout_seconds
 
     def observe(self, run_id: UUID, field_name: str) -> Observation:

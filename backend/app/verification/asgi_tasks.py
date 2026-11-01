@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.learning import LearningError
 from app.domain.transfer import TASK_PRIORITY, TASK_TITLE, TaskObservation
-from app.repositories.learning import LearningRepository
+from app.repositories.exercise import ExerciseRepository
 from app.services.tasks import TasksService
 
 
@@ -30,7 +30,7 @@ class SavedTask(BaseModel):
     metadata: TaskMetadata
 
 
-def create_tasks_app(repository: LearningRepository, run_id: UUID) -> FastAPI:
+def create_tasks_app(repository: ExerciseRepository, run_id: UUID) -> FastAPI:
     app = FastAPI(title="Controlled task exercise", docs_url=None, openapi_url=None)
 
     def tasks_service() -> TasksService:
@@ -51,7 +51,7 @@ def create_tasks_app(repository: LearningRepository, run_id: UUID) -> FastAPI:
 
 
 class AsgiTasksVerifier:
-    def __init__(self, repository: LearningRepository, timeout_seconds: float) -> None:
+    def __init__(self, repository: ExerciseRepository, timeout_seconds: float) -> None:
         self.repository, self.timeout_seconds = repository, timeout_seconds
 
     def observe(self, run_id: UUID, mapping: str) -> TaskObservation:
