@@ -55,6 +55,25 @@ class BoundedAIClient:
         self._windows: dict[tuple[str, Capability], tuple[int, int]] = {}
         self._usage: dict[tuple[Capability, str | None], list[int]] = {}
         self._spent = 0
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        with self._lock:
+            return self._closed
+
+    def close(self) -> None:
+        """End ownership once; optional transport cleanup does not change its protocol."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+        try:
+            cleanup = getattr(self.transport, "close", None)
+            if callable(cleanup):
+                cleanup()
+        except Exception:
+            raise RuntimeError("AI client cleanup failed.") from None
 
     def usage_snapshot(self) -> tuple[UsageRecord, ...]:
         with self._lock:
@@ -118,7 +137,7 @@ class BoundedAIClient:
                 error_code=code,
             )
 
-        if self.settings.mode != "mock":
+        if self.closed or self.settings.mode != "mock":
             return result("disabled")
         if self.transport is None or getattr(self.transport, "source", None) != "test_fixture":
             return result("configuration_missing")
@@ -175,6 +194,8 @@ class BoundedAIClient:
 
         for attempt in range(self.settings.max_retries + 1):
             with self._lock:
+                if self._closed:
+                    return result("disabled")
                 reserve = self.settings.max_cost_per_attempt_microusd
                 if self._spent + reserve > self.settings.spend_limit_microusd:
                     return result("budget_exhausted")
@@ -196,6 +217,8 @@ class BoundedAIClient:
                         "connect_timeout_seconds": min(request.connect_timeout_seconds, remaining),
                     }
                 )
+                if self.closed:
+                    raise AITransportError("disabled")
                 received = self.transport.complete(bounded)
                 response = TransportCompletion.model_validate(received.model_dump(warnings=False))
                 text = response.text
@@ -245,6 +268,10 @@ class BoundedAIClient:
                         )
                     ):
                         usage[4] += 1
+            # Work reserved before shutdown may finish, but its text cannot escape
+            # a closed application resource and no further retry may start.
+            if self.closed:
+                return result("disabled")
             if error is None:
                 return result(response=response)
             # Same provider/model only. No authentication, invalid input or unknown retries.
