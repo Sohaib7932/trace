@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import subprocess
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -292,6 +294,49 @@ def test_draft_manifest_is_complete_unapproved_and_has_no_production_loader():
         SupportService().answer(SupportQuestion(question="How do daily exercises work?")).status
         == "unavailable"
     )
+
+
+@pytest.mark.parametrize("autocrlf", ["true", "false"])
+def test_draft_manifest_hashes_survive_fresh_git_checkout(tmp_path, autocrlf):
+    # Exercise Git's real checkout conversion, not Python's text newline handling.
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / ".gitattributes").write_bytes((ROOT / ".gitattributes").read_bytes())
+    drafts = repository / "docs/support-drafts"
+    drafts.mkdir(parents=True)
+    directory = ROOT / "docs/support-drafts"
+    entries = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))["documents"]
+    for entry in entries:
+        (drafts / entry["draft_path"]).write_bytes((directory / entry["draft_path"]).read_bytes())
+    empty_attributes = tmp_path / "no-global-attributes"
+    empty_attributes.write_bytes(b"")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    git = [
+        "git",
+        "-c",
+        f"core.autocrlf={autocrlf}",
+        "-c",
+        f"core.attributesFile={empty_attributes}",
+        "-c",
+        "core.safecrlf=false",
+        "-C",
+        str(repository),
+    ]
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_ATTR_NOSYSTEM="1")
+    for arguments in (
+        ["init", "--quiet"],
+        ["add", "."],
+        ["checkout-index", "--all", f"--prefix={checkout.as_posix()}/"],
+    ):
+        subprocess.run(
+            [*git, *arguments], check=True, capture_output=True, timeout=30, env=environment
+        )
+    for entry in entries:
+        raw = (checkout / "docs/support-drafts" / entry["draft_path"]).read_bytes()
+        assert b"\r\n" not in raw
+        assert hashlib.sha256(raw).hexdigest() == entry["draft_file_sha256"]
 
 
 def test_review_contracts_are_strict_bounded_immutable_and_cannot_activate_production():

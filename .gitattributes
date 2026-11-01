@@ -1,3 +1,6 @@
 # Native transcript whitespace includes trailing blank lines and Markdown hard breaks.
 # Preserve captured payloads; ordinary source-file whitespace checks remain enabled.
 .claude-logs/*.md whitespace=-blank-at-eof,-blank-at-eol
+
+# The support manifest pins these exact UTF-8 bytes on every checkout platform.
+docs/support-drafts/*.md text eol=lf
