@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from math import isfinite
 from uuid import UUID, uuid4
 
 from app.ai.interface import TutorProvider
@@ -18,8 +19,9 @@ from app.domain.learning import (
     transition,
 )
 from app.domain.transfer import TRANSFER_ID
+from app.domain.tutoring_operations import HintOperation, hint_request_count
 from app.repositories.learning import LearningRepository, LearningStore
-from app.schemas.tutoring import HintRequest, TutorContext
+from app.schemas.tutoring import HintRequest, TutorContext, TutorMessage
 from app.services.catalog import LESSON_ID
 
 
@@ -43,13 +45,26 @@ class Progress:
     hints: list[TutorInteraction]
     runs: list[tuple[VerificationRun, list[VerificationCheck]]]
     events: list[LearningEvent]
+    hint_request_count: int = 0
 
 
 class LearningService:
     def __init__(
-        self, repository: LearningRepository, tutor: TutorProvider, clock: Clock = utc_now
+        self,
+        repository: LearningRepository,
+        tutor: TutorProvider,
+        clock: Clock = utc_now,
+        *,
+        hint_timeout_seconds: float = 30,
     ) -> None:
         self.repository, self.tutor, self.clock = repository, tutor, clock
+        if (
+            isinstance(hint_timeout_seconds, bool)
+            or not isfinite(hint_timeout_seconds)
+            or not 0 < hint_timeout_seconds <= 120
+        ):
+            raise ValueError("Hint operation timeout must be bounded between 0 and 120 seconds")
+        self.hint_timeout = timedelta(seconds=hint_timeout_seconds)
 
     def create_session(
         self, owner: UUID, lesson_id: str, version: str, key: str
@@ -90,14 +105,16 @@ class LearningService:
         with self.repository.read() as store:
             session = owned(store, owner, session_id)
             runs = store.runs(session_id)
+            hints = store.hints(session_id)
             return Progress(
                 session,
                 store.version_by_id(session.lesson_version_id),
                 store.prediction(session_id),
                 store.attempts(session_id),
-                store.hints(session_id),
+                hints,
                 [(run, store.checks(run.id)) for run in runs],
                 store.events(session_id),
+                hint_request_count(hints, store.hint_operations(session_id)),
             )
 
     def predict(
@@ -165,7 +182,7 @@ class LearningService:
                 len(attempts) + 1,
                 field,
                 explanation,
-                len(store.hints(session_id)),
+                hint_request_count(store.hints(session_id), store.hint_operations(session_id)),
                 key,
                 as_utc(self.clock()),
             )
@@ -175,9 +192,60 @@ class LearningService:
             return attempt
 
     def hint(
-        self, owner: UUID, session_id: UUID, attempt_id: UUID | None, key: str
+        self,
+        owner: UUID,
+        session_id: UUID,
+        attempt_id: UUID | None,
+        key: str,
+        *,
+        authorization_expires_at: datetime | None = None,
     ) -> TutorInteraction:
+        authorization_deadline = (
+            as_utc(authorization_expires_at) if authorization_expires_at is not None else None
+        )
+        self._require_authorization(authorization_deadline)
+        reservation = self._reserve_hint(owner, session_id, attempt_id, key, authorization_deadline)
+        if isinstance(reservation, LearningError):
+            raise reservation
+        if isinstance(reservation, TutorInteraction):
+            return reservation
+        operation, request = reservation
+        text: str | None = None
+        try:
+            # No learner transaction or write gate is held across the provider call.
+            # A worker resumed after its committed deadline must not start external work.
+            if as_utc(self.clock()) < operation.deadline_at:
+                received = self.tutor.generate_hint(request)
+                result = TutorMessage.model_validate(received.model_dump(warnings=False))
+                if result.source != "test_fixture":
+                    raise ValueError("Only configured fixture guidance is currently permitted")
+                text = result.text
+        except Exception:
+            pass  # Failed requests persist an error, never provider diagnostics or guessed text.
+        return self._finalize_hint(owner, operation, text, authorization_deadline)
+
+    def _require_authorization(self, deadline: datetime | None) -> None:
+        if deadline is not None and deadline <= as_utc(self.clock()):
+            raise LearningError("unauthenticated", "The learner authorization has expired.")
+
+    @staticmethod
+    def _hint_allowed(session: LearningSession) -> bool:
+        return session.state not in {
+            SessionState.AWAITING_PREDICTION,
+            SessionState.COMPLETED,
+            SessionState.ABANDONED,
+        }
+
+    def _reserve_hint(
+        self,
+        owner: UUID,
+        session_id: UUID,
+        attempt_id: UUID | None,
+        key: str,
+        authorization_deadline: datetime | None,
+    ) -> tuple[HintOperation, HintRequest] | TutorInteraction | LearningError:
         with self.repository.write() as store:
+            self._require_authorization(authorization_deadline)
             session = owned(store, owner, session_id)
             hints = store.hints(session_id)
             existing = next((h for h in hints if h.idempotency_key == key), None)
@@ -187,11 +255,22 @@ class LearningService:
                         "conflict", "Idempotency key was used for another hint context."
                     )
                 return existing
-            if session.state in {
-                SessionState.AWAITING_PREDICTION,
-                SessionState.COMPLETED,
-                SessionState.ABANDONED,
-            }:
+            operations = store.hint_operations(session_id)
+            now = as_utc(self.clock())
+            existing_operation = next((o for o in operations if o.idempotency_key == key), None)
+            if existing_operation is not None:
+                if existing_operation.attempt_id != attempt_id:
+                    raise LearningError(
+                        "conflict", "Idempotency key was used for another hint context."
+                    )
+                if existing_operation.status != "pending":
+                    raise LearningError("dependency_unavailable", "Saved guidance is unavailable.")
+                if existing_operation.deadline_at <= now or not self._hint_allowed(session):
+                    return self._complete_hint(store, existing_operation, None, now)
+                raise LearningError(
+                    "conflict", "Guidance is already running. Retry the same request."
+                )
+            if not self._hint_allowed(session):
                 raise LearningError(
                     "invalid_state",
                     (
@@ -203,45 +282,103 @@ class LearningService:
             attempt = next((a for a in attempts if a.id == attempt_id), None)
             if attempt_id is not None and attempt is None:
                 raise LearningError("not_found", "Attempt not found.")
-            if len(hints) >= 3:
-                raise LearningError(
+            pending = next((o for o in operations if o.status == "pending"), None)
+            if pending is not None:
+                if pending.deadline_at > now:
+                    raise LearningError(
+                        "conflict", "Guidance is already running. Retry the same request."
+                    )
+                hints.append(self._complete_hint(store, pending, None, now))
+            count = hint_request_count(hints, operations)
+            if count >= 3:
+                # Returning the rejection commits any expired-operation recovery first.
+                # Raising inside the context would roll that preserved error back.
+                return LearningError(
                     "hint_limit", "This session has reached its three guidance requests."
                 )
-            event(store, session_id, "hint_requested", attempt_id)
-            text: str | None = None
-            status = "delivered"
-            try:
-                result = self.tutor.generate_hint(
-                    HintRequest(
-                        context=TutorContext(
-                            scenario=store.version_by_id(session.lesson_version_id).public_content[
-                                "scenario"
-                            ],
-                            learner_attempt=attempt.field_name
-                            if attempt
-                            else "Prediction submitted",
-                        ),
-                        level=len(hints) + 1,
-                    )
-                )
-                if result.source != "test_fixture":
-                    raise ValueError("Module 2 accepts only the configured fake fixture")
-                text = result.text
-            except Exception:
-                status = "error"  # Persist a failed request, never a guessed provider response.
-            hint = TutorInteraction(
+            deadline = now + self.hint_timeout
+            if authorization_deadline is not None:
+                deadline = min(deadline, authorization_deadline)
+            operation = HintOperation(
                 uuid4(),
                 session_id,
                 attempt_id,
-                len(hints) + 1,
-                text,
-                status,
+                count + 1,
                 key,
-                as_utc(self.clock()),
+                now,
+                deadline,
             )
-            store.add_hint(hint)
-            event(store, session_id, f"hint_{status}", hint.id)
-            return hint
+            request = HintRequest(
+                context=TutorContext(
+                    scenario=store.version_by_id(session.lesson_version_id).public_content[
+                        "scenario"
+                    ],
+                    learner_attempt=attempt.field_name if attempt else "Prediction submitted",
+                ),
+                level=operation.sequence,
+            )
+            store.add_hint_operation(operation)
+            event(store, session_id, "hint_requested", attempt_id)
+            return operation, request
+
+    @staticmethod
+    def _complete_hint(
+        store: LearningStore,
+        operation: HintOperation,
+        text: str | None,
+        at: datetime,
+    ) -> TutorInteraction:
+        hint = TutorInteraction(
+            operation.id,
+            operation.session_id,
+            operation.attempt_id,
+            operation.sequence,
+            text,
+            "delivered" if text is not None else "error",
+            operation.idempotency_key,
+            at,
+        )
+        store.add_hint(hint)
+        store.finish_hint_operation(operation.id, at)
+        event(store, operation.session_id, f"hint_{hint.status}", hint.id)
+        return hint
+
+    def _finalize_hint(
+        self,
+        owner: UUID,
+        operation: HintOperation,
+        text: str | None,
+        authorization_deadline: datetime | None,
+    ) -> TutorInteraction:
+        with self.repository.write() as store:
+            at = as_utc(self.clock())
+            authorization_expired = (
+                authorization_deadline is not None and authorization_deadline <= at
+            )
+            session = owned(store, owner, operation.session_id)
+            current = next(
+                (o for o in store.hint_operations(session.id) if o.id == operation.id), None
+            )
+            if current is None:
+                raise LearningError(
+                    "dependency_unavailable", "Guidance reservation is unavailable."
+                )
+            if current.status == "finalized":
+                saved = next((h for h in store.hints(session.id) if h.id == current.id), None)
+                if saved is None:
+                    raise LearningError("dependency_unavailable", "Saved guidance is unavailable.")
+            else:
+                if (
+                    current.deadline_at <= at
+                    or authorization_expired
+                    or not self._hint_allowed(session)
+                ):
+                    text = None
+                saved = self._complete_hint(store, current, text, at)
+        # Commit the failed request before denying a response to expired authorization.
+        if authorization_expired:
+            raise LearningError("unauthenticated", "The learner authorization has expired.")
+        return saved
 
     def abandon(self, owner: UUID, session_id: UUID) -> LearningSession:
         with self.repository.write() as store:

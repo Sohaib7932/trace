@@ -14,6 +14,7 @@ from app.db.session import Database
 from app.domain import learning as d
 from app.domain.retrieval import RetrievalAttempt, RetrievalCheckpoint
 from app.domain.transfer import TaskSnapshot
+from app.domain.tutoring_operations import HintOperation
 from app.repositories.learning import LearningStore
 
 
@@ -144,6 +145,27 @@ class SqlLearningStore:
     def add_hint(self, hint: d.TutorInteraction) -> None:
         self.session.add(m.TutorInteraction(**asdict(hint)))
         self.session.flush()
+
+    def hint_operations(self, session_id: UUID) -> list[HintOperation]:
+        return [
+            snapshot(HintOperation, row)
+            for row in self.session.scalars(
+                select(m.HintOperation)
+                .where(m.HintOperation.session_id == session_id)
+                .order_by(m.HintOperation.sequence)
+            )
+        ]
+
+    def add_hint_operation(self, operation: HintOperation) -> None:
+        self.session.add(m.HintOperation(**asdict(operation)))
+        self.session.flush()
+
+    def finish_hint_operation(self, operation_id: UUID, at: datetime) -> None:
+        self.session.execute(
+            update(m.HintOperation)
+            .where(m.HintOperation.id == operation_id, m.HintOperation.status == "pending")
+            .values(status="finalized", completed_at=at)
+        )
 
     def runs(self, session_id: UUID) -> list[d.VerificationRun]:
         return [

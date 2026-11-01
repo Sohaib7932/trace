@@ -25,6 +25,7 @@ from app.main import create_app
 from app.services.catalog import LESSON_ID, seed_first_lesson
 from app.verification.asgi_notes import AsgiNotesVerifier
 from tests.conftest import migrate
+from tests.historical_tutoring import historical_hint_operations
 from tests.integration.test_learning import attempt, post, predict, progress, start, verify
 
 
@@ -291,19 +292,24 @@ def test_constraint_name_forward_migration_preserves_populated_history(tmp_path:
     try:
         migrate(database, "0001_foundation")
         legacy = MetaData()
+        legacy_module_2_tables = {
+            "attempts",
+            "learner_credentials",
+            "learners",
+            "learning_events",
+            "learning_sessions",
+            "lesson_versions",
+            "lessons",
+            "predictions",
+            "runtime_notes",
+            "tutor_interactions",
+            "verification_checks",
+            "verification_runs",
+            "write_gate",
+        }
         for table in m.Base.metadata.sorted_tables:
-            if table.name in {
-                "runtime_tasks",
-                "retrieval_checkpoints",
-                "retrieval_attempts",
-                "users",
-                "auth_subjects",
-                "user_roles",
-                "role_grant_events",
-                "account_learners",
-                "account_action_limits",
-            }:
-                continue  # This fixture deliberately reconstructs the pre-Module-3 schema.
+            if table.name not in legacy_module_2_tables:
+                continue  # Reconstruct the pinned Module 2 schema, excluding all later tables.
             copy = table.to_metadata(legacy)
             for constraint in copy.constraints:
                 if isinstance(constraint, UniqueConstraint):
@@ -320,7 +326,7 @@ def test_constraint_name_forward_migration_preserves_populated_history(tmp_path:
                 module.install_guards()
             command.stamp(config, "0002_learning")
         seed_first_lesson(SqlLearningRepository(database))
-        with TestClient(create_app(settings, database)) as client:
+        with historical_hint_operations(), TestClient(create_app(settings, database)) as client:
             client.headers.update(
                 {"Origin": "http://localhost:3000", "X-Trace-Client": "learning-web"}
             )

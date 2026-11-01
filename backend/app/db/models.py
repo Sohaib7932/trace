@@ -8,9 +8,11 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -274,3 +276,76 @@ class RetrievalAttempt(Row, Base):
     correct: Mapped[bool] = mapped_column(Boolean)
     feedback: Mapped[str] = mapped_column(String(2000))
     idempotency_key: Mapped[str] = mapped_column(String(64))
+
+
+class GeneratedCandidate(Base):
+    __tablename__ = "generated_candidates"
+    __table_args__ = (CheckConstraint("release_eligible = 0", name="unreleased"),)
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    generation_request_id: Mapped[UUID] = mapped_column(Uuid, unique=True)
+    creation_key: Mapped[UUID] = mapped_column(Uuid, unique=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSON)
+    composition_sha256: Mapped[str] = mapped_column(String(64))
+    release_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CandidateLifecycleEvent(Base):
+    __tablename__ = "candidate_lifecycle_events"
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "revision"),
+        UniqueConstraint("candidate_id", "operation_key"),
+        CheckConstraint("revision >= 0", name="revision"),
+        CheckConstraint("release_eligible = 0", name="unreleased"),
+        CheckConstraint(
+            "state IN ('composed','validated','validation_unavailable','human_reviewed',"
+            "'production_approved','rejected')",
+            name="state",
+        ),
+        CheckConstraint(
+            "action IN ('created','validation','human_review','production_approval','reject')",
+            name="action",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    candidate_id: Mapped[UUID] = mapped_column(ForeignKey("generated_candidates.id"), index=True)
+    revision: Mapped[int]
+    operation_key: Mapped[UUID] = mapped_column(Uuid)
+    action: Mapped[str] = mapped_column(String(32))
+    previous_state: Mapped[str | None] = mapped_column(String(32))
+    state: Mapped[str] = mapped_column(String(32))
+    actor_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    payload: Mapped[dict[str, object]] = mapped_column(JSON)
+    release_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class HintOperation(Base):
+    __tablename__ = "hint_operations"
+    __table_args__ = (
+        UniqueConstraint("session_id", "sequence"),
+        UniqueConstraint("session_id", "idempotency_key"),
+        ForeignKeyConstraint(["attempt_id", "session_id"], ["attempts.id", "attempts.session_id"]),
+        CheckConstraint("sequence BETWEEN 1 AND 3", name="hint_limit"),
+        CheckConstraint("status IN ('pending','finalized')", name="status"),
+        CheckConstraint("(status = 'pending') = (completed_at IS NULL)", name="completion_time"),
+        CheckConstraint("deadline_at > created_at", name="deadline"),
+        CheckConstraint(
+            "completed_at IS NULL OR completed_at >= created_at", name="completed_after_request"
+        ),
+        Index(
+            "uq_hint_operations_pending_session",
+            "session_id",
+            unique=True,
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("learning_sessions.id"), index=True)
+    attempt_id: Mapped[UUID | None] = mapped_column(Uuid)
+    sequence: Mapped[int]
+    idempotency_key: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    deadline_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    status: Mapped[str] = mapped_column(String(16))
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())

@@ -21,8 +21,9 @@ def auth_settings(settings: Settings) -> Settings:
 
 
 class SigningFixture:
-    def __init__(self, algorithm="ES256", kid="first"):
+    def __init__(self, algorithm="ES256", kid="first", *, clock=None):
         self.algorithm, self.kid = algorithm, kid
+        self.clock = clock if clock is not None else lambda: datetime.now(UTC)
         self.key = (
             ec.generate_private_key(ec.SECP256R1())
             if algorithm == "ES256"
@@ -34,7 +35,7 @@ class SigningFixture:
         self.subject = str(uuid4())
 
     def token(self, claims=None, headers=None):
-        now = int(datetime.now(UTC).timestamp())
+        now = int(self.clock().timestamp())
         payload = {
             "iss": ISSUER,
             "aud": "authenticated",

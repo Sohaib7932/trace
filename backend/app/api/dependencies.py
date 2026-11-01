@@ -5,12 +5,16 @@ from fastapi import Depends, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.ai.client import BoundedAIClient
 from app.ai.interface import TutorProvider
 from app.ai.providers.fake import FakeTutorProvider
+from app.ai.question_generator import QuestionGenerator
+from app.ai.resources import AIResources
 from app.auth.jwt import JwtVerifier
 from app.core.errors import ApplicationError
 from app.core.settings import Settings
 from app.db.accounts import SqlAccountRepository
+from app.db.candidates import SqlCandidateRepository
 from app.db.health import SqlReadinessProbe
 from app.db.learning import SqlLearningRepository
 from app.db.session import Database
@@ -20,14 +24,19 @@ from app.domain.learning import LearningError
 from app.repositories.learning import LearningRepository
 from app.repositories.verification import NotesVerifier
 from app.services.accounts import AccountService
+from app.services.candidate_lifecycle import CandidateLifecycleService
+from app.services.candidate_validation import CandidateValidationService
 from app.services.catalog import CatalogService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
 from app.services.learning import LearningService
+from app.services.lesson_assistant import LessonAssistantService
 from app.services.retrieval import RetrievalService
+from app.services.support import SupportService
 from app.services.verification import VerificationService
 from app.verification.asgi_notes import AsgiNotesVerifier
 from app.verification.asgi_tasks import AsgiTasksVerifier
+from app.verification.candidate_runtime import IsolatedCandidateRuntime
 
 
 def get_settings(request: Request) -> Settings:
@@ -115,8 +124,14 @@ def get_learning_service(
     repository: Annotated[LearningRepository, Depends(get_learning_repository)],
     tutor: Annotated[TutorProvider, Depends(get_tutor_provider)],
     request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> LearningService:
-    return LearningService(repository, tutor, cast(Clock, request.app.state.clock))
+    return LearningService(
+        repository,
+        tutor,
+        cast(Clock, request.app.state.clock),
+        hint_timeout_seconds=settings.request_timeout_seconds,
+    )
 
 
 def get_notes_verifier(
@@ -159,3 +174,50 @@ def require_write_origin(
         raise ApplicationError(
             "unsafe_request", "An allowed Origin and Trace client header are required.", 403
         )
+
+
+def get_ai_resources(request: Request) -> AIResources:
+    resources = getattr(request.app.state, "ai_resources", None)
+    if not isinstance(resources, AIResources) or resources.client.closed:
+        raise ApplicationError("dependency_unavailable", "AI services are unavailable.", 503)
+    return resources
+
+
+def get_ai_client(resources: Annotated[AIResources, Depends(get_ai_resources)]) -> BoundedAIClient:
+    return resources.client
+
+
+def get_question_generator(
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+) -> QuestionGenerator:
+    return resources.question_generator
+
+
+def get_internal_tutor_provider(
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+) -> TutorProvider:
+    return resources.tutor_provider
+
+
+def get_lesson_assistant_service(
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+) -> LessonAssistantService:
+    return resources.lesson_assistant
+
+
+def get_support_service(
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+) -> SupportService:
+    return resources.support
+
+
+def get_candidate_lifecycle_service(
+    request: Request,
+    database: Annotated[Database, Depends(get_database)],
+) -> CandidateLifecycleService:
+    # Stateless lifecycle orchestration needs no provider client and exposes no route.
+    return CandidateLifecycleService(
+        SqlCandidateRepository(database),
+        CandidateValidationService(IsolatedCandidateRuntime()),
+        cast(Clock, request.app.state.clock),
+    )
