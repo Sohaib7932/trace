@@ -1,6 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AuthForm } from "@/components/auth/auth-form";
 import { AccountLink } from "@/components/auth/account-link";
 
@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: fixture.push, refr
 vi.mock("@/lib/api/client", async (original) => ({ ...await original<typeof import("@/lib/api/client")>(), accountApi: { me: fixture.me, claim: fixture.claim } }));
 const account = { user_id: "trace-user-fixture", created_at: "2026-10-31T00:00:00Z", status: "active", roles: ["learner", "creator"], learner_id: null, anonymous_history_available: true };
 
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 beforeEach(() => {
   vi.clearAllMocks(); fixture.configured = true;
   fixture.auth.signUp.mockResolvedValue({ data: { session: null }, error: null });
@@ -112,10 +113,19 @@ test.each(["invalid_credentials", "email_not_confirmed"])("login safely handles 
   expect(fixture.push).not.toHaveBeenCalled();
 });
 test("Google starts the supported SDK redirect and cancelled callbacks show safe guidance", async () => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://auth.example.test");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test_fixture");
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", window.location.origin);
+  const settings = Promise.withResolvers<Response>();
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockReturnValue(settings.promise);
   render(<AuthForm mode="sign-in" callbackError />);
   expect(screen.getByRole("status")).toHaveTextContent("cancelled");
   await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-  expect(fixture.auth.signInWithOAuth).toHaveBeenCalledWith({ provider: "google", options: { redirectTo: expect.stringContaining("/auth/callback") } });
+  expect(fetchSpy).toHaveBeenCalledWith("https://auth.example.test/auth/v1/settings", expect.objectContaining({ headers: { apikey: "sb_publishable_test_fixture" }, signal: expect.any(AbortSignal) }));
+  expect(fixture.auth.signInWithOAuth).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Continue with Google" })).toBeDisabled();
+  await act(async () => { settings.resolve(new Response(JSON.stringify({ external: { google: true } }))); });
+  await waitFor(() => expect(fixture.auth.signInWithOAuth).toHaveBeenCalledWith({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback` } }));
 });
 test("forgot-password requests a recovery link without revealing account existence", async () => {
   render(<AuthForm mode="forgot-password" />);

@@ -1,0 +1,767 @@
+{
+  "artifact_type": "trace.lesson-attempt.design-example",
+  "status": "synthetic_not_captured_learner_data",
+  "as_of": "2026-11-08T10:00:00Z",
+  "learner_id": "10000000-0000-4000-8000-00000000012d",
+  "sessions": [
+    {
+      "id": "10000000-0000-4000-8000-0000000000c9",
+      "learner_id": "10000000-0000-4000-8000-00000000012d",
+      "lesson_id": "fastapi-payload-mismatch",
+      "lesson_version_id": "10000000-0000-4000-8000-000000000065",
+      "version": "2.0.0",
+      "definition_digest": "17f4adff0a085e7b5bca92092c1b9c3b804822bd098cee34784870d7490d0f42",
+      "state": "completed",
+      "created_at": "2026-11-01T09:00:00Z",
+      "completed_at": "2026-11-01T09:05:06Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000899"
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000000ca",
+      "learner_id": "10000000-0000-4000-8000-00000000012d",
+      "lesson_id": "fastapi-nested-payload-transfer",
+      "lesson_version_id": "10000000-0000-4000-8000-000000000066",
+      "version": "2.0.0",
+      "definition_digest": "fe493b8f014d1e6858f2e2ec332b351f0c858ec55829f02264d0c8fe9ec9b1c3",
+      "state": "completed",
+      "created_at": "2026-11-01T09:06:00Z",
+      "completed_at": "2026-11-01T09:10:06Z",
+      "idempotency_key": "10000000-0000-4000-8000-00000000089a"
+    }
+  ],
+  "predictions": [
+    {
+      "id": "10000000-0000-4000-8000-000000000191",
+      "session_id": "10000000-0000-4000-8000-0000000000c9",
+      "checkpoint_id": "predict-note",
+      "selected_answer": "saved",
+      "reasoning": "The form says submitted, so I expect it to have saved the note.",
+      "created_at": "2026-11-01T09:01:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000961",
+      "diagnostic_correct": false
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000192",
+      "session_id": "10000000-0000-4000-8000-0000000000ca",
+      "checkpoint_id": "predict-task",
+      "selected_answer": "rejected",
+      "reasoning": "The receiving contract requires a metadata object, but the outgoing value is flat.",
+      "created_at": "2026-11-01T09:07:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000962",
+      "diagnostic_correct": true
+    }
+  ],
+  "investigation_responses": [
+    {
+      "id": "10000000-0000-4000-8000-000000000259",
+      "session_id": "10000000-0000-4000-8000-0000000000c9",
+      "checkpoint_id": "investigate-note",
+      "outgoing_field": "body",
+      "required_path": "/content",
+      "baseline_run_id": "10000000-0000-4000-8000-0000000001f5",
+      "annotations": [
+        {
+          "artifact_id": "request-builder",
+          "reference": {
+            "kind": "source_lines",
+            "start_line": 3,
+            "end_line": 3
+          },
+          "observation": "This is the outgoing field at the root."
+        },
+        {
+          "artifact_id": "receiver-schema",
+          "reference": {
+            "kind": "source_lines",
+            "start_line": 6,
+            "end_line": 6
+          },
+          "observation": "The required destination is fixed by this receiving model."
+        },
+        {
+          "artifact_id": "baseline-evidence",
+          "reference": {
+            "kind": "verification_check",
+            "run_id": "10000000-0000-4000-8000-0000000001f5",
+            "check_code": "validation"
+          },
+          "observation": "The server reports the missing receiving field and the extra outgoing field."
+        }
+      ],
+      "assessment": {
+        "status": "passed",
+        "semantic_prose_grade": null
+      },
+      "idempotency_key": "10000000-0000-4000-8000-000000000a29",
+      "created_at": "2026-11-01T09:03:00Z"
+    },
+    {
+      "id": "10000000-0000-4000-8000-00000000025a",
+      "session_id": "10000000-0000-4000-8000-0000000000ca",
+      "checkpoint_id": "investigate-task",
+      "outgoing_field": "priority",
+      "required_path": "/metadata/priority",
+      "baseline_run_id": "10000000-0000-4000-8000-0000000001f8",
+      "annotations": [
+        {
+          "artifact_id": "request-builder",
+          "reference": {
+            "kind": "source_lines",
+            "start_line": 3,
+            "end_line": 3
+          },
+          "observation": "This is the outgoing field at the root."
+        },
+        {
+          "artifact_id": "receiver-schema",
+          "reference": {
+            "kind": "source_lines",
+            "start_line": 11,
+            "end_line": 11
+          },
+          "observation": "The required destination is fixed by this receiving model."
+        },
+        {
+          "artifact_id": "baseline-evidence",
+          "reference": {
+            "kind": "verification_check",
+            "run_id": "10000000-0000-4000-8000-0000000001f8",
+            "check_code": "validation"
+          },
+          "observation": "The server reports the missing receiving field and the extra outgoing field."
+        }
+      ],
+      "assessment": {
+        "status": "passed",
+        "semantic_prose_grade": null
+      },
+      "idempotency_key": "10000000-0000-4000-8000-000000000a2a",
+      "created_at": "2026-11-01T09:09:00Z"
+    }
+  ],
+  "modification_attempts": [
+    {
+      "id": "10000000-0000-4000-8000-0000000002be",
+      "session_id": "10000000-0000-4000-8000-0000000000c9",
+      "checkpoint_id": "modify-note",
+      "number": 1,
+      "change_type": "rename_payload_field",
+      "field_name": "body",
+      "explanation": "I want to test whether keeping this mapping changes the result.",
+      "hints_before": 0,
+      "created_at": "2026-11-01T09:04:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000a8e"
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000002bf",
+      "session_id": "10000000-0000-4000-8000-0000000000c9",
+      "checkpoint_id": "modify-note",
+      "number": 2,
+      "change_type": "rename_payload_field",
+      "field_name": "content",
+      "explanation": "The outgoing text now uses the receiving model field.",
+      "hints_before": 1,
+      "created_at": "2026-11-01T09:05:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000a8f"
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000002c1",
+      "session_id": "10000000-0000-4000-8000-0000000000ca",
+      "checkpoint_id": "modify-task",
+      "number": 1,
+      "change_type": "nest_payload_field",
+      "field_name": "nested",
+      "explanation": "Priority belongs inside metadata; the title stays at the root.",
+      "hints_before": 0,
+      "created_at": "2026-11-01T09:10:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000a91"
+    }
+  ],
+  "verification_runs": [
+    {
+      "id": "10000000-0000-4000-8000-0000000001f5",
+      "source_context": {
+        "kind": "learner",
+        "session_id": "10000000-0000-4000-8000-0000000000c9"
+      },
+      "lesson_version_id": "10000000-0000-4000-8000-000000000065",
+      "purpose": "baseline",
+      "profile_id": "initial_failure",
+      "attempt_id": null,
+      "input_mapping": "body",
+      "runtime_binding": {
+        "template_id": "notes-v1",
+        "revision": "1.0.0"
+      },
+      "idempotency_key": "10000000-0000-4000-8000-0000000009c5",
+      "created_at": "2026-11-01T09:02:00Z",
+      "completed_at": "2026-11-01T09:02:01Z",
+      "status": "passed",
+      "feedback": "Expected initial failure observed; this is not a completed repair.",
+      "observation": {
+        "http_status": 422,
+        "response_body": {
+          "detail": [
+            {
+              "type": "missing",
+              "loc": [
+                "body",
+                "content"
+              ]
+            },
+            {
+              "type": "extra_forbidden",
+              "loc": [
+                "body",
+                "body"
+              ]
+            }
+          ]
+        },
+        "validation_codes": [
+          "missing:content",
+          "extra_forbidden:body"
+        ],
+        "response_row_id": null,
+        "readback": {
+          "state": "available",
+          "independent_transaction": true,
+          "rows": []
+        }
+      },
+      "checks": [
+        {
+          "code": "http_status",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 422,
+          "observed": 422,
+          "source": "asgi_http"
+        },
+        {
+          "code": "api_response",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": "validation_errors",
+          "observed": "validation_errors",
+          "source": "asgi_http"
+        },
+        {
+          "code": "validation",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": [
+            "missing:content",
+            "extra_forbidden:body"
+          ],
+          "observed": [
+            "missing:content",
+            "extra_forbidden:body"
+          ],
+          "source": "asgi_http"
+        },
+        {
+          "code": "row_count",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 0,
+          "observed": 0,
+          "source": "fresh_database_read"
+        },
+        {
+          "code": "stored_values",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": {},
+          "observed": {},
+          "source": "fresh_database_read"
+        }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000001f6",
+      "source_context": {
+        "kind": "learner",
+        "session_id": "10000000-0000-4000-8000-0000000000c9"
+      },
+      "lesson_version_id": "10000000-0000-4000-8000-000000000065",
+      "purpose": "repair",
+      "profile_id": "repair",
+      "attempt_id": "10000000-0000-4000-8000-0000000002be",
+      "input_mapping": "body",
+      "runtime_binding": {
+        "template_id": "notes-v1",
+        "revision": "1.0.0"
+      },
+      "idempotency_key": "10000000-0000-4000-8000-0000000009c6",
+      "created_at": "2026-11-01T09:04:05Z",
+      "completed_at": "2026-11-01T09:04:06Z",
+      "status": "failed",
+      "feedback": "The known wrong mapping was rejected and no record was saved.",
+      "observation": {
+        "http_status": 422,
+        "response_body": {
+          "detail": [
+            {
+              "type": "missing",
+              "loc": [
+                "body",
+                "content"
+              ]
+            },
+            {
+              "type": "extra_forbidden",
+              "loc": [
+                "body",
+                "body"
+              ]
+            }
+          ]
+        },
+        "validation_codes": [
+          "missing:content",
+          "extra_forbidden:body"
+        ],
+        "response_row_id": null,
+        "readback": {
+          "state": "available",
+          "independent_transaction": true,
+          "rows": []
+        }
+      },
+      "checks": [
+        {
+          "code": "http_status",
+          "matched": false,
+          "observation_state": "observed",
+          "expected": 201,
+          "observed": 422,
+          "source": "asgi_http"
+        },
+        {
+          "code": "api_response",
+          "matched": false,
+          "observation_state": "observed",
+          "expected": "saved_note",
+          "observed": "validation_errors",
+          "source": "asgi_http"
+        },
+        {
+          "code": "validation",
+          "matched": false,
+          "observation_state": "observed",
+          "expected": [],
+          "observed": [
+            "missing:content",
+            "extra_forbidden:body"
+          ],
+          "source": "asgi_http"
+        },
+        {
+          "code": "row_count",
+          "matched": false,
+          "observation_state": "observed",
+          "expected": 1,
+          "observed": 0,
+          "source": "fresh_database_read"
+        },
+        {
+          "code": "stored_values",
+          "matched": false,
+          "observation_state": "observed",
+          "expected": {
+            "title": "Trace verification note",
+            "content": "Understanding request validation"
+          },
+          "observed": {},
+          "source": "fresh_database_read"
+        }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000001f7",
+      "source_context": {
+        "kind": "learner",
+        "session_id": "10000000-0000-4000-8000-0000000000c9"
+      },
+      "lesson_version_id": "10000000-0000-4000-8000-000000000065",
+      "purpose": "repair",
+      "profile_id": "repair",
+      "attempt_id": "10000000-0000-4000-8000-0000000002bf",
+      "input_mapping": "content",
+      "runtime_binding": {
+        "template_id": "notes-v1",
+        "revision": "1.0.0"
+      },
+      "idempotency_key": "10000000-0000-4000-8000-0000000009c7",
+      "created_at": "2026-11-01T09:05:05Z",
+      "completed_at": "2026-11-01T09:05:06Z",
+      "status": "passed",
+      "feedback": "HTTP and committed readback establish this correction.",
+      "observation": {
+        "http_status": 201,
+        "response_body": {
+          "id": "10000000-0000-4000-8000-0000000005df",
+          "title": "Trace verification note",
+          "content": "Understanding request validation"
+        },
+        "validation_codes": [],
+        "response_row_id": "10000000-0000-4000-8000-0000000005df",
+        "readback": {
+          "state": "available",
+          "independent_transaction": true,
+          "rows": [
+            {
+              "id": "10000000-0000-4000-8000-0000000005df",
+              "title": "Trace verification note",
+              "content": "Understanding request validation"
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "code": "http_status",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 201,
+          "observed": 201,
+          "source": "asgi_http"
+        },
+        {
+          "code": "api_response",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": "saved_note",
+          "observed": "saved_note",
+          "source": "asgi_http"
+        },
+        {
+          "code": "validation",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": [],
+          "observed": [],
+          "source": "asgi_http"
+        },
+        {
+          "code": "row_count",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 1,
+          "observed": 1,
+          "source": "fresh_database_read"
+        },
+        {
+          "code": "stored_values",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": {
+            "title": "Trace verification note",
+            "content": "Understanding request validation"
+          },
+          "observed": {
+            "title": "Trace verification note",
+            "content": "Understanding request validation"
+          },
+          "source": "fresh_database_read"
+        }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000001f8",
+      "source_context": {
+        "kind": "learner",
+        "session_id": "10000000-0000-4000-8000-0000000000ca"
+      },
+      "lesson_version_id": "10000000-0000-4000-8000-000000000066",
+      "purpose": "baseline",
+      "profile_id": "initial_failure",
+      "attempt_id": null,
+      "input_mapping": "flat",
+      "runtime_binding": {
+        "template_id": "tasks-nested-v1",
+        "revision": "1.0.0"
+      },
+      "idempotency_key": "10000000-0000-4000-8000-0000000009c8",
+      "created_at": "2026-11-01T09:08:00Z",
+      "completed_at": "2026-11-01T09:08:01Z",
+      "status": "passed",
+      "feedback": "Expected initial failure observed; this is not a completed repair.",
+      "observation": {
+        "http_status": 422,
+        "response_body": {
+          "detail": [
+            {
+              "type": "missing",
+              "loc": [
+                "body",
+                "metadata"
+              ]
+            },
+            {
+              "type": "extra_forbidden",
+              "loc": [
+                "body",
+                "priority"
+              ]
+            }
+          ]
+        },
+        "validation_codes": [
+          "missing:metadata",
+          "extra_forbidden:priority"
+        ],
+        "response_row_id": null,
+        "readback": {
+          "state": "available",
+          "independent_transaction": true,
+          "rows": []
+        }
+      },
+      "checks": [
+        {
+          "code": "http_status",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 422,
+          "observed": 422,
+          "source": "asgi_http"
+        },
+        {
+          "code": "api_response",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": "validation_errors",
+          "observed": "validation_errors",
+          "source": "asgi_http"
+        },
+        {
+          "code": "validation",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": [
+            "missing:metadata",
+            "extra_forbidden:priority"
+          ],
+          "observed": [
+            "missing:metadata",
+            "extra_forbidden:priority"
+          ],
+          "source": "asgi_http"
+        },
+        {
+          "code": "row_count",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 0,
+          "observed": 0,
+          "source": "fresh_database_read"
+        },
+        {
+          "code": "stored_values",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": {},
+          "observed": {},
+          "source": "fresh_database_read"
+        }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000001f9",
+      "source_context": {
+        "kind": "learner",
+        "session_id": "10000000-0000-4000-8000-0000000000ca"
+      },
+      "lesson_version_id": "10000000-0000-4000-8000-000000000066",
+      "purpose": "repair",
+      "profile_id": "repair",
+      "attempt_id": "10000000-0000-4000-8000-0000000002c1",
+      "input_mapping": "nested",
+      "runtime_binding": {
+        "template_id": "tasks-nested-v1",
+        "revision": "1.0.0"
+      },
+      "idempotency_key": "10000000-0000-4000-8000-0000000009c9",
+      "created_at": "2026-11-01T09:10:05Z",
+      "completed_at": "2026-11-01T09:10:06Z",
+      "status": "passed",
+      "feedback": "HTTP and committed readback establish this correction.",
+      "observation": {
+        "http_status": 201,
+        "response_body": {
+          "id": "10000000-0000-4000-8000-0000000005e1",
+          "title": "Prepare the product demo",
+          "metadata": {
+            "priority": "high"
+          }
+        },
+        "validation_codes": [],
+        "response_row_id": "10000000-0000-4000-8000-0000000005e1",
+        "readback": {
+          "state": "available",
+          "independent_transaction": true,
+          "rows": [
+            {
+              "id": "10000000-0000-4000-8000-0000000005e1",
+              "title": "Prepare the product demo",
+              "priority": "high"
+            }
+          ]
+        }
+      },
+      "checks": [
+        {
+          "code": "http_status",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 201,
+          "observed": 201,
+          "source": "asgi_http"
+        },
+        {
+          "code": "api_response",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": "saved_task",
+          "observed": "saved_task",
+          "source": "asgi_http"
+        },
+        {
+          "code": "validation",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": [],
+          "observed": [],
+          "source": "asgi_http"
+        },
+        {
+          "code": "row_count",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": 1,
+          "observed": 1,
+          "source": "fresh_database_read"
+        },
+        {
+          "code": "stored_values",
+          "matched": true,
+          "observation_state": "observed",
+          "expected": {
+            "title": "Prepare the product demo",
+            "priority": "high"
+          },
+          "observed": {
+            "title": "Prepare the product demo",
+            "priority": "high"
+          },
+          "source": "fresh_database_read"
+        }
+      ]
+    }
+  ],
+  "tutor_interactions": [
+    {
+      "id": "10000000-0000-4000-8000-000000000321",
+      "session_id": "10000000-0000-4000-8000-0000000000c9",
+      "attempt_id": "10000000-0000-4000-8000-0000000002be",
+      "hint_id": "hint-1",
+      "sequence": 1,
+      "provider": "authored",
+      "definition_version_id": "10000000-0000-4000-8000-000000000065",
+      "status": "delivered",
+      "text": "Trace each value from the sender into the receiving contract.",
+      "created_at": "2026-11-01T09:04:30Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000af1"
+    }
+  ],
+  "transfer_links": [
+    {
+      "id": "10000000-0000-4000-8000-000000000385",
+      "parent_session_id": "10000000-0000-4000-8000-0000000000c9",
+      "checkpoint_id": "transfer-task",
+      "child_session_id": "10000000-0000-4000-8000-0000000000ca",
+      "target_version_id": "10000000-0000-4000-8000-000000000066",
+      "created_at": "2026-11-01T09:06:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000b55"
+    }
+  ],
+  "retrieval_checkpoints": [
+    {
+      "id": "10000000-0000-4000-8000-0000000003e9",
+      "parent_session_id": "10000000-0000-4000-8000-0000000000c9",
+      "definition_version_id": "10000000-0000-4000-8000-000000000065",
+      "checkpoint_id": "revisit-day-1",
+      "transfer_session_id": "10000000-0000-4000-8000-0000000000ca",
+      "ordinal": 1,
+      "question_id": "shipping-contract-v1",
+      "question_hash": "a6f7dd2640b0da6b3b3f3702b65a010f9adefc000425fead0383ee3490baf331",
+      "created_at": "2026-11-01T09:10:06Z",
+      "due_at": "2026-11-02T09:10:06Z",
+      "completed_at": "2026-11-02T09:11:00Z",
+      "status": "completed"
+    },
+    {
+      "id": "10000000-0000-4000-8000-0000000003ea",
+      "parent_session_id": "10000000-0000-4000-8000-0000000000c9",
+      "definition_version_id": "10000000-0000-4000-8000-000000000065",
+      "checkpoint_id": "revisit-day-7",
+      "transfer_session_id": "10000000-0000-4000-8000-0000000000ca",
+      "ordinal": 2,
+      "question_id": "report-contract-v1",
+      "question_hash": "748110092bd85f26b07e785ab73bac62af3115169ffe314cd43c0938ac16bc91",
+      "created_at": "2026-11-01T09:10:06Z",
+      "due_at": "2026-11-08T09:10:06Z",
+      "completed_at": "2026-11-08T09:11:00Z",
+      "status": "completed"
+    }
+  ],
+  "retrieval_attempts": [
+    {
+      "id": "10000000-0000-4000-8000-00000000044d",
+      "checkpoint_id": "10000000-0000-4000-8000-0000000003e9",
+      "number": 1,
+      "selection": "a",
+      "reasoning": "The value is present, so I first expect acceptance.",
+      "correct": false,
+      "feedback": "Review the receiving contract. The contract expects destination.zone. A flat zone cannot supply the required destination object.",
+      "created_at": "2026-11-02T09:10:07Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000c1d"
+    },
+    {
+      "id": "10000000-0000-4000-8000-00000000044e",
+      "checkpoint_id": "10000000-0000-4000-8000-0000000003e9",
+      "number": 2,
+      "selection": "b",
+      "reasoning": "The JSON structure must match the required receiving object.",
+      "correct": true,
+      "feedback": "Correct. The contract expects destination.zone. A flat zone cannot supply the required destination object.",
+      "created_at": "2026-11-02T09:11:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000c1e"
+    },
+    {
+      "id": "10000000-0000-4000-8000-00000000044f",
+      "checkpoint_id": "10000000-0000-4000-8000-0000000003ea",
+      "number": 1,
+      "selection": "a",
+      "reasoning": "The JSON structure must match the required receiving object.",
+      "correct": true,
+      "feedback": "Correct. The contract expects output.format while name remains at the root. Renaming or stringifying does not create that object.",
+      "created_at": "2026-11-08T09:11:00Z",
+      "idempotency_key": "10000000-0000-4000-8000-000000000c1f"
+    }
+  ],
+  "derived_summary": {
+    "core_completed": true,
+    "transfer_completed": true,
+    "retrievals_completed": 2,
+    "journey_completed": true,
+    "original_modification_count": 2,
+    "transfer_modification_count": 1,
+    "trace_guidance_requests": 1,
+    "baseline_runs": 2,
+    "external_assistance": "unknown",
+    "mastery_assessment": null
+  }
+}

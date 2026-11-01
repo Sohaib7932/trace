@@ -19,12 +19,12 @@ export default defineConfig({
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
   ],
   webServer: [{
-    command: "uv run --directory backend --locked python -m scripts.auth_fixture",
+    command: "uv run --directory backend --locked --no-sync python -B -m scripts.auth_fixture",
     url: "http://127.0.0.1:8001/health",
     reuseExistingServer: false,
     timeout: 60_000,
   }, {
-    command: "uv run --directory backend --locked python -m scripts.e2e_server",
+    command: "uv run --directory backend --locked --no-sync python -B -m tests.fixtures.phase0_e2e_server",
     env: { TRACE_E2E_CLOCK_FILE: resolve("test-results/e2e-clock.json") },
     url: "http://127.0.0.1:8000/api/v1/health/ready",
     reuseExistingServer: false,

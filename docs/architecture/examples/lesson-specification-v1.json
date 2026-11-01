@@ -1,0 +1,753 @@
+{
+  "artifact_type": "trace.lesson-specification.design-examples",
+  "status": "design_only_not_registered_or_published",
+  "lesson_versions": [
+    {
+      "spec_version": "1.0.0",
+      "lesson_id": "fastapi-payload-mismatch",
+      "version_id": "10000000-0000-4000-8000-000000000065",
+      "version": "2.0.0",
+      "entry_mode": "catalog",
+      "title": "Follow the note from request to committed row",
+      "summary": "Trace a submitted value into its receiving schema and verify the committed note independently.",
+      "objectives": [
+        {
+          "id": "trace-contract",
+          "statement": "Identify a request-field mismatch, repair the mapping and distinguish HTTP acceptance from proof of persistence.",
+          "evidence_checkpoint_ids": [
+            "investigate-note",
+            "verify-note",
+            "transfer-task",
+            "revisit-day-1",
+            "revisit-day-7"
+          ]
+        }
+      ],
+      "scenario": {
+        "context": "The form reports that a note was submitted, but no saved note is visible. Predict what the request builder and receiving model will do.",
+        "input_values": {
+          "title": "Trace verification note",
+          "content": "Understanding request validation"
+        },
+        "initial_state_description": "The unchanged request has not run for this session. Each execution uses a new run scope with zero runtime rows.",
+        "artifacts": [
+          {
+            "id": "request-builder",
+            "label": "Request builder",
+            "language": "python",
+            "content": "payload = {\n    \"title\": note.title,\n    \"body\": note.content,\n}\nresponse = client.post(\"/notes\", json=payload)"
+          },
+          {
+            "id": "receiver-schema",
+            "label": "Receiving contract",
+            "language": "python",
+            "content": "from pydantic import BaseModel, ConfigDict, Field\n\nclass NoteCreate(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    title: str = Field(min_length=1, max_length=200)\n    content: str = Field(min_length=1, max_length=2000)"
+          }
+        ]
+      },
+      "checkpoints": [
+        {
+          "id": "predict-note",
+          "type": "prediction",
+          "title": "Predict the application outcome",
+          "prompt": "What will happen to this request, and why?",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [],
+          "hint_ids": [],
+          "evaluation_rule_id": "prediction",
+          "choices": [
+            {
+              "id": "rejected",
+              "label": "The request will be rejected"
+            },
+            {
+              "id": "saved",
+              "label": "A record will be saved"
+            },
+            {
+              "id": "server_error",
+              "label": "The server will fail internally"
+            }
+          ],
+          "reasoning_required": true
+        },
+        {
+          "id": "investigate-note",
+          "type": "investigation",
+          "title": "Trace the receiving contract",
+          "prompt": "Run the unchanged request. Annotate the sender, receiver and validation evidence; identify the outgoing field and required destination.",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [
+            "predict-note"
+          ],
+          "hint_ids": [
+            "hint-1",
+            "hint-2",
+            "hint-3"
+          ],
+          "evaluation_rule_id": "investigation",
+          "artifact_ids": [
+            "request-builder",
+            "receiver-schema"
+          ],
+          "baseline_profile_id": "initial_failure",
+          "baseline_evidence_artifact_id": "baseline-evidence"
+        },
+        {
+          "id": "modify-note",
+          "type": "modification",
+          "title": "Build a constrained correction",
+          "prompt": "Choose the request mapping. Inspect the generated payload shape before saving a candidate.",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [
+            "investigate-note"
+          ],
+          "hint_ids": [
+            "hint-1",
+            "hint-2",
+            "hint-3"
+          ],
+          "evaluation_rule_id": "modification",
+          "change_type": "rename_payload_field",
+          "choices": [
+            {
+              "id": "body",
+              "label": "Send the text as body"
+            },
+            {
+              "id": "content",
+              "label": "Send the text as content"
+            }
+          ],
+          "explanation_required": false
+        },
+        {
+          "id": "verify-note",
+          "type": "verification",
+          "title": "Verify behavior and committed state",
+          "prompt": "Run the saved candidate and compare the HTTP response with an independent database read.",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [
+            "modify-note"
+          ],
+          "hint_ids": [
+            "hint-1",
+            "hint-2",
+            "hint-3"
+          ],
+          "evaluation_rule_id": "verification",
+          "modification_checkpoint_id": "modify-note",
+          "profile_id": "repair"
+        },
+        {
+          "id": "transfer-task",
+          "type": "transfer",
+          "title": "Transfer the contract concept",
+          "prompt": "Apply the same reasoning to a different task request with a nested receiving object.",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [
+            "verify-note"
+          ],
+          "hint_ids": [],
+          "evaluation_rule_id": "transfer",
+          "target_version": {
+            "lesson_id": "fastapi-nested-payload-transfer",
+            "version_id": "10000000-0000-4000-8000-000000000066",
+            "version": "2.0.0",
+            "content_sha256": "fe493b8f014d1e6858f2e2ec332b351f0c858ec55829f02264d0c8fe9ec9b1c3"
+          }
+        },
+        {
+          "id": "revisit-day-1",
+          "type": "retrieval",
+          "title": "Recall after 1 day",
+          "prompt": "Commit a response before seeing feedback. Optional reasoning is saved without semantic grading.",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [
+            "transfer-task"
+          ],
+          "hint_ids": [],
+          "evaluation_rule_id": "retrieval-1",
+          "ordinal": 1,
+          "schedule": {
+            "anchor_checkpoint_id": "transfer-task",
+            "delay_days": 1
+          },
+          "question": {
+            "id": "shipping-contract-v1",
+            "title": "Recall the shipment contract",
+            "prompt": "All intended values are present, but this request is rejected. Which diagnosis follows the receiving contract?",
+            "payload": {
+              "reference": "PKG-42",
+              "zone": "east"
+            },
+            "schema_code": "class Destination(BaseModel):\n    zone: str\n\nclass ShipmentCreate(BaseModel):\n    reference: str\n    destination: Destination",
+            "options": [
+              {
+                "id": "a",
+                "label": "Any request containing zone must be accepted."
+              },
+              {
+                "id": "b",
+                "label": "The zone value is at a different JSON level than the schema expects."
+              },
+              {
+                "id": "c",
+                "label": "Rejection proves that the database is down."
+              }
+            ]
+          },
+          "feedback_after": "saved_response"
+        },
+        {
+          "id": "revisit-day-7",
+          "type": "retrieval",
+          "title": "Recall after 7 days",
+          "prompt": "Commit a response before seeing feedback. Optional reasoning is saved without semantic grading.",
+          "objective_ids": [
+            "trace-contract"
+          ],
+          "depends_on": [
+            "transfer-task"
+          ],
+          "hint_ids": [],
+          "evaluation_rule_id": "retrieval-2",
+          "ordinal": 2,
+          "schedule": {
+            "anchor_checkpoint_id": "transfer-task",
+            "delay_days": 7
+          },
+          "question": {
+            "id": "report-contract-v1",
+            "title": "Recall the report mapping",
+            "prompt": "A report form provides name and format. Which change retains the information and satisfies this receiving model?",
+            "payload": {
+              "name": "Weekly digest",
+              "format": "csv"
+            },
+            "schema_code": "class Output(BaseModel):\n    format: Literal[\"csv\", \"json\"]\n\nclass ReportCreate(BaseModel):\n    name: str\n    output: Output",
+            "options": [
+              {
+                "id": "a",
+                "label": "Place format inside an output object and retain name at the root."
+              },
+              {
+                "id": "b",
+                "label": "Rename format to body and retain it at the root."
+              },
+              {
+                "id": "c",
+                "label": "Send the unchanged JSON as a string instead of an object."
+              }
+            ]
+          },
+          "feedback_after": "saved_response"
+        }
+      ],
+      "hints": [
+        {
+          "id": "hint-1",
+          "level": 1,
+          "text": "Trace each value from the sender into the receiving contract.",
+          "checkpoint_ids": [
+            "investigate-note",
+            "modify-note",
+            "verify-note"
+          ]
+        },
+        {
+          "id": "hint-2",
+          "level": 2,
+          "text": "Compare the outgoing keys with the required names in NoteCreate.",
+          "checkpoint_ids": [
+            "investigate-note",
+            "modify-note",
+            "verify-note"
+          ]
+        },
+        {
+          "id": "hint-3",
+          "level": 3,
+          "text": "A submitted field is not necessarily the required receiving field. The validation codes identify the mismatch.",
+          "checkpoint_ids": [
+            "investigate-note",
+            "modify-note",
+            "verify-note"
+          ]
+        }
+      ],
+      "explanations": [
+        {
+          "id": "core-explanation",
+          "title": "Why this correction works",
+          "text": "The receiver requires content, while the unchanged sender supplies body. Correcting the mapping satisfies the contract. A successful status alone is insufficient: the independent read must find the same committed note and values.",
+          "checkpoint_id": "verify-note",
+          "release_event": "core_verification_passed"
+        },
+        {
+          "id": "retrieval-1-explanation",
+          "title": "Read the receiving shape",
+          "text": "The contract expects destination.zone. A flat zone cannot supply the required destination object.",
+          "checkpoint_id": "revisit-day-1",
+          "release_event": "retrieval_response_saved"
+        },
+        {
+          "id": "retrieval-2-explanation",
+          "title": "Read the receiving shape",
+          "text": "The contract expects output.format while name remains at the root. Renaming or stringifying does not create that object.",
+          "checkpoint_id": "revisit-day-7",
+          "release_event": "retrieval_response_saved"
+        }
+      ],
+      "misconceptions": [
+        {
+          "id": "presence-implies-validity",
+          "statement": "Any submitted value must satisfy the receiving model.",
+          "indicator": {
+            "kind": "mapping_selected",
+            "checkpoint_id": "modify-note",
+            "value": "body"
+          },
+          "suggested_feedback": "Inspect the exact receiving name and JSON level. This action alone does not reveal what you believe."
+        }
+      ],
+      "completion_policy": {
+        "core_checkpoint_ids": [
+          "predict-note",
+          "investigate-note",
+          "modify-note",
+          "verify-note"
+        ],
+        "transfer_checkpoint_ids": [
+          "transfer-task"
+        ],
+        "retrieval_checkpoint_ids": [
+          "revisit-day-1",
+          "revisit-day-7"
+        ]
+      },
+      "tutor_policy": {
+        "mode": "authored_only",
+        "max_requests_per_core_session": 3,
+        "available_after_checkpoint_id": "predict-note"
+      },
+      "private": {
+        "runtime_binding": {
+          "template_id": "notes-v1",
+          "revision": "1.0.0"
+        },
+        "evaluation": {
+          "policy_id": "payload-contract-v1",
+          "revision": "1.0.0",
+          "rules": {
+            "prediction": {
+              "kind": "outcome_diagnostic",
+              "answer": "rejected",
+              "gate": "valid_submission"
+            },
+            "investigation": {
+              "kind": "field_trace",
+              "expected_outgoing_field": "body",
+              "expected_required_path": "/content",
+              "required_artifact_ids": [
+                "request-builder",
+                "receiver-schema",
+                "baseline-evidence"
+              ]
+            },
+            "modification": {
+              "kind": "allowed_mapping",
+              "allowed_values": [
+                "body",
+                "content"
+              ],
+              "correct_value": "content"
+            },
+            "verification": {
+              "kind": "verified_repair"
+            },
+            "retrieval-1": {
+              "kind": "single_choice",
+              "answer": "b",
+              "explanation_id": "retrieval-1-explanation"
+            },
+            "retrieval-2": {
+              "kind": "single_choice",
+              "answer": "a",
+              "explanation_id": "retrieval-2-explanation"
+            },
+            "transfer": {
+              "kind": "linked_session_completion"
+            }
+          }
+        },
+        "verification": {
+          "timeout_seconds": 10,
+          "fixture": {
+            "id": "empty-notes-v1",
+            "input_values": {
+              "title": "Trace verification note",
+              "content": "Understanding request validation"
+            },
+            "initial_mapping": "body"
+          },
+          "profiles": {
+            "initial_failure": {
+              "purpose": "baseline",
+              "http_status": 422,
+              "response_shape": "validation_errors",
+              "validation_codes": [
+                "missing:content",
+                "extra_forbidden:body"
+              ],
+              "row_count": 0,
+              "stored_values": {},
+              "require_response_row_identity_match": false,
+              "required_checks": [
+                "http_status",
+                "api_response",
+                "validation",
+                "row_count",
+                "stored_values"
+              ]
+            },
+            "repair": {
+              "purpose": "repair",
+              "http_status": 201,
+              "response_shape": "saved_note",
+              "validation_codes": [],
+              "row_count": 1,
+              "stored_values": {
+                "title": "Trace verification note",
+                "content": "Understanding request validation"
+              },
+              "require_response_row_identity_match": true,
+              "required_checks": [
+                "http_status",
+                "api_response",
+                "validation",
+                "row_count",
+                "stored_values"
+              ]
+            }
+          }
+        }
+      },
+      "content_sha256": "17f4adff0a085e7b5bca92092c1b9c3b804822bd098cee34784870d7490d0f42"
+    },
+    {
+      "spec_version": "1.0.0",
+      "lesson_id": "fastapi-nested-payload-transfer",
+      "version_id": "10000000-0000-4000-8000-000000000066",
+      "version": "2.0.0",
+      "entry_mode": "transfer_only",
+      "title": "The Nested Payload Problem",
+      "summary": "Apply the receiving-contract concept to nested JSON and verify the persisted task.",
+      "objectives": [
+        {
+          "id": "trace-nesting",
+          "statement": "Map a flat priority into the required metadata object and use HTTP plus independent readback to establish persistence.",
+          "evidence_checkpoint_ids": [
+            "investigate-task",
+            "verify-task"
+          ]
+        }
+      ],
+      "scenario": {
+        "context": "A task form sends a title and priority, but the task is not saved. Investigate where the receiver expects the priority.",
+        "input_values": {
+          "title": "Prepare the product demo",
+          "priority": "high"
+        },
+        "initial_state_description": "The unchanged request has not run for this session. Each execution uses a new run scope with zero runtime rows.",
+        "artifacts": [
+          {
+            "id": "request-builder",
+            "label": "Request builder",
+            "language": "python",
+            "content": "payload = {\n    \"title\": task.title,\n    \"priority\": task.priority,\n}\nresponse = client.post(\"/tasks\", json=payload)"
+          },
+          {
+            "id": "receiver-schema",
+            "label": "Receiving contract",
+            "language": "python",
+            "content": "from typing import Literal\nfrom pydantic import BaseModel, ConfigDict, Field\n\nclass TaskMetadata(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    priority: Literal[\"low\", \"normal\", \"high\"]\n\nclass TaskCreate(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    title: str = Field(min_length=1, max_length=200)\n    metadata: TaskMetadata"
+          }
+        ]
+      },
+      "checkpoints": [
+        {
+          "id": "predict-task",
+          "type": "prediction",
+          "title": "Predict the application outcome",
+          "prompt": "What will happen to this request, and why?",
+          "objective_ids": [
+            "trace-nesting"
+          ],
+          "depends_on": [],
+          "hint_ids": [],
+          "evaluation_rule_id": "prediction",
+          "choices": [
+            {
+              "id": "rejected",
+              "label": "The request will be rejected"
+            },
+            {
+              "id": "saved",
+              "label": "A record will be saved"
+            },
+            {
+              "id": "server_error",
+              "label": "The server will fail internally"
+            }
+          ],
+          "reasoning_required": true
+        },
+        {
+          "id": "investigate-task",
+          "type": "investigation",
+          "title": "Trace the receiving contract",
+          "prompt": "Run the unchanged request. Annotate the sender, receiver and validation evidence; identify the outgoing field and required destination.",
+          "objective_ids": [
+            "trace-nesting"
+          ],
+          "depends_on": [
+            "predict-task"
+          ],
+          "hint_ids": [
+            "hint-1",
+            "hint-2",
+            "hint-3"
+          ],
+          "evaluation_rule_id": "investigation",
+          "artifact_ids": [
+            "request-builder",
+            "receiver-schema"
+          ],
+          "baseline_profile_id": "initial_failure",
+          "baseline_evidence_artifact_id": "baseline-evidence"
+        },
+        {
+          "id": "modify-task",
+          "type": "modification",
+          "title": "Build a constrained correction",
+          "prompt": "Choose the request mapping. Inspect the generated payload shape before saving a candidate.",
+          "objective_ids": [
+            "trace-nesting"
+          ],
+          "depends_on": [
+            "investigate-task"
+          ],
+          "hint_ids": [
+            "hint-1",
+            "hint-2",
+            "hint-3"
+          ],
+          "evaluation_rule_id": "modification",
+          "change_type": "nest_payload_field",
+          "choices": [
+            {
+              "id": "flat",
+              "label": "Keep priority at the root"
+            },
+            {
+              "id": "nested",
+              "label": "Place priority inside metadata"
+            }
+          ],
+          "explanation_required": false
+        },
+        {
+          "id": "verify-task",
+          "type": "verification",
+          "title": "Verify behavior and committed state",
+          "prompt": "Run the saved candidate and compare the HTTP response with an independent database read.",
+          "objective_ids": [
+            "trace-nesting"
+          ],
+          "depends_on": [
+            "modify-task"
+          ],
+          "hint_ids": [
+            "hint-1",
+            "hint-2",
+            "hint-3"
+          ],
+          "evaluation_rule_id": "verification",
+          "modification_checkpoint_id": "modify-task",
+          "profile_id": "repair"
+        }
+      ],
+      "hints": [
+        {
+          "id": "hint-1",
+          "level": 1,
+          "text": "Trace each value from the sender into the receiving contract.",
+          "checkpoint_ids": [
+            "investigate-task",
+            "modify-task",
+            "verify-task"
+          ]
+        },
+        {
+          "id": "hint-2",
+          "level": 2,
+          "text": "Compare the JSON level expected by TaskCreate and TaskMetadata.",
+          "checkpoint_ids": [
+            "investigate-task",
+            "modify-task",
+            "verify-task"
+          ]
+        },
+        {
+          "id": "hint-3",
+          "level": 3,
+          "text": "A value at the root does not satisfy a field inside a required object.",
+          "checkpoint_ids": [
+            "investigate-task",
+            "modify-task",
+            "verify-task"
+          ]
+        }
+      ],
+      "explanations": [
+        {
+          "id": "core-explanation",
+          "title": "Why this correction works",
+          "text": "The receiver requires metadata.priority. Retaining the value at the root cannot supply that object. A matching 201 and independently read committed task establish this controlled correction.",
+          "checkpoint_id": "verify-task",
+          "release_event": "core_verification_passed"
+        }
+      ],
+      "misconceptions": [
+        {
+          "id": "presence-implies-validity",
+          "statement": "Any submitted value must satisfy the receiving model.",
+          "indicator": {
+            "kind": "mapping_selected",
+            "checkpoint_id": "modify-task",
+            "value": "flat"
+          },
+          "suggested_feedback": "Inspect the exact receiving name and JSON level. This action alone does not reveal what you believe."
+        }
+      ],
+      "completion_policy": {
+        "core_checkpoint_ids": [
+          "predict-task",
+          "investigate-task",
+          "modify-task",
+          "verify-task"
+        ],
+        "transfer_checkpoint_ids": [],
+        "retrieval_checkpoint_ids": []
+      },
+      "tutor_policy": {
+        "mode": "authored_only",
+        "max_requests_per_core_session": 3,
+        "available_after_checkpoint_id": "predict-task"
+      },
+      "private": {
+        "runtime_binding": {
+          "template_id": "tasks-nested-v1",
+          "revision": "1.0.0"
+        },
+        "evaluation": {
+          "policy_id": "payload-contract-v1",
+          "revision": "1.0.0",
+          "rules": {
+            "prediction": {
+              "kind": "outcome_diagnostic",
+              "answer": "rejected",
+              "gate": "valid_submission"
+            },
+            "investigation": {
+              "kind": "field_trace",
+              "expected_outgoing_field": "priority",
+              "expected_required_path": "/metadata/priority",
+              "required_artifact_ids": [
+                "request-builder",
+                "receiver-schema",
+                "baseline-evidence"
+              ]
+            },
+            "modification": {
+              "kind": "allowed_mapping",
+              "allowed_values": [
+                "flat",
+                "nested"
+              ],
+              "correct_value": "nested"
+            },
+            "verification": {
+              "kind": "verified_repair"
+            }
+          }
+        },
+        "verification": {
+          "timeout_seconds": 10,
+          "fixture": {
+            "id": "empty-tasks-v1",
+            "input_values": {
+              "title": "Prepare the product demo",
+              "priority": "high"
+            },
+            "initial_mapping": "flat"
+          },
+          "profiles": {
+            "initial_failure": {
+              "purpose": "baseline",
+              "http_status": 422,
+              "response_shape": "validation_errors",
+              "validation_codes": [
+                "missing:metadata",
+                "extra_forbidden:priority"
+              ],
+              "row_count": 0,
+              "stored_values": {},
+              "require_response_row_identity_match": false,
+              "required_checks": [
+                "http_status",
+                "api_response",
+                "validation",
+                "row_count",
+                "stored_values"
+              ]
+            },
+            "repair": {
+              "purpose": "repair",
+              "http_status": 201,
+              "response_shape": "saved_task",
+              "validation_codes": [],
+              "row_count": 1,
+              "stored_values": {
+                "title": "Prepare the product demo",
+                "priority": "high"
+              },
+              "require_response_row_identity_match": true,
+              "required_checks": [
+                "http_status",
+                "api_response",
+                "validation",
+                "row_count",
+                "stored_values"
+              ]
+            }
+          }
+        }
+      },
+      "content_sha256": "fe493b8f014d1e6858f2e2ec332b351f0c858ec55829f02264d0c8fe9ec9b1c3"
+    }
+  ]
+}
