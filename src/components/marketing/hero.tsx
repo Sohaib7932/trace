@@ -48,10 +48,10 @@ export function Hero() {
           className="enter mt-8 flex flex-col-reverse items-center justify-center gap-3 sm:flex-row"
           style={{ "--d": "500ms" } as React.CSSProperties}
         >
-          <ButtonLink href="#how-it-works" variant="secondary" className="w-full sm:w-auto">
+          <ButtonLink href="#demo" variant="secondary" className="w-full sm:w-auto">
             See how Trace works
           </ButtonLink>
-          <ButtonLink href="#demo" icon="down" className="w-full sm:w-auto">
+          <ButtonLink href="/learn" icon="right" className="w-full sm:w-auto">
             Try a lesson
           </ButtonLink>
         </div>

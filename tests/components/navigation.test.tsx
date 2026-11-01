@@ -22,7 +22,8 @@ test("navigation closes after selecting its real in-page destination", async () 
   render(<MobileNav />);
   await user.click(screen.getByRole("button", { name: "Open menu" }));
   const destination = screen.getAllByRole("link")[0];
-  expect(destination.getAttribute("href")).toMatch(/^#[a-z-]+$/);
+  // Section links include the path so they also work from other pages; "/learn" is the lessons hub.
+  expect(destination.getAttribute("href")).toMatch(/^\/(#[a-z-]+|learn)$/);
   await user.click(destination);
   expect(screen.getByRole("button", { name: "Open menu" })).toHaveAttribute("aria-expanded", "false");
 });

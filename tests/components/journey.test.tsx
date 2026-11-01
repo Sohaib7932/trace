@@ -33,22 +33,23 @@ test("locked transfer has no CTA and upcoming checkpoint has no question or answ
 test("transfer records investigation before exposing the nested mapping", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
   const { rerender } = render(<TransferAttemptForm pending={false} investigated={false} onSubmit={submit} />);
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   expect(screen.queryByText(/"metadata":/)).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Record original flat request" }));
+  await user.click(screen.getByRole("button", { name: "Run the original request" }));
   expect(submit).toHaveBeenCalledWith({ change_type: "nest_payload_field", field_name: "flat", explanation: "" });
   rerender(<TransferAttemptForm pending={false} investigated onSubmit={submit} />);
-  await user.selectOptions(screen.getByLabelText("Priority location"), "nested");
-  await user.click(screen.getByRole("button", { name: "Submit correction" }));
+  await user.click(screen.getByRole("radio", { name: "inside metadata" }));
+  expect(screen.getByText(/"metadata":/)).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Check my change" }));
   expect(submit).toHaveBeenLastCalledWith({ change_type: "nest_payload_field", field_name: "nested", explanation: "" });
 });
 
-test("transfer prediction names the task and requires a choice and reasoning", async () => {
+test("transfer prediction names the task and requires a choice", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
   render(<PredictionForm pending={false} onSubmit={submit} task />);
   expect(screen.getByRole("button", { name: "Lock prediction" })).toBeDisabled();
   await user.click(screen.getByLabelText("The task will be saved"));
-  await user.type(screen.getByLabelText("Why do you expect that?"), "The values are present.");
+  await user.type(screen.getByLabelText(/Why do you expect that/), "The values are present.");
   await user.click(screen.getByRole("button", { name: "Lock prediction" }));
   expect(submit).toHaveBeenCalledWith({ selected_answer: "saved", reasoning: "The values are present." });
 });

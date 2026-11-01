@@ -18,8 +18,8 @@ export const duration = {
   cardInnerDelay: 0.3, // inner visual starts this long after its card
   cardInner: 0.35, // one inner part (code line, diff row, evidence row)
   reducedFade: 0.15, // reduced motion: a quick opacity fade only
-  word: 0.7, // one heading word
-  accentWord: 0.9, // the accent word, slightly longer
+  word: 0.85, // one heading word: blur → sharp, fade, rise
+  accentWord: 1.05, // the accent word, slightly longer
   reveal: 0.8, // large visual reveals (500–900ms)
   connector: 0.5, // flow-diagram connector draw (400–600ms)
   lensGlide: 0.75, // magnifier glide between targets (600–900ms)
@@ -55,9 +55,13 @@ export const cardTrigger = "0px 0px -12% 0px";
 /** Scroll-linked depth inside cards (desktop only): max drift and catch-up time (scrub). */
 export const parallax = { range: 14, scrub: 0.5 } as const;
 
-/** Heading word blur: full on desktop, reduced on phones. */
-export const wordBlur = { desktop: 12, mobile: 6 } as const;
+/** Heading word blur: full on desktop, reduced on phones and low-power devices (never removed). */
+export const wordBlur = { desktop: 12, mobile: 6, lowPower: 8 } as const;
 export const wordRise = 18;
+/** Opacity is fully in at this point of a word's reveal; blur keeps resolving after, so words "focus". */
+export const wordOpaqueAt = 0.55;
+/** Above this many words, blur runs once on the whole heading while words fade and rise. */
+export const lineBlurAbove = 12;
 
 /** Breakpoints the motion system cares about. */
 export const mq = {

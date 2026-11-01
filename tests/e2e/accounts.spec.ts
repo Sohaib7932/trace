@@ -9,12 +9,16 @@ async function register(page: Page, request: APIRequestContext, email: string) {
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByLabel("Confirm password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page.getByText("Check your email.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
+  await expect(page.getByText(email, { exact: true })).toBeVisible();
   const mail = await request.get(`http://127.0.0.1:8001/fixture/mail?email=${encodeURIComponent(email)}`);
   const { link } = await mail.json() as { link: string };
   expect(new URL(link).origin).toBe("http://127.0.0.1:3100");
   await page.goto(link);
-  await expect(page.getByRole("heading", { name: "A home for your progress." })).toBeVisible();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole("heading", { name: /^Hi, / })).toBeVisible();
+  // Technical details are collapsed by default; open them to read the account email.
+  await page.getByText("Account details", { exact: true }).click();
   await expect(page.getByText(email, { exact: true })).toBeVisible();
 }
 async function login(page: Page, email: string, value = password) {
@@ -43,10 +47,15 @@ test("registration, verified account, authenticated learning, refresh and logout
   const before = await (await request.get("http://127.0.0.1:8001/fixture/stats")).json() as { refreshes: number };
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  // Sign-in lands on the lessons hub by default.
+  await expect(page).toHaveURL(/\/learn$/);
+  await page.goto("/account");
   await expect(page.locator("dd.font-mono")).toHaveText(userId);
   const after = await (await request.get("http://127.0.0.1:8001/fixture/stats")).json() as { refreshes: number };
   expect(after.refreshes).toBeGreaterThan(before.refreshes);
-  await page.getByRole("link", { name: "Continue learning", exact: true }).click();
+  // Sign-in landed on /learn, which already started this account's learning record.
+  await page.goto("/learn");
+  await page.getByRole("link", { name: "Start lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await page.getByLabel("The request will be rejected", { exact: true }).check();
   await page.getByLabel("Why do you expect that?").fill("The authenticated learner preserves this prediction after reload.");
@@ -74,9 +83,11 @@ test("explicit guest claim preserves a real session and rejects a second account
   await page.getByRole("button", { name: "Review history claim" }).click();
   await expect(page.getByText("Attach this guest history to this account?", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Confirm history claim" }).click();
-  await expect(page.getByRole("status")).toContainText("Every session is preserved");
+  await expect(page.getByText(/Every session is preserved/)).toBeVisible();
   expect((await context.cookies()).some((cookie) => cookie.name === "trace_learner")).toBe(false);
-  await page.getByRole("link", { name: "Continue learning", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "How you learned" })).toBeVisible();
+  await expect(page.getByText("The request will be rejected").first()).toBeVisible();
+  await page.goto("/learn/fastapi-payload-mismatch");
   await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(prediction);
   await page.reload();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(prediction);
@@ -117,9 +128,13 @@ test("recovery links change the provider password and invalid callbacks stay saf
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await login(page, email, replacement);
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/learn$/);
+  await page.goto("/account");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  // Provider errors map to fixed messages; provider text and query `next` are ignored.
   await page.goto("/auth/callback?error=access_denied&error_description=untrusted&next=https://evil.example");
-  await expect(page).toHaveURL(/\/sign-in\?auth_error=link$/);
-  await expect(page.getByRole("status")).toContainText("could not be completed");
+  await expect(page).toHaveURL(/\/sign-in\?auth_error=cancelled$/);
+  await expect(page.getByRole("status")).toContainText("Sign-in was cancelled");
   await expect(page.getByText("untrusted", { exact: true })).toHaveCount(0);
 });

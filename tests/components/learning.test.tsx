@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
-import { AttemptForm, LockedPrediction, PredictionForm } from "@/components/learning/forms";
+import { AttemptForm, LockedPrediction, NO_REASON, PredictionForm } from "@/components/learning/forms";
 import { AttemptHistory, Guidance, ProgressSummary, VerificationEvidence } from "@/components/learning/evidence";
 import { Workspace } from "@/components/learning/workspace";
 import { learningApi } from "@/lib/api/client";
@@ -10,14 +10,24 @@ import { failedRun, lesson, savedProgress } from "../fixtures/learning";
 
 afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
 
-test("prediction requires a choice and reasoning before submission", async () => {
+test("prediction needs only a choice; a reason is optional", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
   render(<PredictionForm onSubmit={submit} pending={false} />);
   expect(screen.getByRole("button", { name: "Lock prediction" })).toBeDisabled();
   await user.click(screen.getByLabelText("The request will be rejected"));
-  await user.type(screen.getByLabelText("Why do you expect that?"), "The keys differ.");
+  await user.type(screen.getByLabelText(/Why do you expect that/), "The keys differ.");
   await user.click(screen.getByRole("button", { name: "Lock prediction" }));
   expect(submit).toHaveBeenCalledWith({ selected_answer: "rejected", reasoning: "The keys differ." });
+});
+
+test("a prediction without a written reason stores the fixed marker, never shown as learner text", async () => {
+  const user = userEvent.setup(); const submit = vi.fn();
+  render(<PredictionForm onSubmit={submit} pending={false} />);
+  await user.click(screen.getByLabelText("The request will be rejected"));
+  await user.click(screen.getByRole("button", { name: "Lock prediction" }));
+  expect(submit).toHaveBeenCalledWith({ selected_answer: "rejected", reasoning: NO_REASON });
+  render(<LockedPrediction prediction={{ ...savedProgress.prediction!, reasoning: NO_REASON }} />);
+  expect(screen.queryByText(NO_REASON)).toBeNull();
 });
 
 test("locked prediction retains the original answer without editable controls", () => {
@@ -26,12 +36,13 @@ test("locked prediction retains the original answer without editable controls", 
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 });
 
-test("attempt form submits only a constrained mapping with its explanation", async () => {
+test("the change is picked inside the code and submits only a constrained mapping", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
   render(<AttemptForm pending={false} onSubmit={submit} />);
-  await user.selectOptions(screen.getByLabelText("Payload field"), "content");
-  await user.type(screen.getByLabelText("Explain your change (optional)"), "Match the receiving field.");
-  await user.click(screen.getByRole("button", { name: "Submit correction" }));
+  expect(screen.getByRole("group", { name: "Payload field" })).toBeVisible();
+  await user.click(screen.getByRole("radio", { name: "content" }));
+  await user.type(screen.getByLabelText(/Note to yourself/), "Match the receiving field.");
+  await user.click(screen.getByRole("button", { name: "Check my change" }));
   expect(submit).toHaveBeenCalledWith({ change_type: "rename_payload_field", field_name: "content", explanation: "Match the receiving field." });
 });
 
