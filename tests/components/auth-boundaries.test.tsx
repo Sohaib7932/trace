@@ -35,7 +35,8 @@ test("cookie security follows the app protocol and preserves the SDK's readable-
 test("PKCE callback uses the SDK and a pinned destination rather than incoming host or next", async () => {
   const result = await GET(new NextRequest("https://untrusted.example/auth/callback?code=controlled-code&next=https://evil.example"));
   expect(fixture.exchange).toHaveBeenCalledWith("controlled-code");
-  expect(result.headers.get("location")).toBe("https://trace.example.test/account");
+  // Default destination after sign-in is the lessons hub; query `next` is ignored.
+  expect(result.headers.get("location")).toBe("https://trace.example.test/learn");
   expect(result.headers.get("cache-control")).toContain("no-store");
   expect(result.headers.get("referrer-policy")).toBe("no-referrer");
 });
@@ -69,4 +70,19 @@ test("server pages require verified claims and fail closed on invalid sessions o
   fixture.configured = false;
   await expect(RequireAccount({ children: "protected" })).rejects.toThrow("redirected");
   expect(fixture.redirect).toHaveBeenLastCalledWith("/sign-in");
+});
+
+test("only an allowlisted remembered destination is used after the OAuth round trip", async () => {
+  const ok = new NextRequest("https://trace.example.test/auth/callback?code=fixture", { headers: { cookie: "trace_next=%2Faccount" } });
+  expect((await GET(ok)).headers.get("location")).toBe("https://trace.example.test/account");
+  for (const bad of ["https%3A%2F%2Fevil.example", "%2F%2Fevil.example", "%2Fsign-in", "%2Flearn%2F..%2F..%2Fx"]) {
+    const request = new NextRequest("https://trace.example.test/auth/callback?code=fixture", { headers: { cookie: `trace_next=${bad}` } });
+    expect((await GET(request)).headers.get("location")).toBe("https://trace.example.test/learn");
+  }
+});
+test("provider errors map to fixed, friendly message keys", async () => {
+  const cancelled = await GET(new NextRequest("https://trace.example.test/auth/callback?error=access_denied&error_description=user+denied"));
+  expect(cancelled.headers.get("location")).toBe("https://trace.example.test/sign-in?auth_error=cancelled");
+  const disabled = await GET(new NextRequest("https://trace.example.test/auth/callback?error=invalid_request&error_code=validation_failed&error_description=Unsupported+provider%3A+provider+is+not+enabled"));
+  expect(disabled.headers.get("location")).toBe("https://trace.example.test/sign-in?auth_error=provider");
 });

@@ -24,7 +24,9 @@ export const viewport: Viewport = {
 
 // Marks that JS is running before first paint, so scroll reveals can start hidden.
 // Without JS the class is never added and every section stays visible.
-const jsFlag = "document.documentElement.classList.add('js')";
+// "fonts" marks web fonts as ready (or 1.2s passed), so load-time headline reveals
+// never re-render their blurred words when the font swaps in mid-animation.
+const jsFlag = "var d=document.documentElement;d.classList.add('js');var f=function(){d.classList.add('fonts')};setTimeout(f,1200);document.fonts&&document.fonts.ready.then(f)";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

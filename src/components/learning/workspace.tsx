@@ -11,9 +11,10 @@ import { JourneyPanel } from "./journey";
 const LESSON = "fastapi-payload-mismatch";
 
 
-export function LearningWorkspace({ lessonId = LESSON }: { lessonId?: string }) {
+/** `children` render inside the same query cache (e.g. the completion panel), before the workspace. */
+export function LearningWorkspace({ lessonId = LESSON, children }: { lessonId?: string; children?: React.ReactNode }) {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 }, mutations: { retry: false } } }));
-  return <QueryClientProvider client={client}><Workspace key={lessonId} lessonId={lessonId} /></QueryClientProvider>;
+  return <QueryClientProvider client={client}>{children}<Workspace key={lessonId} lessonId={lessonId} /></QueryClientProvider>;
 }
 
 export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
@@ -60,7 +61,8 @@ export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
   const prediction = useMutation({ mutationFn: (body: Schema["PredictionCreate"]) => learningApi.predict(sessionId!, body, keyFor("prediction", body)),
     onSuccess: () => keys.current.delete("prediction"), onSettled: refresh });
   const attempt = useMutation({ mutationFn: (body: Schema["AttemptCreate"] | Schema["TransferAttemptCreate"]) => learningApi.attempt(sessionId!, body, keyFor("attempt", body)),
-    onSuccess: () => keys.current.delete("attempt"), onSettled: refresh });
+    // Like the demo: saving a change runs its real check straight away (one click).
+    onSuccess: (saved) => { keys.current.delete("attempt"); verification.mutate(saved.id); }, onSettled: refresh });
   const hint = useMutation({ mutationFn: () => {
     const attemptId = progress.data?.attempts.at(-1)?.id;
     return learningApi.hint(sessionId!, attemptId, keyFor("hint", { attemptId }));

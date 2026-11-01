@@ -182,7 +182,7 @@ export function DeviceSequence() {
 
   return (
     <div ref={trackRef} className="device-track">
-      <div id="demo" ref={stageRef} className="device-stage">
+      <div id="demo" ref={stageRef} className="device-stage" data-loops="">
         <h2 className="sr-only">Try a sample lesson</h2>
         <DevicePanel />
         <div className="device-perspective">

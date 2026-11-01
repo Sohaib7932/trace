@@ -18,11 +18,11 @@ export function FinalCta() {
         <Reveal variant="up" delay={320}>
           <p className="type-lede mx-auto mt-6 max-w-[32rem] text-secondary">
             Pick one route (a URL your app answers). Guess what it does, change one
-            line, and check what really happened. The demo lesson takes about five minutes.
+            line, and check what really happened. Each lesson takes about 5–10 minutes.
           </p>
         </Reveal>
         <Reveal variant="up" delay={420} className="mt-9 flex justify-center">
-          <ButtonLink href="#demo" icon="right">
+          <ButtonLink href="/learn" icon="right">
             Try a lesson
           </ButtonLink>
         </Reveal>

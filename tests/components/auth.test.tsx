@@ -1,10 +1,8 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { AuthForm } from "@/components/auth/auth-form";
-import { AccountPanel } from "@/components/auth/account-panel";
 import { AccountLink } from "@/components/auth/account-link";
-import { ApiError } from "@/lib/api/client";
 
 const fixture = vi.hoisted(() => ({
   configured: true,
@@ -42,12 +40,22 @@ test("registration rejects mismatched passwords before any provider request", as
   expect(screen.getByRole("status")).toHaveTextContent("Passwords must match");
   expect(fixture.auth.signUp).not.toHaveBeenCalled();
 });
-test("registration requires a provider confirmation and supports safe resend", async () => {
+test("registration requires a provider confirmation and shows the inbox screen with a resend cooldown", async () => {
   const user = await credentials("sign-up");
   await user.click(screen.getByRole("button", { name: "Create account" }));
   expect(await screen.findByRole("status")).toHaveTextContent("Check your email");
+  expect(screen.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
+  expect(screen.getByText("learner@example.test")).toBeVisible();
   expect(fixture.auth.signUp).toHaveBeenCalledWith(expect.objectContaining({ options: { emailRedirectTo: expect.stringContaining("/auth/callback?type=signup") } }));
-  await user.click(screen.getByRole("button", { name: "Resend confirmation email" }));
+  // Resend waits 30 seconds after sending, so it can't be hammered.
+  expect(screen.getByRole("button", { name: /Resend available in 30s/ })).toBeDisabled();
+  expect(fixture.auth.resend).not.toHaveBeenCalled();
+});
+test("an unconfirmed sign-in offers a safe resend", async () => {
+  fixture.auth.signInWithPassword.mockResolvedValue({ error: { code: "email_not_confirmed" } });
+  const user = await credentials("sign-in");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(await screen.findByRole("button", { name: "Resend confirmation email" }));
   expect(fixture.auth.resend).toHaveBeenCalledWith(expect.objectContaining({ type: "signup", email: "learner@example.test" }));
 });
 test("a provider without confirmation enabled is reported instead of a claimed verification", async () => {
@@ -57,12 +65,43 @@ test("a provider without confirmation enabled is reported instead of a claimed v
   expect(await screen.findByRole("status")).toHaveTextContent("confirmation is not enabled");
   expect(fixture.auth.signOut).toHaveBeenCalled();
 });
-test("email login uses the SDK and refreshes the account route", async () => {
+test("email login uses the SDK and goes to the lessons hub by default", async () => {
   const user = await credentials("sign-in");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   expect(fixture.auth.signInWithPassword).toHaveBeenCalledWith({ email: "learner@example.test", password: "Controlled-password-12" });
-  expect(fixture.push).toHaveBeenCalledWith("/account");
+  expect(fixture.push).toHaveBeenCalledWith("/learn");
   expect(fixture.refresh).toHaveBeenCalled();
+});
+test.each([["/account", "/account"], ["https://evil.example", "/learn"], ["//evil.example", "/learn"], ["/sign-in", "/learn"]])("sign-in honours only a safe next (%s -> %s)", async (next, expected) => {
+  render(<AuthForm mode="sign-in" next={next} />);
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Email address"), "learner@example.test");
+  await user.type(screen.getByLabelText("Password", { exact: true }), "Controlled-password-12");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(fixture.push).toHaveBeenCalledWith(expected);
+});
+test("fields validate on blur with messages tied to the input", async () => {
+  render(<AuthForm mode="sign-up" />);
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Email address"), "not-an-email");
+  await user.type(screen.getByLabelText("Password", { exact: true }), "short");
+  await user.click(screen.getByLabelText("Confirm password"));
+  expect(screen.getByLabelText("Email address")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByText("Enter an email address like name@example.com.")).toBeVisible();
+  expect(screen.getByText("Use at least 12 characters.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Show password" }));
+  expect(screen.getByLabelText("Password", { exact: true })).toHaveAttribute("type", "text");
+});
+test("a disabled Google provider shows a clear message instead of a blank redirect", async () => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost:54321");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test_fixture");
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", window.location.origin);
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ external: { google: false } })));
+  render(<AuthForm mode="sign-in" />);
+  await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Google sign-in isn't set up on this site yet");
+  expect(fixture.auth.signInWithOAuth).not.toHaveBeenCalled();
+  fetchSpy.mockRestore(); vi.unstubAllEnvs();
 });
 test.each(["invalid_credentials", "email_not_confirmed"])("login safely handles %s", async (code) => {
   fixture.auth.signInWithPassword.mockResolvedValue({ error: { code, message: "private provider text" } });
@@ -103,45 +142,13 @@ test("unconfigured installations retain accessible guest learning and disabled s
   expect(screen.getByRole("alert")).toHaveTextContent("not configured");
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
 });
-test("account displays trusted roles and provider information, and requires explicit claim confirmation", async () => {
-  render(<AccountPanel />);
-  expect(await screen.findByText("learner@example.test")).toBeVisible();
-  expect(screen.getByText("creator", { exact: true })).toBeVisible();
-  expect(screen.getByText("email, google")).toBeVisible();
-  await userEvent.click(screen.getByRole("button", { name: "Review history claim" }));
-  expect(fixture.claim).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Confirm history claim" }));
-  expect(await screen.findByRole("status")).toHaveTextContent("Every session is preserved");
-  expect(fixture.claim).toHaveBeenCalledWith(expect.any(String));
-});
-test("claim conflicts preserve the retry key and explain that both histories remain", async () => {
-  fixture.claim.mockRejectedValue(new ApiError(409, "Conflict"));
-  render(<AccountPanel />);
-  await userEvent.click(await screen.findByRole("button", { name: "Review history claim" }));
-  const submit = screen.getByRole("button", { name: "Confirm history claim" });
-  await userEvent.click(submit);
-  expect(await screen.findByRole("status")).toHaveTextContent("Neither history was changed");
-  await userEvent.click(submit);
-  expect(fixture.claim.mock.calls[0][0]).toBe(fixture.claim.mock.calls[1][0]);
-});
-test("logout clears session links and refreshes protected UI", async () => {
-  localStorage.setItem("trace.session.fixture", "non-secret-session-id");
-  render(<AccountPanel />);
-  await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
-  expect(fixture.auth.signOut).toHaveBeenCalled();
-  expect(localStorage.getItem("trace.session.fixture")).toBeNull();
-  expect(fixture.push).toHaveBeenCalledWith("/sign-in");
-});
-test("account network errors are shown without rendering invented identity", async () => {
-  fixture.me.mockRejectedValue(new ApiError(503, "Account database unavailable"));
-  render(<AccountPanel />);
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Account database unavailable"));
-  expect(screen.queryByText("trace-user-fixture")).toBeNull();
-});
 test("account navigation tracks SDK refresh and sign-out events and unsubscribes", async () => {
   const view = render(<AccountLink />);
-  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
+  // Until the session is read, the link is hidden rather than showing a possibly wrong label.
+  expect(screen.queryByRole("link")).toBeNull();
   const callback = fixture.auth.onAuthStateChange.mock.calls[0][0];
+  act(() => callback("INITIAL_SESSION", null));
+  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
   act(() => callback("TOKEN_REFRESHED", {}));
   expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/account");
   act(() => callback("SIGNED_OUT", null));

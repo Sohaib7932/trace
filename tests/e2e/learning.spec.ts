@@ -21,9 +21,8 @@ test("real learning journey preserves prediction, failed correction, guidance an
   const prediction = page.getByRole("region", { name: "Locked prediction" });
   await expect(prediction.getByText(original)).toBeVisible();
   await expect(page.getByRole("form", { name: "Initial prediction" })).toHaveCount(0);
-  await page.getByLabel("Payload field").selectOption("body");
-  await page.getByRole("button", { name: "Submit correction", exact: true }).click();
-  await page.getByRole("button", { name: "Run verification", exact: true }).click();
+  await page.getByRole("radio", { name: "body", exact: true }).check();
+  await page.getByRole("button", { name: "Check my change", exact: true }).click();
   const failed = page.getByRole("region", { name: "Verification evidence, attempt 1" });
   await expect(failed.getByRole("heading", { name: "Request rejected" })).toBeVisible();
   await expect(failed.getByText("422", { exact: true })).toBeVisible();
@@ -31,9 +30,8 @@ test("real learning journey preserves prediction, failed correction, guidance an
   await expect(failed.getByText('["missing:content", "extra_forbidden:body"]', { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Request a hint", exact: true }).click();
   await expect(page.getByText("Hint 1 · fixture guidance")).toBeVisible();
-  await page.getByLabel("Payload field").selectOption("content");
-  await page.getByRole("button", { name: "Submit correction", exact: true }).click();
-  await page.getByRole("button", { name: "Run verification", exact: true }).click();
+  await page.getByRole("radio", { name: "content", exact: true }).check();
+  await page.getByRole("button", { name: "Check my change", exact: true }).click();
   const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
   await expect(passed.getByRole("heading", { name: "Persistence verified" })).toBeVisible();
   await expect(passed.getByText("201", { exact: true })).toBeVisible();

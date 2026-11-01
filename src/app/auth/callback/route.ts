@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverAuth } from "@/lib/supabase/server";
 import { authConfig } from "@/lib/supabase/config";
+import { DEFAULT_NEXT, NEXT_COOKIE, safeNext } from "@/lib/auth/next-path";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -22,8 +23,13 @@ export async function GET(request: NextRequest) {
       }
     } catch { success = false; }
   }
-  // Fixed destinations; never trust next, forwarded-host or provider error descriptions.
-  const destination = success ? (recovery ? "/reset-password" : "/account") : "/sign-in?auth_error=link";
+  // Never trust query next, forwarded-host or provider error descriptions. The only
+  // destination input is our own short-lived cookie, checked against a strict allowlist.
+  const signupConfirmation = params.get("type") === "signup";
+  const remembered = safeNext(decodeURIComponent(request.cookies.get(NEXT_COOKIE)?.value ?? ""));
+  const destination = success
+    ? recovery ? "/reset-password" : signupConfirmation ? "/account" : remembered ?? DEFAULT_NEXT
+    : `/sign-in?auth_error=${failureKind(params)}`;
   // Next can normalize loopback hosts internally. Pin redirects to the configured app origin.
   const site = authConfig()?.siteUrl;
   if (!site) return new NextResponse("Account authentication is not configured.", { status: 503, headers: { "Cache-Control": "no-store" } });
@@ -32,5 +38,16 @@ export async function GET(request: NextRequest) {
   response.headers.set("Pragma", "no-cache");
   response.headers.set("Expires", "0");
   response.headers.set("Referrer-Policy", "no-referrer");
+  response.cookies.set(NEXT_COOKIE, "", { path: "/auth", maxAge: 0 });
   return response;
+}
+
+/** Maps provider error codes to a fixed message key; provider text is never shown. */
+function failureKind(params: URLSearchParams): "link" | "cancelled" | "provider" {
+  const error = params.get("error") ?? "";
+  const code = params.get("error_code") ?? "";
+  const description = (params.get("error_description") ?? "").toLowerCase();
+  if (error === "access_denied" && !description.includes("not enabled")) return "cancelled";
+  if (code === "provider_disabled" || description.includes("provider is not enabled") || description.includes("unsupported provider")) return "provider";
+  return "link";
 }

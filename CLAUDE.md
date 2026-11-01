@@ -868,7 +868,7 @@ Do not depend on a moving effect to communicate information.
 
 **Tokens.** `src/lib/motion/tokens.ts`, mirrored as CSS custom properties in `globals.css`:
 - Easing: entrance `cubic-bezier(.22,1,.36,1)`; hover/UI `cubic-bezier(.2,.8,.2,1)`.
-- Durations: micro 180ms, state 300ms, entrance 650ms, heading word 700ms (accent word 900ms), large reveal 800ms, connector 500ms, magnifier glide 750ms with a 400ms pause plus 900ms caption reading time, sticky-step swap 550ms.
+- Durations: micro 180ms, state 300ms, entrance 650ms, heading word 850ms (accent word 1050ms, 70ms apart), large reveal 800ms, connector 500ms, magnifier glide 750ms with a 400ms pause plus 900ms caption reading time, sticky-step swap 550ms.
 - End keyframes are explicit (`translateY(0px) scale(1)`), never `none`: inside Motion sequences `none` does not interpolate as identity.
 - Stagger: words 70ms, cards 90ms, inner parts 80ms, branches 120ms.
 - No ad-hoc values in components.
@@ -877,14 +877,15 @@ Do not depend on a moving effect to communicate information.
 
 **Components.**
 - `<Reveal>` (server): `up`, `card` (translateY 32px, scale .98) or `fade`; `stagger` reveals `[data-reveal-item]` children 90ms apart and `[data-reveal-inner]` parts after each item.
-- `<SplitHeading>` (server): word split; each word goes from opacity 0, blur(12px), translateY(18px) to its final state, 70ms apart; the accent word resolves last in its line; a canvas-coloured veil sweeps once in the stagger direction (desktop only). Triggers once at ~85% of the viewport. Full text sits in a visually hidden span; word spans are aria-hidden. The hero headline uses the same reveal as CSS keyframes at load, so it never waits for hydration.
+- `<SplitHeading>` (server): frosted word-by-word reveal. Each word goes from blur(12px), opacity 0 and translateY(18px) to crisp, 70ms apart; opacity is in by 55% of a word's 850ms while the blur keeps resolving, so words come into focus; the accent word resolves last in its line over 1050ms. One canvas-coloured veil per heading sweeps once in the stagger direction (desktop only) and leaves nothing behind. Triggers once at ~85% of the viewport. Full text sits in a visually hidden span; word spans are aria-hidden. The hero and /learn headlines use the same reveal as CSS keyframes at load (held until web fonts are ready, never waiting for hydration).
+- Heading performance rules: one native animation per word (all properties in one effect, not one per property); words get `will-change` one frame before animating and lose it when done (load headlines release it on `animationend`); headings over 12 words blur once at heading level while words fade and rise; phones blur 6px, Safari/≤4-core devices 8px. Never replace the effect to make it cheaper.
 - `<MotionRuntime>` (client): the single observer that runs all reveals.
 - `<CodeWindow>`: macOS-style window used for every code excerpt; optional magnifier lens that renders a real 1.6× copy of the code clipped to a circle (never blurred), gliding between target lines while in view.
 - `<DeviceSequence>`: the hero's scrubbed device sequence over a sticky stage (375vh track): tilt, flatten, background panel, settle centred at ≥0.7 scale. Re-measures when the lesson grows so every lesson step stays in view; `#demo` links land mid-sequence where the device is flat.
 - `<StickySteps>`: light learning-loop section. From 1024px (motion allowed) a fixed-height two-column block, `max(520px, min(78vh, 680px))`, sticks vertically centred inside a track of exactly that height plus 70vh per step (the track length must be `height`, not padding: sticky only moves within the parent's content box). Left: titles with numbers at the right edge, the active one an elevated white card. Right: one tall 28px-radius warm mesh panel, fixed size, the step's white card centred inside. Buttons with aria-expanded and arrow-key navigation; accordion below 1024px and with reduced motion; every step open without JS.
 - `<FlowDiagram>`: sequential node, connector and travelling-dot reveal, with an optional Replay.
 
-**Blur.** `filter: blur` only on individual heading words and the magnifier lens edge. Never on large containers.
+**Blur.** `filter: blur` animates only on individual heading words (or one heading, above 12 words) and the magnifier lens edge. Never on large containers.
 
 **Phones (under 768px).** Word blur 6px, no veil, no pinning, no 3D tilt; simple in-view reveals instead. Sticky steps stick only from 1024px. The magnifier lens shows from 768px; below that the line highlight moves and a caption bar sits under the code.
 
