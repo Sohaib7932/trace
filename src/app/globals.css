@@ -56,8 +56,8 @@
   --dur-micro: 180ms;
   --dur-state: 300ms;
   --dur-entrance: 650ms;
-  --dur-word: 700ms;
-  --dur-accent: 900ms;
+  --dur-word: 850ms;
+  --dur-accent: 1050ms;
   --stagger-word: 70ms;
 
   /* Elevation */
@@ -794,14 +794,16 @@
   .flow-conn-h {
     display: none;
   }
+  .flow-line {
+    background: var(--flow-line);
+  }
   .flow-conn-v {
     position: absolute;
     top: 0;
-    left: 50%;
-    width: 10px;
-    height: 100%;
-    overflow: visible;
-    transform: translateX(-50%);
+    left: calc(50% - 0.75px);
+    width: 1.5px;
+    height: 97%;
+    transform-origin: top;
   }
   .flow-path {
     fill: none;
@@ -904,11 +906,12 @@
     }
     .flow-conn-h {
       position: absolute;
-      inset: 0;
+      top: calc(50% - 0.75px);
+      left: 0;
       display: block;
-      width: 100%;
-      height: 100%;
-      overflow: visible;
+      width: 97%;
+      height: 1.5px;
+      transform-origin: left;
     }
     .flow-conn-v,
     .flow-conn-sm,
@@ -1295,6 +1298,17 @@
     .sh-load .sh-word {
       animation: word-in var(--dur-word) var(--ease-out) both;
       animation-delay: calc(var(--sh-base, 0ms) + var(--i, 0) * var(--stagger-word));
+      /* Own layer while animating, so the blur runs on the compositor during hydration.
+         The runtime marks the heading data-revealed when the last word ends. */
+      will-change: transform, opacity, filter;
+    }
+    .sh-load[data-revealed] .sh-word {
+      will-change: auto;
+    }
+    /* Hold load-time reveals (hidden "from" state) until web fonts are ready */
+    .js:not(.fonts) .sh-load .sh-word,
+    .js:not(.fonts) .sh-load::after {
+      animation-play-state: paused;
     }
     .sh-load .sh-word[data-accent] {
       animation-duration: var(--dur-accent);
@@ -1312,6 +1326,7 @@
         background: linear-gradient(90deg, transparent, var(--veil) 38%, var(--veil) 62%, transparent);
         opacity: 0;
         animation: veil 1150ms var(--ease-out) forwards;
+        will-change: transform, opacity;
       }
       .sh-load::after {
         animation-delay: var(--sh-base, 0ms);
@@ -1337,7 +1352,14 @@
       opacity: 0;
       transform: translateY(12px) scale(0.96);
     }
-    .js [data-flow]:not([data-revealed]) .flow-path {
+    /* Straight connectors start collapsed at their origin; curved fork arms start undrawn */
+    .js [data-flow]:not([data-revealed]) .flow-conn-v {
+      transform: scaleY(0);
+    }
+    .js [data-flow]:not([data-revealed]) .flow-conn-h {
+      transform: scaleX(0);
+    }
+    .js [data-flow]:not([data-revealed]) .flow-fork .flow-path {
       stroke-dashoffset: 1;
     }
     .js [data-flow]:not([data-revealed]) .flow-arrow,
@@ -1359,6 +1381,10 @@
 
     .streak-drift {
       animation: drift 9s ease-in-out infinite alternate;
+    }
+    [data-loops][data-offscreen] .device-mesh,
+    [data-loops][data-offscreen] .streak-drift {
+      animation-play-state: paused;
     }
   }
 
@@ -1460,6 +1486,9 @@
       filter: blur(12px);
       transform: translateY(18px);
     }
+    55% {
+      opacity: 1;
+    }
     to {
       opacity: 1;
       filter: blur(0);
@@ -1472,6 +1501,9 @@
       opacity: 0;
       filter: blur(6px);
       transform: translateY(18px);
+    }
+    55% {
+      opacity: 1;
     }
     to {
       opacity: 1;
@@ -1549,6 +1581,413 @@
   @keyframes caret {
     50% {
       opacity: 0;
+    }
+  }
+}
+
+/* ==========================================================================
+   Lessons hub (/learn): lesson path with a trace rail, follow-ups, skeletons.
+   Final state is the default; entrance motion only with motion allowed.
+   ========================================================================== */
+@layer components {
+  .hub-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.04);
+  }
+
+  .lesson-path {
+    display: grid;
+    gap: clamp(16px, 2.4vw, 28px);
+  }
+  .path-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: clamp(12px, 2vw, 24px);
+  }
+  /* Phones: a slimmer rail so the cards keep their width */
+  @media (max-width: 639px) {
+    .path-item {
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+    }
+    .path-node {
+      width: 28px !important;
+      height: 28px !important;
+    }
+    .path-node svg {
+      width: 12px;
+      height: 12px;
+    }
+    .path-seg {
+      top: calc(clamp(18px, 2.2vw, 26px) + 28px) !important;
+    }
+  }
+  .path-rail {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+  .path-node {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-top: clamp(18px, 2.2vw, 26px);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--foreground);
+  }
+  .path-item[data-status="completed"] .path-node {
+    border-color: var(--success);
+    background: var(--success);
+    color: #fff;
+  }
+  .path-item[data-status="in_progress"] .path-node,
+  .path-item[data-status="needs_revision"] .path-node,
+  .path-item[data-status="not_started"] .path-node {
+    box-shadow: 0 0 0 4px var(--primary-soft);
+    border-color: var(--primary);
+  }
+  .path-item[data-status="locked"] .path-node,
+  .path-item[data-status="planned"] .path-node {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    border-style: dashed;
+  }
+  /* The connector from this node to the next one: solid once the lesson is completed */
+  .path-seg {
+    position: absolute;
+    top: calc(clamp(18px, 2.2vw, 26px) + 40px);
+    bottom: calc(-1 * clamp(16px, 2.4vw, 28px) - clamp(18px, 2.2vw, 26px));
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    transform-origin: top;
+    background-image: linear-gradient(var(--border-strong) 50%, transparent 50%);
+    background-size: 2px 8px;
+  }
+  .path-item[data-status="completed"] .path-seg {
+    background: var(--foreground);
+  }
+  .path-item[data-last] .path-seg {
+    display: none;
+  }
+  .lesson-card[data-locked] {
+    background: var(--surface-muted);
+  }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .lesson-card:not([data-locked]) {
+      transition:
+        translate var(--dur-micro) var(--ease-ui),
+        box-shadow var(--dur-micro) var(--ease-ui),
+        border-color var(--dur-micro) var(--ease-ui);
+    }
+    .lesson-card:not([data-locked]):hover {
+      translate: 0 -3px;
+      border-color: var(--border-strong);
+      box-shadow: 0 1px 2px rgba(21, 25, 35, 0.04), 0 18px 36px -22px rgba(90, 40, 20, 0.3);
+    }
+  }
+
+  .skeleton {
+    display: block;
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--surface-muted) 0%, #eceef2 50%, var(--surface-muted) 100%);
+    background-size: 200% 100%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hub-enter,
+    .path-item .hub-card {
+      animation: enter var(--dur-entrance) var(--ease-out) both;
+      animation-delay: var(--d, 0ms);
+    }
+    .path-item .path-node {
+      animation: node-in 420ms var(--ease-out) both;
+      animation-delay: calc(var(--d, 0ms) + 120ms);
+    }
+    /* The trace line draws once, segment by segment, after its card lands */
+    .path-item .path-seg {
+      animation: seg-draw 600ms var(--ease-out) both;
+      animation-delay: calc(var(--d, 0ms) + 360ms);
+    }
+    .path-node[data-unlocked-now] {
+      animation: node-unlock 900ms var(--ease-out) 500ms backwards;
+    }
+    .lesson-card[data-unlocked-now] {
+      animation: card-unlock 1200ms var(--ease-out) 450ms backwards;
+    }
+    .skeleton {
+      animation: shimmer 1.4s linear infinite;
+    }
+  }
+
+  @keyframes node-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes seg-draw {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes node-unlock {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(255, 129, 57, 0.45);
+    }
+    35% {
+      transform: scale(1.12);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 4px var(--primary-soft);
+    }
+  }
+  @keyframes card-unlock {
+    0% {
+      background: var(--surface-muted);
+      border-color: var(--primary);
+    }
+    100% {
+      background: var(--surface);
+      border-color: var(--border);
+    }
+  }
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/* Lesson completion panel: the check draws once and the trace line completes */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .completion {
+      animation: enter var(--dur-entrance) var(--ease-out) both;
+    }
+    .completion-ring {
+      stroke-dasharray: 1;
+      animation: draw 700ms var(--ease-out) 150ms both;
+    }
+    .completion-tick {
+      stroke-dasharray: 1;
+      animation: draw 450ms var(--ease-out) 650ms both;
+    }
+    .completion-line {
+      transform-origin: left;
+      animation: line-draw 900ms var(--ease-out) 500ms both;
+    }
+  }
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes line-draw {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
+/* Auth pages: art panel motion, field stagger, focus, error shake */
+@layer components {
+  .auth-mesh {
+    background:
+      radial-gradient(40% 45% at 15% 18%, #f6cfb2 0%, transparent 70%),
+      radial-gradient(45% 50% at 85% 20%, #eba45e 0%, transparent 70%),
+      radial-gradient(50% 55% at 25% 88%, #e8743b 0%, transparent 72%),
+      radial-gradient(42% 50% at 88% 82%, #e98a6b 0%, transparent 70%),
+      radial-gradient(34% 44% at 55% 50%, #f8dcc6 0%, transparent 70%),
+      radial-gradient(30% 44% at 4% 60%, #c9637a 0%, transparent 70%),
+      #eeb196;
+  }
+  .auth-streak {
+    margin-left: calc(var(--w, 20px) / -2);
+    border-radius: 4px 4px 0 0;
+    filter: blur(6px);
+    opacity: var(--a);
+    background: linear-gradient(to top, rgba(255, 240, 228, 0.95), rgba(255, 220, 196, 0.4) 55%, transparent);
+  }
+  .auth-hl {
+    opacity: 0;
+  }
+  /* Static (reduced motion): the line that matters stays highlighted */
+  .auth-hl[data-focus] {
+    opacity: 1;
+  }
+  .auth-pulse {
+    opacity: 0;
+  }
+  .auth-input:hover {
+    border-color: color-mix(in srgb, var(--foreground) 30%, var(--border-strong));
+  }
+  .auth-input:focus {
+    outline: none;
+    border-color: var(--foreground);
+    box-shadow: 0 0 0 4px rgba(21, 25, 35, 0.08);
+  }
+  .auth-input[aria-invalid="true"] {
+    border-color: var(--error);
+  }
+  .auth-input[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 4px var(--error-soft);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .auth-stagger > *,
+    .auth-stagger .auth-form > * {
+      animation: enter 520ms var(--ease-out) both;
+      animation-delay: calc(var(--i, 0) * 55ms);
+    }
+    .auth-art .auth-draw {
+      transform-origin: 0 0;
+      animation: auth-draw 7s var(--ease-out) infinite;
+    }
+    .auth-art .auth-pulse {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: auth-pulse 7s ease-out infinite;
+      animation-delay: calc(var(--i) * 1.4s + 0.6s);
+    }
+    .auth-art .auth-hl {
+      opacity: 0;
+      animation: auth-hl 7s ease-in-out infinite;
+      animation-delay: calc(var(--i) * 1.1s);
+    }
+    .auth-art .auth-streak {
+      animation: drift 9s ease-in-out infinite alternate;
+      animation-delay: calc(var(--i) * -1.3s);
+    }
+    .auth-art .auth-window {
+      animation: auth-float 9s ease-in-out infinite alternate;
+    }
+    .auth-art[data-paused] * {
+      animation-play-state: paused !important;
+    }
+    .auth-message[data-shake] {
+      animation: auth-shake 360ms var(--ease-ui);
+    }
+  }
+  @keyframes auth-draw {
+    0% {
+      transform: scaleX(0);
+      opacity: 1;
+    }
+    70% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scaleX(1);
+      opacity: 0;
+    }
+  }
+  @keyframes auth-pulse {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    8% {
+      opacity: 0.9;
+    }
+    24% {
+      opacity: 0;
+      transform: scale(1.6);
+    }
+  }
+  @keyframes auth-hl {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    6%,
+    16% {
+      opacity: 1;
+    }
+    24% {
+      opacity: 0;
+    }
+  }
+  @keyframes auth-float {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-8px);
+    }
+  }
+  @keyframes auth-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-6px);
+    }
+    40% {
+      transform: translateX(5px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(2px);
+    }
+  }
+}
+
+/* Account page: section entrance and a timeline line that draws into view */
+@layer components {
+  .acct-timeline {
+    position: relative;
+  }
+  .acct-timeline::before {
+    content: "";
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    left: 13px;
+    width: 2px;
+    background: var(--border-strong);
+    transform-origin: top;
+  }
+  .acct-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .acct-enter,
+    .acct-entry {
+      animation: enter var(--dur-entrance) var(--ease-out) both;
+      animation-delay: var(--d, 0ms);
+    }
+    .acct-timeline::before {
+      animation: seg-draw 1100ms var(--ease-out) 250ms both;
     }
   }
 }

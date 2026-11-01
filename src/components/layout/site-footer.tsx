@@ -2,6 +2,7 @@ import { Wordmark } from "@/components/brand/trace-mark";
 import { Reveal } from "@/components/motion/reveal";
 
 const links = [
+  { href: "/learn", label: "Lessons" },
   { href: "#demo", label: "Demo lesson" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#walkthrough", label: "Walkthrough" },

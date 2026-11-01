@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 type Variant = "primary" | "secondary" | "ghost";
@@ -40,8 +41,8 @@ export function ButtonLink({
     icon === "down"
       ? "group-hover:translate-y-0.5"
       : "group-hover:translate-x-0.5";
-  return (
-    <a href={href} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>
+  const content = (
+    <>
       {children}
       {icon && (
         <Icon
@@ -50,6 +51,17 @@ export function ButtonLink({
           strokeWidth={1.8}
         />
       )}
+    </>
+  );
+  const classes = `${base} ${sizes[size]} ${variants[variant]} ${className}`;
+  // App routes use client navigation; in-page anchors stay plain links.
+  return href.startsWith("/") && !href.startsWith("/#") ? (
+    <Link href={href} className={classes}>
+      {content}
+    </Link>
+  ) : (
+    <a href={href} className={classes}>
+      {content}
     </a>
   );
 }

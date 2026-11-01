@@ -146,12 +146,9 @@ function Node({ node, dim = false }: { node: FlowNode; dim?: boolean }) {
 function Connector({ mobileOnly = false }: { mobileOnly?: boolean }) {
   return (
     <div data-flow-conn className={`flow-conn ${mobileOnly ? "flow-conn-sm" : ""}`}>
-      <svg viewBox="0 0 100 10" preserveAspectRatio="none" className="flow-conn-h">
-        <path className="flow-path" pathLength={1} d="M0 5 H97" />
-      </svg>
-      <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="flow-conn-v">
-        <path className="flow-path" pathLength={1} d="M5 0 V97" />
-      </svg>
+      {/* Straight 1.5px lines (not SVG): they draw by scaling on the compositor */}
+      <span aria-hidden="true" className="flow-conn-h flow-line" />
+      <span aria-hidden="true" className="flow-conn-v flow-line" />
       <span className="flow-arrow" />
       <span data-flow-dot className="flow-dot" />
     </div>
@@ -172,7 +169,27 @@ const shown = (element: Element) => element.getClientRects().length > 0;
 
 type Segment = [Element, Record<string, unknown>, Record<string, unknown>];
 
-/** Builds and plays the whole sequence with one Motion timeline, then cleans up. */
+const EASE = `cubic-bezier(${easeEntrance.join(",")})`;
+
+/**
+ * Starts one segment. Everything is scheduled up front with a delay, so the compositor
+ * runs the whole sequence; a JS-driven sequence starts each segment on the main thread,
+ * which cost a dropped frame per start on phones. The spring check keeps Motion's spring.
+ */
+function start([element, keyframes, options]: Segment): Promise<unknown> {
+  const at = Number(options.at ?? 0);
+  if (options.type === "spring") {
+    return animate(element, keyframes as never, { ...options, at: undefined, delay: at } as never).finished;
+  }
+  return (element as HTMLElement).animate(keyframes as PropertyIndexedKeyframes, {
+    delay: at * 1000,
+    duration: Number(options.duration ?? 0.3) * 1000,
+    easing: options.ease ? EASE : "linear",
+    fill: "both",
+  }).finished;
+}
+
+/** Builds and plays the whole sequence, then cleans up. */
 async function play(root: HTMLElement) {
   if (matchMedia(mq.reduced).matches) return;
   root.removeAttribute("data-revealed");
@@ -191,8 +208,10 @@ async function play(root: HTMLElement) {
     add(node, { opacity: [0, 1], transform: ["translateY(12px) scale(0.96)", "translateY(0px) scale(1)"] }, { at, duration: duration.entrance * 0.77, ease: easeEntrance });
 
   const connector = (conn: Element, at: number) => {
-    const path = [...conn.querySelectorAll(".flow-path")].find((p) => shown(p.parentElement!));
-    add(path, { strokeDashoffset: [1, 0] }, { at, duration: duration.connector, ease: easeEntrance });
+    // Straight line: scale its SVG from the start point (compositor) rather than animating
+    // stroke-dashoffset (main-thread repaint every frame). Looks identical: solid, non-scaling stroke.
+    const line = [...conn.querySelectorAll<HTMLElement>(".flow-conn-h, .flow-conn-v")].find((element) => shown(element));
+    if (line) add(line, { transform: desktop ? ["scaleX(0)", "scaleX(1)"] : ["scaleY(0)", "scaleY(1)"] }, { at, duration: duration.connector, ease: easeEntrance });
     add(conn.querySelector(".flow-arrow"), { opacity: [0, 1] }, { at: at + duration.connector * 0.8, duration: 0.15 });
     const dot = conn.querySelector("[data-flow-dot]");
     const length = desktop ? (conn as HTMLElement).clientWidth : (conn as HTMLElement).clientHeight;
@@ -258,8 +277,10 @@ async function play(root: HTMLElement) {
   });
 
   for (const element of animated) element.style.willChange = "transform, opacity";
-  await animate(segments as never).finished;
+  await Promise.all(segments.map(start));
   root.setAttribute("data-revealed", "");
+  // The revealed CSS is the final state now; drop the finished (filled) animations.
+  for (const element of animated) for (const animation of element.getAnimations()) animation.cancel();
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       for (const element of animated) {
