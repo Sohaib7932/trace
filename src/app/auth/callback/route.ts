@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
   // Never trust query next, forwarded-host or provider error descriptions. The only
   // destination input is our own short-lived cookie, checked against a strict allowlist.
   const signupConfirmation = params.get("type") === "signup";
-  const remembered = safeNext(decodeURIComponent(request.cookies.get(NEXT_COOKIE)?.value ?? ""));
+  // NextRequest already decoded the cookie; apply the allowlist without decoding again.
+  const remembered = safeNext(request.cookies.get(NEXT_COOKIE)?.value);
   const destination = success
     ? recovery ? "/reset-password" : signupConfirmation ? "/account" : remembered ?? DEFAULT_NEXT
     : `/sign-in?auth_error=${failureKind(params)}`;

@@ -80,6 +80,24 @@ test("only an allowlisted remembered destination is used after the OAuth round t
     expect((await GET(request)).headers.get("location")).toBe("https://trace.example.test/learn");
   }
 });
+test.each(["%25", "%2Flearn%25", "%252Faccount", "%E0%A4%A", "%C0%AFaccount"])("invalid remembered cookie %s falls back without decoding twice", async (cookie) => {
+  const request = new NextRequest("https://trace.example.test/auth/callback?code=fixture", { headers: { cookie: `trace_next=${cookie}` } });
+  const result = await GET(request);
+  expect(result.status).toBe(303);
+  expect(result.headers.get("location")).toBe("https://trace.example.test/learn");
+  expect(result.cookies.get("trace_next")?.value).toBe("");
+  expect(fixture.exchange).toHaveBeenCalledWith("fixture");
+});
+
+test("an invalid remembered cookie cannot break a provider-error redirect", async () => {
+  const request = new NextRequest("https://trace.example.test/auth/callback?error=access_denied", { headers: { cookie: "trace_next=%25" } });
+  const result = await GET(request);
+  expect(result.status).toBe(303);
+  expect(result.headers.get("location")).toBe("https://trace.example.test/sign-in?auth_error=cancelled");
+  expect(result.cookies.get("trace_next")?.value).toBe("");
+  expect(fixture.exchange).not.toHaveBeenCalled();
+});
+
 test("provider errors map to fixed, friendly message keys", async () => {
   const cancelled = await GET(new NextRequest("https://trace.example.test/auth/callback?error=access_denied&error_description=user+denied"));
   expect(cancelled.headers.get("location")).toBe("https://trace.example.test/sign-in?auth_error=cancelled");

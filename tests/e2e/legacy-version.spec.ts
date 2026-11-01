@@ -32,24 +32,35 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
   const saved = await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`)).json();
-  const changed = await page.request.post(`${api}/__fixture__/catalog/advance`);
-  expect(changed.status()).toBe(200);
-  const future = await changed.json();
-  expect(future.version_id).not.toBe(legacy.version_id);
-  expect(future.version).not.toBe("1.0.0");
-  expect((await (await page.request.get(`${api}/api/v1/lessons/${legacy.id}`)).json()).version_id).toBe(future.version_id);
+  try {
+    const changed = await page.request.post(`${api}/__fixture__/catalog/advance`);
+    expect(changed.status()).toBe(200);
+    const future = await changed.json();
+    expect(future.version_id).not.toBe(legacy.version_id);
+    expect(future.version).not.toBe("1.0.0");
+    expect((await (await page.request.get(`${api}/api/v1/lessons/${legacy.id}`)).json()).version_id).toBe(future.version_id);
 
-  await page.reload();
-  await expect(page.getByRole("heading", { level: 1, name: legacy.title, exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: future.title, exact: true })).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(reasoning);
-  await expect(page.getByRole("heading", { name: "Attempt 1 · body", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Attempt 2 · content", exact: true })).toBeVisible();
-  await expect(page.getByText("Hint 1 · fixture guidance", { exact: true })).toBeVisible();
-  const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
-  await expect(passed.getByText("201", { exact: true })).toBeVisible();
-  await expect(passed.getByText("1", { exact: true })).toBeVisible();
-  expect(await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`)).json()).toEqual(saved);
-  expect(saved.session.lesson_version_id).toBe(legacy.version_id);
-  expect(saved.lesson.version).toBe("1.0.0");
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1, name: legacy.title, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: future.title, exact: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(reasoning);
+    await expect(page.getByRole("heading", { name: "Attempt 1 · body", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Attempt 2 · content", exact: true })).toBeVisible();
+    await expect(page.getByText("Hint 1 · fixture guidance", { exact: true })).toBeVisible();
+    const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
+    await expect(passed.getByText("201", { exact: true })).toBeVisible();
+    await expect(passed.getByText("1", { exact: true })).toBeVisible();
+    expect(await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`)).json()).toEqual(saved);
+    expect(saved.session.lesson_version_id).toBe(legacy.version_id);
+    expect(saved.lesson.version).toBe("1.0.0");
+  } finally {
+    const restored = await page.request.post(`${api}/__fixture__/catalog/restore`);
+    expect(restored.status()).toBe(200);
+    const baselineCopy = await restored.json();
+    expect(baselineCopy.title).toBe(legacy.title);
+    expect(baselineCopy.version_id).not.toBe(legacy.version_id);
+    const latest = await (await page.request.get(`${api}/api/v1/lessons/${legacy.id}`)).json();
+    expect(latest.version_id).toBe(baselineCopy.version_id);
+    expect(latest.title).toBe(legacy.title);
+  }
 });

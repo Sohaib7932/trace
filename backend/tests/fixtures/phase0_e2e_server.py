@@ -44,6 +44,26 @@ def create_fixture_app(settings, database, clock):
             store.publish(version)
         return present_lesson(version)
 
+    @app.post("/__fixture__/catalog/restore")
+    def restore_catalog():
+        with repository.write() as store:
+            baseline = store.version(LESSON_ID, "1.0.0")
+            previous = store.version(LESSON_ID)
+            assert baseline is not None and previous is not None
+            revision = next(revisions)
+            # Restore the shared catalog by appending baseline content, never by
+            # changing or deleting a published version that a session may pin.
+            version = replace(
+                baseline,
+                id=uuid4(),
+                version=f"1.1.{revision}",
+                public_content=dict(baseline.public_content),
+                content_hash=baseline.content_hash,
+                created_at=previous.created_at + timedelta(seconds=1),
+            )
+            store.publish(version)
+        return present_lesson(version)
+
     return app
 
 
