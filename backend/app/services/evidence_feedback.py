@@ -140,6 +140,18 @@ class EvidenceFeedbackService:
             self._authorize(principal)
             return unavailable_feedback(checked.request_id, checked.session_id, "source_invalid")
         self._authorize(principal)
+        reply = self.evaluate_prepared(request)
+        self._authorize(principal)
+        return reply
+
+    def evaluate_prepared(self, request: FeedbackRequest) -> FeedbackReply:
+        """Evaluate a server-prepared plan without opening a repository scope.
+
+        This internal seam is not an authentication boundary. Release orchestration
+        builds the plan from its consistent authorized read and checks fresh storage
+        after this call. Legacy ``feedback`` retains its snapshot/expiry behavior.
+        """
+        request = FeedbackRequest.model_validate(request.model_dump(warnings=False))
         if request.state == "insufficient_evidence":
             return render_feedback(request)
         reason: FallbackReason
@@ -158,7 +170,6 @@ class EvidenceFeedbackService:
                 completion = FeedbackCompletion.model_validate(received.model_dump(warnings=False))
                 if completion.status == "success":
                     selection = validate_feedback_selection(request, completion)
-                    self._authorize(principal)
                     return render_feedback(request, selection, delivery="mock")
                 reason = (
                     "provider_timeout"
@@ -171,7 +182,6 @@ class EvidenceFeedbackService:
                 raise
             except (ValueError, TypeError, AttributeError, RecursionError):
                 reason = "invalid_output"
-        self._authorize(principal)
         # This is an entirely new render of backend-authorized text and refs,
         # not a provider conclusion kept after deleting its invalid citations.
         return render_feedback(request, fallback_reason=reason)
