@@ -1,5 +1,8 @@
 # Trace feedback API: MVP integration addendum
 
+For the merged frontend's current API inventory, integration gaps and CI audit,
+start with the [current frontend API status](frontend-api-status.md).
+
 This adds the authenticated feedback experience to the unchanged, historical
 [frontend API handoff](frontend-api-integration.md). The published handoff and
 `docs/api/openapi.json` remain byte-for-byte unchanged. The current full contract
