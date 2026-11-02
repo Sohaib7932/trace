@@ -27,6 +27,7 @@ from app.services.accounts import AccountService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.catalog import CatalogService
+from app.services.evidence_feedback import EvidenceFeedbackService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
 from app.services.learning import LearningService
@@ -209,6 +210,17 @@ def get_support_service(
     resources: Annotated[AIResources, Depends(get_ai_resources)],
 ) -> SupportService:
     return resources.support
+
+
+def get_evidence_feedback_service(
+    request: Request,
+    repository: Annotated[LearningRepository, Depends(get_learning_repository)],
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+) -> EvidenceFeedbackService:
+    # Internal composition only; no learner route or hint-provider selection changes.
+    return EvidenceFeedbackService(
+        repository, resources.evidence_feedback_provider, cast(Clock, request.app.state.clock)
+    )
 
 
 def get_candidate_lifecycle_service(

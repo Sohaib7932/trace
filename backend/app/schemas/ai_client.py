@@ -7,7 +7,7 @@ from pydantic import Field, StrictInt
 from app.domain.lesson_spec.fields import Value
 from app.schemas.generation import CompletionStatus, TransportIdentifier, captured_text
 
-type Capability = Literal["generation", "tutor", "support"]
+type Capability = Literal["generation", "tutor", "support", "feedback"]
 type Count = Annotated[StrictInt, Field(ge=0, le=1_000_000_000)]
 type ClientErrorCode = Literal[
     "disabled",

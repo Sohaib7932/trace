@@ -28,7 +28,9 @@ class AITransportError(Exception):
     def __init__(self, code: ClientErrorCode) -> None:
         try:
             self.code: ClientErrorCode = TypeAdapter[ClientErrorCode](
-                ClientErrorCode
+                # The PEP 695 alias object is not type[T] to mypy. Its value is
+                # the same Literal schema, preserving strict runtime validation.
+                ClientErrorCode.__value__
             ).validate_python(code)
         except ValidationError:
             self.code = "transport_error"
@@ -142,7 +144,7 @@ class BoundedAIClient:
         if self.transport is None or getattr(self.transport, "source", None) != "test_fixture":
             return result("configuration_missing")
         try:
-            if capability not in {"generation", "tutor", "support"}:
+            if capability not in {"generation", "tutor", "support", "feedback"}:
                 return result("invalid_request")
             if not isinstance(subject, str) or not subject or len(subject) > 128:
                 return result("invalid_request")

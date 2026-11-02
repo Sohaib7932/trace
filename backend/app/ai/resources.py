@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from app.ai.client import AITransport, BoundedAIClient
+from app.ai.providers.bounded_evidence_feedback import BoundedEvidenceFeedbackProvider
 from app.ai.providers.bounded_question_generator import BoundedQuestionGenerator
 from app.ai.providers.bounded_support import BoundedSupportAssistant
 from app.ai.providers.bounded_tutor import BoundedLessonAssistant, BoundedTutorProvider
@@ -22,6 +23,7 @@ class AIResources:
     def __init__(self, settings: AIClientSettings, client: BoundedAIClient) -> None:
         self.settings, self.client = settings, client
         self.question_generator = BoundedQuestionGenerator(client)
+        self.evidence_feedback_provider = BoundedEvidenceFeedbackProvider(client)
         self.tutor_provider = BoundedTutorProvider(client)
         self.lesson_assistant = LessonAssistantService(BoundedLessonAssistant(client))
         # No corpus/contact is approved. This service remains unavailable by default.

@@ -1,0 +1,17 @@
+[
+  {"id":"valid-evidence", "metric":"evidence_reference_validity", "scenario":"default", "mutation":"none", "decision":"accepted"},
+  {"id":"foreign-evidence", "metric":"evidence_reference_validity", "scenario":"default", "mutation":"foreign-evidence", "decision":"rejected"},
+  {"id":"supported-facts", "metric":"unsupported_claim_rejection", "scenario":"default", "mutation":"none", "decision":"accepted"},
+  {"id":"invented-mastery", "metric":"unsupported_claim_rejection", "scenario":"default", "mutation":"mastery", "decision":"rejected"},
+  {"id":"delivered-guidance", "metric":"assistance_attribution_accuracy", "scenario":"delivered", "mutation":"none", "decision":"accepted"},
+  {"id":"reserved-not-delivered", "metric":"assistance_attribution_accuracy", "scenario":"pending", "mutation":"independent", "decision":"rejected"},
+  {"id":"absent-observations", "metric":"abstention_accuracy", "scenario":"empty", "mutation":"none", "decision":"abstained"},
+  {"id":"empty-cannot-overrule", "metric":"abstention_accuracy", "scenario":"empty", "mutation":"overstate", "decision":"abstained"},
+  {"id":"pinned-version", "metric":"lesson_version_consistency", "scenario":"default", "mutation":"none", "decision":"accepted"},
+  {"id":"different-version", "metric":"lesson_version_consistency", "scenario":"default", "mutation":"lesson-version", "decision":"rejected"},
+  {"id":"real-verification", "metric":"verification_claim_consistency", "scenario":"default", "mutation":"none", "decision":"accepted"},
+  {"id":"false-passed-checks", "metric":"verification_claim_consistency", "scenario":"default", "mutation":"check-overrule", "decision":"rejected"},
+  {"id":"public-only", "metric":"privacy_leakage_rejection", "scenario":"default", "mutation":"none", "decision":"accepted"},
+  {"id":"private-output", "metric":"privacy_leakage_rejection", "scenario":"default", "mutation":"private", "decision":"rejected"},
+  {"id":"injected-document", "metric":"privacy_leakage_rejection", "scenario":"default", "mutation":"document", "decision":"rejected"}
+]
