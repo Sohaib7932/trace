@@ -4,7 +4,7 @@ import hashlib
 import json
 from dataclasses import replace
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -78,6 +78,67 @@ def by_claim(request):
 
 def wording(claim, variant="plain"):
     return next(item.text for item in claim.wordings if item.wording_id == variant)
+
+
+def assert_no_raw_feedback_data(payload):
+    # Inspect serialized data, not digit substrings in legitimate UUIDs/digests.
+    forbidden_fields = {
+        "expected",
+        "observed",
+        "http_status",
+        "response_json",
+        "validation_codes",
+        "detail",
+        "prediction_answer",
+        "expected_field",
+        "private_evaluator",
+        "selected_answer",
+        "reasoning",
+        "field_name",
+        "explanation",
+        "idempotency_key",
+    }
+    raw_text = (
+        "missing:content",
+        "extra_forbidden:body",
+        "receiving schema rejected the payload",
+        "PRIVATE_PREDICTION_REASONING",
+        "PRIVATE_ATTEMPT_EXPLANATION",
+    )
+
+    def inspect(value):
+        if isinstance(value, dict):
+            assert forbidden_fields.isdisjoint(value)
+            for child in value.values():
+                inspect(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect(child)
+        else:
+            assert value not in (201, 422, "201", "422")
+            if isinstance(value, str):
+                assert not any(text in value for text in raw_text)
+
+    inspect(payload)
+    for observation in payload["evidence"]["observations"]:
+        for check in observation["checks"]:
+            assert set(check) == {"source", "code", "matched", "origin"}
+            assert set(check["source"]) == {"kind", "record_id"}
+            assert check["source"]["kind"] == "verification_check"
+            assert str(UUID(check["source"]["record_id"])) == check["source"]["record_id"]
+            assert check["code"] in {
+                "http_status",
+                "api_response",
+                "validation",
+                "row_count",
+                "stored_values",
+            }
+            assert type(check["matched"]) is bool
+            assert check["origin"] == (
+                "fresh_database_read"
+                if check["code"] in {"row_count", "stored_values"}
+                else "asgi_http"
+            )
 
 
 def passing_notes(store, *, retain_failure=False):
@@ -193,8 +254,60 @@ def test_failed_notes_prediction_and_actual_checks_have_separate_supported_claim
     assert "verification-failed" in claims and "verification-passed" not in claims
     assert claims["receiving-contract"].lesson_reference_ids == ("outgoing_code", "schema_code")
     assert "did not pass" in wording(claims["receiving-contract"])
-    assert "422" not in request.model_dump_json()
-    assert "missing:content" not in request.model_dump_json()
+    assert_no_raw_feedback_data(json.loads(request.model_dump_json()))
+
+
+@pytest.mark.parametrize(
+    ("location", "field", "leaked"),
+    [
+        ("request", "runtime_trace", 422),
+        ("request", "runtime_trace", "422"),
+        ("request", "runtime_trace", 201),
+        ("request", "runtime_trace", "201"),
+        ("request", "runtime_trace", "missing:content"),
+        ("request", "runtime_trace", "extra_forbidden:body"),
+        ("request", "runtime_trace", '{"detail":"receiving schema rejected the payload"}'),
+        ("request", "runtime_trace", {"detail": "receiving schema rejected the payload"}),
+        ("request", "private_evaluator", {"expected_field": "content"}),
+        ("request", "selected_answer", "saved"),
+        ("wording", "text", "PRIVATE_PREDICTION_REASONING"),
+        ("wording", "text", "PRIVATE_ATTEMPT_EXPLANATION"),
+        ("check", "observed", "unnecessary runtime data"),
+    ],
+)
+def test_source_uuid_digits_do_not_hide_raw_runtime_or_private_values(
+    notes, location, field, leaked
+):
+    check_id = UUID("00000422-0000-4000-8000-000000000001")
+    notes.saved_checks[0] = replace(notes.saved_checks[0], id=check_id)
+    notes.saved_prediction = replace(
+        notes.saved_prediction, reasoning="PRIVATE_PREDICTION_REASONING"
+    )
+    notes.saved_attempts[0] = replace(
+        notes.saved_attempts[0], explanation="PRIVATE_ATTEMPT_EXPLANATION"
+    )
+    request = build(notes)
+    assert str(check_id) in request.model_dump_json()
+    payload = json.loads(request.model_dump_json())
+    verification = next(
+        item
+        for item in payload["evidence"]["observations"]
+        if item["event_type"] == "verification_finished"
+    )
+    assert len(verification["checks"]) == 5
+    check = next(item for item in verification["checks"] if item["code"] == "http_status")
+    assert check["source"]["record_id"] == str(check_id)
+    assert UUID(check["source"]["record_id"]) == check_id
+    assert_no_raw_feedback_data(payload)
+
+    target = {
+        "request": payload,
+        "check": check,
+        "wording": payload["claims"][0]["wordings"][0],
+    }[location]
+    target[field] = leaked
+    with pytest.raises(AssertionError):
+        assert_no_raw_feedback_data(payload)
 
 
 def test_correct_prediction_without_change_confirms_prediction_only(notes):
