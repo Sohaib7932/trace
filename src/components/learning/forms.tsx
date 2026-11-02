@@ -13,8 +13,9 @@ export const predictionLabels = {
 } as const;
 
 /**
- * The API requires a non-empty reason. Learners may skip it; this fixed marker is stored
- * instead and is never shown back as if the learner had written it.
+ * backend: PredictionCreate.reasoning is required (1–2000 characters). Learners may skip it;
+ * this fixed marker is then saved instead, the form says so, and it is shown back as a
+ * system note, never as if the learner had written it.
  */
 export const NO_REASON = "No reason written.";
 
@@ -35,8 +36,9 @@ export function PredictionForm({ onSubmit, pending, task = false }: { onSubmit: 
         </label>)}
       </div>
       <label className="mt-5 block text-sm font-medium">Why do you expect that? <span className="font-normal text-secondary">(optional)</span>
-        <textarea className={inputStyle} value={reasoning} onChange={(event) => setReasoning(event.target.value)} maxLength={2000} rows={2} placeholder="A few words help you compare later." />
+        <textarea className={inputStyle} value={reasoning} onChange={(event) => setReasoning(event.target.value)} maxLength={2000} rows={2} placeholder="A few words help you compare later." aria-describedby="reason-note" />
       </label>
+      <p id="reason-note" className="mt-2 text-xs text-secondary">If you leave this blank, Trace saves &ldquo;{NO_REASON}&rdquo; with your prediction. Your choice can&apos;t be changed after you lock it.</p>
     </fieldset>
     <button className={`${actionStyle} mt-4`} disabled={pending || !answer}>{pending ? "Saving prediction…" : "Lock prediction"}</button>
   </form>;
@@ -46,72 +48,49 @@ export function LockedPrediction({ prediction, task = false }: { prediction: Pre
   return <section aria-label="Locked prediction" className={panelStyle}>
     <p className="type-label text-secondary">Original prediction · locked</p>
     <h2 className="mt-2 font-semibold">{task && prediction.selected_answer === "saved" ? "The task will be saved" : predictionLabels[prediction.selected_answer]}</h2>
-    {prediction.reasoning !== NO_REASON && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-secondary">{prediction.reasoning}</p>}
+    {prediction.reasoning === NO_REASON
+      ? <p className="mt-3 text-sm leading-6 text-secondary italic">You didn&apos;t write a reason.</p>
+      : <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-secondary">{prediction.reasoning}</p>}
     <p className="mt-3 text-xs text-secondary">Saved before later corrections and Trace guidance.</p>
   </section>;
 }
 
-/** A choice made inside the code itself, like the homepage demo: the token is the control. */
-function CodeChoice<T extends string>({ name, legend, value, options, onChange, disabled }: { name: string; legend: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void; disabled: boolean }) {
-  return <fieldset className="inline" disabled={disabled}>
-    <legend className="sr-only">{legend}</legend>
-    <span className="inline-flex gap-1 rounded-lg bg-surface p-0.5 align-middle shadow-[inset_0_0_0_1px_var(--border-strong)]">
-      {options.map((option) => <label key={option.value} className="relative cursor-pointer rounded-md px-2 py-0.5 text-secondary transition-colors hover:text-foreground has-[:checked]:bg-primary-soft has-[:checked]:text-primary-ink has-[:checked]:shadow-[inset_0_0_0_1px_var(--primary)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-foreground">
-        <input className="absolute inset-0 m-0 cursor-pointer opacity-0" type="radio" name={name} value={option.value} checked={value === option.value} onChange={() => onChange(option.value)} />
-        {option.label}
-      </label>)}
-    </span>
-  </fieldset>;
-}
+export const EXPLANATION_MAX = 2000;
 
-const codeBox = "mt-4 overflow-x-auto rounded-xl border border-border bg-[#f7f7fa] p-4 font-mono text-[0.875rem] leading-[1.9]";
-
-export function AttemptForm({ onSubmit, pending }: { onSubmit: (value: Schema["AttemptCreate"]) => void; pending: boolean }) {
-  const [field, setField] = useState<"body" | "content">("body");
+/**
+ * The change step. The edit itself happens INSIDE the request code window (EditableRequest);
+ * this card holds the optional explanation, Reset, and the one primary action. backend: the
+ * body is always one bounded mapping (see lib/learning/edits.ts), never code text.
+ */
+export function ChangeStep({ family, changed, mustRunOriginal, pending, onCheck, onReset }: {
+  family: "notes" | "tasks";
+  /** The learner's edit differs from the original line. */
+  changed: boolean;
+  /** Tasks only: the original flat request must run (and fail) before the nested edit unlocks. */
+  mustRunOriginal: boolean;
+  pending: boolean;
+  onCheck: (explanation: string) => void;
+  onReset: () => void;
+}) {
   const [explanation, setExplanation] = useState("");
-  return <form aria-label="Proposed correction" onSubmit={(event) => {
-    event.preventDefault();
-    onSubmit({ change_type: "rename_payload_field", field_name: field, explanation });
-  }}>
-    <h2 className="text-lg font-semibold">Change the code</h2>
-    <p className="mt-2 text-sm leading-6 text-secondary">Pick the key the note text is sent under, right in the code. Then check it: Trace sends the request and reads the database.</p>
-    <div className={codeBox}>
-      <div>payload = {"{"}</div>
-      <div className="pl-[4ch]">&quot;title&quot;: note.title,</div>
-      <div className="rounded-md bg-primary-soft/60 pl-[4ch]">&quot;<CodeChoice name="field" legend="Payload field" value={field} disabled={pending} onChange={setField} options={[{ value: "body", label: "body" }, { value: "content", label: "content" }]} />&quot;: note.content,</div>
-      <div>{"}"}</div>
-    </div>
-    <label className="mt-4 block text-sm font-medium">Note to yourself <span className="font-normal text-secondary">(optional)</span>
-      <textarea className={inputStyle} value={explanation} onChange={(event) => setExplanation(event.target.value)} maxLength={2000} rows={2} disabled={pending} />
-    </label>
-    <button className={`${actionStyle} mt-4`} disabled={pending}>{pending ? "Checking…" : "Check my change"}</button>
-  </form>;
-}
-
-export function TransferAttemptForm({ onSubmit, pending, investigated }: { onSubmit: (value: Schema["TransferAttemptCreate"]) => void; pending: boolean; investigated: boolean }) {
-  const [mapping, setMapping] = useState<"flat" | "nested">("flat");
-  const [explanation, setExplanation] = useState("");
-  const nested = investigated && mapping === "nested";
-  return <form aria-label="Transfer mapping" onSubmit={(event) => {
-    event.preventDefault();
-    onSubmit({ change_type: "nest_payload_field", field_name: investigated ? mapping : "flat", explanation });
-  }}>
-    <h2 className="text-lg font-semibold">{investigated ? "Change the code" : "First, run the original request"}</h2>
-    <p className="mt-2 text-sm leading-6 text-secondary">{investigated ? "Choose where priority goes, right in the code. Then check it against the real server." : "See what the server really does with the request as written. Then you can change it."}</p>
-    <div className={codeBox}>
-      <div>payload = {"{"}</div>
-      <div className="pl-[4ch]">&quot;title&quot;: task.title,</div>
-      {investigated && <div className="pl-[4ch]">priority goes: <CodeChoice name="mapping" legend="Priority location" value={mapping} disabled={pending} onChange={setMapping} options={[{ value: "flat", label: "at the root" }, { value: "nested", label: "inside metadata" }]} /></div>}
-      {nested ? <>
-        <div className="rounded-md bg-primary-soft/60 pl-[4ch]">&quot;metadata&quot;: {"{"}</div>
-        <div className="rounded-md bg-primary-soft/60 pl-[8ch]">&quot;priority&quot;: task.priority,</div>
-        <div className="rounded-md bg-primary-soft/60 pl-[4ch]">{"},"}</div>
-      </> : <div className={`pl-[4ch] ${investigated ? "rounded-md bg-primary-soft/60" : ""}`}>&quot;priority&quot;: task.priority,</div>}
-      <div>{"}"}</div>
-    </div>
-    {investigated && <label className="mt-4 block text-sm font-medium">Note to yourself <span className="font-normal text-secondary">(optional)</span>
-      <textarea className={inputStyle} value={explanation} onChange={(event) => setExplanation(event.target.value)} disabled={pending} maxLength={2000} rows={2} />
+  const original = family === "tasks" && mustRunOriginal;
+  return <form aria-label="Your change" onSubmit={(event) => { event.preventDefault(); onCheck(explanation); }}>
+    <h2 className="text-lg font-semibold">{original ? "First, run the original request" : "Change the code"}</h2>
+    <p className="mt-2 text-sm leading-6 text-secondary">
+      {original
+        ? "See what the server really does with the request as written. After that, you can nest the field in request_builder.py."
+        : family === "tasks"
+          ? "In request_builder.py, use Nest this field on the priority line, then check it against the real server."
+          : "In request_builder.py, click the highlighted key to change it, then check it against the real server."}
+    </p>
+    {!original && <p className="mt-2 text-sm font-medium">{changed ? "Your edit is shown as a change in the code." : "The highlighted line is still the original."}</p>}
+    {!original && <label className="mt-4 block text-sm font-medium">What changed and why? <span className="font-normal text-secondary">(optional)</span>
+      <textarea className={inputStyle} value={explanation} onChange={(event) => setExplanation(event.target.value)} maxLength={EXPLANATION_MAX} rows={2} disabled={pending} aria-describedby="explain-count" />
     </label>}
-    <button className={`${actionStyle} mt-4`} disabled={pending}>{pending ? "Checking…" : investigated ? "Check my change" : "Run the original request"}</button>
+    {!original && <p id="explain-count" className="mt-1 text-xs text-secondary">{explanation.length}/{EXPLANATION_MAX}</p>}
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button className={actionStyle} disabled={pending}>{pending ? "Checking…" : original ? "Run the original request" : "Check my change"}</button>
+      {!original && <button type="button" onClick={onReset} disabled={pending || !changed} className="min-h-11 px-2 text-sm font-medium underline underline-offset-4 disabled:no-underline disabled:opacity-45">Reset</button>}
+    </div>
   </form>;
 }

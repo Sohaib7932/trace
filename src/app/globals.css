@@ -1991,3 +1991,332 @@
     }
   }
 }
+
+/* ==========================================================================
+   Trace Help launcher and chat (all routes). Offsets come from CSS variables so lesson
+   pages can lift it above the tutor bar or shift it clear of the docked tutor panel.
+   ========================================================================== */
+@layer components {
+  .help-launcher {
+    position: fixed;
+    z-index: 55;
+    right: calc(16px + var(--help-shift, 0px) + env(safe-area-inset-right));
+    bottom: calc(16px + var(--help-lift, 0px) + env(safe-area-inset-bottom));
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 18px 0 14px;
+    border-radius: 999px;
+    background: var(--foreground);
+    color: #fff;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.2), 0 12px 28px -12px rgba(21, 25, 35, 0.55);
+    transition: transform var(--dur-micro) var(--ease-ui), background-color var(--dur-micro) var(--ease-ui), bottom var(--dur-state) var(--ease-ui), right var(--dur-state) var(--ease-ui);
+  }
+  .help-launcher:hover {
+    background: #262b36;
+  }
+  .help-launcher:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 3px;
+  }
+  .help-scrim {
+    display: none;
+  }
+  .help-panel {
+    position: fixed;
+    z-index: 60;
+    right: calc(16px + var(--help-shift, 0px) + env(safe-area-inset-right));
+    bottom: calc(76px + var(--help-lift, 0px) + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    width: min(380px, calc(100vw - 32px));
+    max-height: min(620px, calc(100dvh - 120px - var(--help-lift, 0px)));
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-window);
+  }
+  /* Phones: a bottom sheet over a dimmed page */
+  @media (max-width: 639px) {
+    .help-scrim {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 59;
+      background: rgba(21, 25, 35, 0.35);
+    }
+    .help-panel {
+      right: 0;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      max-height: 88dvh;
+      border-radius: 20px 20px 0 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.5;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .help-panel {
+      animation: enter 220ms var(--ease-ui) both;
+    }
+    .typing-dot {
+      animation: typing 1s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) {
+      animation-delay: 150ms;
+    }
+    .typing-dot:nth-child(3) {
+      animation-delay: 300ms;
+    }
+  }
+  @keyframes typing {
+    50% {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+  }
+}
+
+/* Lesson tutor: docked panel (>=1280px) or a bottom bar + drawer (smaller screens) */
+@layer components {
+  .tutor-dock {
+    display: flex;
+    width: clamp(340px, 26vw, 380px);
+    flex-direction: column;
+    /* Ends above the fixed Trace Help launcher (48px + 16px margin + gap) */
+    max-height: calc(100dvh - 24px - 96px);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.04);
+  }
+  .tutor-bar {
+    position: fixed;
+    z-index: 50;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    padding: 8px max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    border-top: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.96);
+  }
+  .tutor-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 58;
+    background: rgba(21, 25, 35, 0.35);
+  }
+  .tutor-drawer {
+    position: fixed;
+    z-index: 59;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+    background: var(--surface);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: var(--shadow-window);
+  }
+  /* Collapsed dock: a slim rail so the lesson gets the width back */
+  .tutor-rail {
+    width: 56px;
+  }
+  .tutor-rail-button {
+    display: flex;
+    width: 56px;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 14px 0;
+    color: var(--text-secondary);
+    transition: background-color var(--dur-micro) var(--ease-ui), color var(--dur-micro) var(--ease-ui);
+  }
+  .tutor-rail-button:hover {
+    background: var(--surface-muted);
+    color: var(--foreground);
+  }
+  .tutor-rail-label {
+    writing-mode: vertical-rl;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  /* 1024-1279: a right-edge drawer and a compact launcher, so the lesson keeps its width */
+  @media (min-width: 1024px) {
+    .tutor-bar {
+      left: auto;
+      right: 16px;
+      bottom: 16px;
+      width: 360px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 6px;
+      box-shadow: var(--shadow-window);
+    }
+    .tutor-drawer {
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
+      left: auto;
+      width: min(400px, calc(100vw - 24px));
+      max-height: none;
+      border-radius: 20px;
+    }
+  }
+  :root[data-tutor-open] .help-launcher {
+    visibility: hidden;
+  }
+  .tutor-action {
+    display: inline-flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 11px;
+    background: var(--surface);
+    padding: 0 14px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: left;
+    transition: background-color var(--dur-micro) var(--ease-ui);
+  }
+  .tutor-action:hover:not(:disabled) {
+    background: var(--surface-muted);
+  }
+  .tutor-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  /* AI text is visibly separate from verified evidence: a warm side rule, no evidence styling */
+  .tutor-reply {
+    border-left: 3px solid var(--primary);
+    border-radius: 0 12px 12px 0;
+    background: var(--primary-soft);
+    padding: 10px 12px;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .tutor-drawer {
+      animation: enter 240ms var(--ease-ui) both;
+    }
+  }
+}
+
+/* Soft-wrapped code rows: pre-wrap keeps indentation; long tokens may break only as a last resort */
+@layer components {
+  .code-wrap {
+    display: block;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .code-row-enter {
+      animation: code-row-in 220ms var(--ease-ui) both;
+    }
+  }
+  @keyframes code-row-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* In-code edit controls (lesson request window) */
+@layer components {
+  .code-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 26px;
+    padding: 0 6px;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--foreground);
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.4;
+    text-indent: 0;
+    cursor: pointer;
+    transition: background-color var(--dur-micro) var(--ease-ui), box-shadow var(--dur-micro) var(--ease-ui);
+  }
+  /* 44px tap target without changing the code's line height */
+  .code-chip::after {
+    content: "";
+    position: absolute;
+    inset: -9px -4px;
+  }
+  .code-chip:hover:not(:disabled) {
+    background: var(--primary-soft);
+  }
+  .code-chip:focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
+  .code-chip:disabled {
+    cursor: not-allowed;
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+  }
+  .code-popover {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 11rem;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-float);
+    text-indent: 0;
+    white-space: nowrap;
+  }
+  .code-popover:focus {
+    outline: none;
+  }
+  .code-option {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 10px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .code-option[data-active] {
+    background: var(--surface-muted);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+  .code-option[aria-selected="true"] {
+    color: var(--primary-ink);
+  }
+}

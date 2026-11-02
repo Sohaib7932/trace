@@ -1,4 +1,5 @@
 import { expect, test, type Page, type APIRequestContext } from "@playwright/test";
+import { seedGuestHistory } from "./helpers/account";
 
 // Real SDK calls to an isolated loopback protocol fixture, never external credentials.
 test.use({ trace: "off" });
@@ -70,13 +71,9 @@ test("registration, verified account, authenticated learning, refresh and logout
 
 test("explicit guest claim preserves a real session and rejects a second account", async ({ page, context, browser, request }) => {
   test.setTimeout(90_000);
-  await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  // Guest history from before the sign-in rule; the UI no longer starts guest sessions.
   const prediction = "My guest prediction must survive account ownership.";
-  await page.getByLabel("Why do you expect that?").fill(prediction);
-  await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(prediction);
+  await seedGuestHistory(page, prediction);
   const guestCookie = (await context.cookies()).find((cookie) => cookie.name === "trace_learner")!;
   expect(Boolean(guestCookie)).toBe(true);
   await register(page, request, `claim-${crypto.randomUUID()}@example.test`);

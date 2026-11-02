@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { signUp } from "./helpers/account";
 
 // Real FastAPI fixture backend; no API response is mocked.
 test.use({ trace: "off" });
@@ -26,8 +27,9 @@ test("'Try a lesson' and 'Try Trace' lead to the lessons hub; 'See how Trace wor
   expect(errors).toEqual([]);
 });
 
-test("the transfer lesson stays locked until the first is complete, then the completion panel offers it", async ({ page }, testInfo) => {
-  test.setTimeout(120_000);
+test("the transfer lesson stays locked until the first is complete, then the completion panel offers it", async ({ page, request }, testInfo) => {
+  test.setTimeout(150_000);
+  await signUp(page, request);
   const errors: string[] = [];
   await guard(page, errors);
   await page.goto("/learn");
@@ -43,7 +45,8 @@ test("the transfer lesson stays locked until the first is complete, then the com
   await page.getByLabel("The request will be rejected", { exact: true }).check();
   await page.getByLabel("Why do you expect that?").fill("The sender and receiver use different names.");
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
-  await page.getByRole("radio", { name: "body", exact: true }).check();
+  await page.getByRole("button", { name: /^Change field name, currently / }).click();
+  await page.getByRole("option", { name: /"body"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   await expect(page.getByRole("region", { name: "Verification evidence, attempt 1" }).getByText("422", { exact: true })).toBeVisible();
   // Not completed on the server yet: no completion panel, transfer still locked.
@@ -53,7 +56,8 @@ test("the transfer lesson stays locked until the first is complete, then the com
   await expect(page.getByRole("heading", { name: "Continue where you left off" })).toBeVisible();
 
   await page.getByRole("link", { name: "Pick up the lesson" }).click();
-  await page.getByRole("radio", { name: "content", exact: true }).check();
+  await page.getByRole("button", { name: /^Change field name, currently / }).click();
+  await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   const panel = page.getByRole("region", { name: "Follow the note: from form to database" });
   await expect(panel.getByText("Lesson completed · verified by the server")).toBeVisible();
@@ -112,8 +116,9 @@ test("signed-in visitors are sent from sign-in to their account, and the navbar 
   await expect(nav.getByRole("link", { name: "Sign in", exact: true })).toHaveCount(0);
 });
 
-test("keyboard alone can reach a lesson from the hub", async ({ page, isMobile }) => {
+test("keyboard alone can reach a lesson from the hub", async ({ page, request, isMobile }) => {
   test.skip(isMobile, "Keyboard path checked on desktop");
+  await signUp(page, request);
   await page.goto("/learn");
   await expect(page.getByRole("link", { name: "Start lesson 1" })).toBeVisible();
   for (let i = 0; i < 40; i++) {

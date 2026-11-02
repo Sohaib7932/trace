@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { signUp } from "./helpers/account";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -24,8 +25,9 @@ async function lockPrediction(page: Page, reasoning: string) {
   await expect(page.getByRole("region", { name: "Locked prediction" }).getByText(reasoning)).toBeVisible();
 }
 
-test("original completion unlocks real transfer and persisted timed retrieval", async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
+test("original completion unlocks real transfer and persisted timed retrieval", async ({ page, request }, testInfo) => {
+  test.setTimeout(210_000);
+  await signUp(page, request);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/api/v1/**", (route) => new URL(route.request().url()).origin === "http://127.0.0.1:8000" ? route.continue() : route.abort("blockedbyclient"));
@@ -34,7 +36,8 @@ test("original completion unlocks real transfer and persisted timed retrieval", 
   await expect(page.getByText("Transfer challenge: locked")).toBeVisible();
   await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await lockPrediction(page, "The outgoing key differs from the receiver.");
-  await page.getByRole("radio", { name: "content", exact: true }).check();
+  await page.getByRole("button", { name: /^Change field name, currently / }).click();
+  await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Continue to transfer challenge", exact: true }).click();
@@ -42,13 +45,14 @@ test("original completion unlocks real transfer and persisted timed retrieval", 
   await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   const original = "The priority value is present, but the receiving model requires a nested object.";
   await lockPrediction(page, original);
-  await expect(page.getByRole("radio", { name: "inside metadata" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Nest this field/ })).toBeDisabled();
   await page.getByRole("button", { name: "Run the original request", exact: true }).click();
   const failed = page.getByRole("region", { name: "Verification evidence, attempt 1" });
   await expect(failed.getByText("422", { exact: true })).toBeVisible();
   await expect(failed.getByText("0", { exact: true })).toBeVisible();
   await expect(failed.getByText('["missing:metadata", "extra_forbidden:priority"]', { exact: true })).toBeVisible();
-  await page.getByRole("radio", { name: "inside metadata" }).check();
+  await page.getByRole("button", { name: /Nest this field/ }).click();
+  await expect(page.getByRole("button", { name: /Undo nesting/ })).toBeVisible();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
   await expect(passed.getByText("201", { exact: true })).toBeVisible();

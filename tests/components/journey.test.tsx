@@ -2,7 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
-import { TransferAttemptForm, PredictionForm } from "@/components/learning/forms";
+const codeText = () => [...document.querySelectorAll("[data-code-text]")].map((n) => n.textContent).join(" | ");
+import { PredictionForm } from "@/components/learning/forms";
+import { ChangeHarness } from "../helpers/change-harness";
 import { JourneyPanel, RetrievalCard } from "@/components/learning/journey";
 import { learningApi, type Schema } from "@/lib/api/client";
 
@@ -30,18 +32,33 @@ test("locked transfer has no CTA and upcoming checkpoint has no question or answ
   expect(screen.queryByText("Recall the shipment contract")).not.toBeInTheDocument();
 });
 
-test("transfer records investigation before exposing the nested mapping", async () => {
+test("transfer: the nested edit is locked until the original flat request has run", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
-  const { rerender } = render(<TransferAttemptForm pending={false} investigated={false} onSubmit={submit} />);
-  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-  expect(screen.queryByText(/"metadata":/)).not.toBeInTheDocument();
+  const { unmount } = render(<ChangeHarness family="tasks" investigated={false} onSubmit={submit} />);
+  expect(screen.getByRole("button", { name: /Nest this field/ })).toBeDisabled();
+  expect(screen.getByText("Run the original request first")).toBeVisible();
+  expect(codeText()).not.toContain('"metadata": {');
   await user.click(screen.getByRole("button", { name: "Run the original request" }));
   expect(submit).toHaveBeenCalledWith({ change_type: "nest_payload_field", field_name: "flat", explanation: "" });
-  rerender(<TransferAttemptForm pending={false} investigated onSubmit={submit} />);
-  await user.click(screen.getByRole("radio", { name: "inside metadata" }));
-  expect(screen.getByText(/"metadata":/)).toBeVisible();
+  unmount();
+  render(<ChangeHarness family="tasks" onSubmit={submit} />);
+  await user.click(screen.getByRole("button", { name: /Nest this field/ }));
+  expect(codeText()).toContain('"metadata": {');
+  expect(codeText()).toContain('"priority": task.priority');
+  expect(screen.getByRole("button", { name: /Undo nesting/ })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Check my change" }));
   expect(submit).toHaveBeenLastCalledWith({ change_type: "nest_payload_field", field_name: "nested", explanation: "" });
+});
+
+test("transfer: undo nesting returns to the flat line and Reset is disabled again", async () => {
+  const user = userEvent.setup();
+  render(<ChangeHarness family="tasks" onSubmit={vi.fn()} />);
+  expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: /Nest this field/ }));
+  expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: /Undo nesting/ }));
+  expect(codeText()).not.toContain('"metadata": {');
+  expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
 });
 
 test("transfer prediction names the task and requires a choice", async () => {

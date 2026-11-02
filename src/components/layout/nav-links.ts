@@ -7,6 +7,7 @@ export const navLinks = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#progress", label: "Learning approach" },
   { href: "/learn", label: "Lessons" },
+  { href: "/today", label: "Today" },
 ] as const;
 
 export const primaryCta = { href: "/learn", label: "Try Trace" } as const;

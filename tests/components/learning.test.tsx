@@ -2,7 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
-import { AttemptForm, LockedPrediction, NO_REASON, PredictionForm } from "@/components/learning/forms";
+import { LockedPrediction, NO_REASON, PredictionForm } from "@/components/learning/forms";
+import { ChangeHarness } from "../helpers/change-harness";
 import { AttemptHistory, Guidance, ProgressSummary, VerificationEvidence } from "@/components/learning/evidence";
 import { Workspace } from "@/components/learning/workspace";
 import { learningApi } from "@/lib/api/client";
@@ -36,23 +37,43 @@ test("locked prediction retains the original answer without editable controls", 
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 });
 
-test("the change is picked inside the code and submits only a constrained mapping", async () => {
+test("the change is made inside the code and submits only a constrained mapping", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
-  render(<AttemptForm pending={false} onSubmit={submit} />);
-  expect(screen.getByRole("group", { name: "Payload field" })).toBeVisible();
-  await user.click(screen.getByRole("radio", { name: "content" }));
-  await user.type(screen.getByLabelText(/Note to yourself/), "Match the receiving field.");
+  render(<ChangeHarness family="notes" onSubmit={submit} />);
+  const chip = screen.getByRole("button", { name: "Change field name, currently body" });
+  await user.click(chip);
+  const list = screen.getByRole("listbox", { name: "Field name" });
+  expect(within(list).getAllByRole("option").map((o) => o.textContent?.replace(/current/, ""))).toEqual(['"body"', '"content"']);
+  await user.click(within(list).getByRole("option", { name: /content/ }));
+  expect(screen.getByRole("button", { name: "Change field name, currently content" })).toHaveFocus();
+  expect(screen.getByText("Removed line:")).toBeInTheDocument();
+  await user.type(screen.getByLabelText(/What changed and why/), "Match the receiving field.");
   await user.click(screen.getByRole("button", { name: "Check my change" }));
   expect(submit).toHaveBeenCalledWith({ change_type: "rename_payload_field", field_name: "content", explanation: "Match the receiving field." });
 });
 
+test("the field chip is keyboard operable: arrows, Enter and Escape restore focus", async () => {
+  const user = userEvent.setup(); const submit = vi.fn();
+  render(<ChangeHarness family="notes" onSubmit={submit} />);
+  screen.getByRole("button", { name: /Change field name/ }).focus();
+  await user.keyboard("{ArrowDown}");
+  expect(screen.getByRole("listbox")).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Change field name, currently body" })).toHaveFocus();
+  await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+  expect(screen.getByRole("button", { name: "Change field name, currently content" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Reset" }));
+  expect(screen.getByRole("button", { name: "Change field name, currently body" })).toBeVisible();
+});
+
 test("guidance is labelled a fixture, recorded and bounded", async () => {
   const user = userEvent.setup(); const request = vi.fn();
-  const { rerender } = render(<Guidance hints={savedProgress.hints} available pending={false} onRequest={request} />);
+  const { rerender } = render(<Guidance hints={savedProgress.hints} summary={savedProgress.summary} available pending={false} onRequest={request} />);
   await user.click(screen.getByRole("button", { name: "Request a hint" }));
   expect(request).toHaveBeenCalledOnce();
   expect(screen.getByText("Hint 1 · fixture guidance")).toBeVisible();
-  rerender(<Guidance hints={[1,2,3].map((sequence) => ({ ...savedProgress.hints[0], id: String(sequence), sequence }))} available pending={false} onRequest={request} />);
+  rerender(<Guidance hints={[1,2,3].map((sequence) => ({ ...savedProgress.hints[0], id: String(sequence), sequence }))} summary={{ ...savedProgress.summary, hint_request_count: 3, hints_delivered: 3 }} available pending={false} onRequest={request} />);
   expect(screen.getByRole("button", { name: "Request a hint" })).toBeDisabled();
 });
 

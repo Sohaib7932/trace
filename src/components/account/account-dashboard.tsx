@@ -6,13 +6,15 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import { ArrowRight, Check, ChevronDown, LogOut } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 import { lessonById, lessons } from "@/content/lessons";
-import { accountApi, ApiError, learningApi, type Progress, type Schema } from "@/lib/api/client";
+import { accountApi, ApiError, learningApi, retryOnInfrastructure, type Progress, type Schema } from "@/lib/api/client";
+import { ErrorNotice } from "@/components/learning/error-notice";
+import { InterestPicker } from "@/components/daily/interest-picker";
 import { completedCount, formatWhen, lessonViews, nextAction } from "@/lib/learning/journey";
 import { browserAuth } from "@/lib/supabase/browser";
 import { CheckpointCard } from "@/components/learning/hub/checkpoint-card";
 
 export function AccountDashboard() {
-  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 }, mutations: { retry: false } } }));
+  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: retryOnInfrastructure, staleTime: 10_000 }, mutations: { retry: false } } }));
   return <QueryClientProvider client={client}><Dashboard /></QueryClientProvider>;
 }
 
@@ -151,6 +153,10 @@ function Dashboard() {
         </>
       )}
 
+      <section className="acct-enter hub-card p-5 sm:p-6" style={{ "--d": "280ms" } as CSSProperties}>
+        <InterestPicker compact />
+      </section>
+
       <AccountDetails me={me} email={email} providers={providers} />
     </div>
   );
@@ -222,15 +228,15 @@ function GuestClaim({ hasLearner, onDone }: { hasLearner: boolean; onDone: () =>
   const [confirm, setConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<"" | "claimed" | "conflict" | "error">("");
-  const [message, setMessage] = useState("");
+  const [failure, setFailure] = useState<unknown>(null);
   const key = useRef<string | null>(null);
   async function claim() {
-    setPending(true); setMessage("");
+    setPending(true); setFailure(null);
     key.current ??= crypto.randomUUID(); // same key on retry: a repeat can't double-claim
     try { await accountApi.claim(key.current); setResult("claimed"); setConfirm(false); onDone(); }
     catch (error) {
       if (error instanceof ApiError && error.status === 409) setResult("conflict");
-      else { setResult("error"); setMessage(error instanceof Error ? error.message : "That didn't work. Try again."); }
+      else { setResult("error"); setFailure(error); }
     } finally { setPending(false); }
   }
   if (result === "claimed") return null;
@@ -240,7 +246,7 @@ function GuestClaim({ hasLearner, onDone }: { hasLearner: boolean; onDone: () =>
       <p className="mt-2 max-w-[62ch] text-[0.9375rem] leading-relaxed">You learned here before signing in. Move that history to your account so it stays with you on other devices. The guest link in this browser stops working afterwards.</p>
       {hasLearner && <p className="mt-2 max-w-[62ch] text-[0.875rem] text-secondary">Your account already has its own history, so Trace will keep the two separate and won&apos;t combine them.</p>}
       {result === "conflict" && <p role="status" className="mt-3 text-[0.9375rem] font-medium">This account already has another history. Neither history was changed.</p>}
-      {message && <p role="alert" className="mt-3 text-[0.9375rem] text-error">{message}</p>}
+      {failure ? <ErrorNotice error={failure} className="mt-3" /> : null}
       {confirm ? (
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <p className="w-full text-[0.9375rem] font-medium">Attach this guest history to this account?</p>
@@ -295,11 +301,10 @@ function AccountDetails({ me, email, providers }: { me: Schema["AccountResponse"
 
 function ErrorPanel({ title, error, retry }: { title: string; error: Error; retry: () => void }) {
   return (
-    <section role="alert" className="hub-card max-w-[44rem] p-6 sm:p-8">
+    <div className="max-w-[44rem]">
       <h2 className="type-h3">{title}</h2>
-      <p className="mt-3 text-[0.9375rem] leading-relaxed text-secondary">{error.message}</p>
-      <button type="button" onClick={retry} className="mt-6 inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Try again</button>
-    </section>
+      <ErrorNotice error={error} retry={retry} className="mt-4" />
+    </div>
   );
 }
 

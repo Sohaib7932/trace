@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { signUp } from "./helpers/account";
 
 test.use({ trace: "off" });
 
-test("catalog changes cannot replace an old session's pinned content or saved evidence", async ({ page }) => {
-  test.setTimeout(90_000);
+test("catalog changes cannot replace an old session's pinned content or saved evidence", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await signUp(page, request);
   const api = "http://127.0.0.1:8000";
   await page.route("**/api/v1/**", (route) => new URL(route.request().url()).origin === api ? route.continue() : route.abort("blockedbyclient"));
   await page.goto("/learn/fastapi-payload-mismatch");
@@ -23,12 +25,14 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
   const reasoning = "This original prediction must survive a newer catalog publication.";
   await page.getByLabel("Why do you expect that?").fill(reasoning);
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
-  await page.getByRole("radio", { name: "body", exact: true }).check();
+  await page.getByRole("button", { name: /^Change field name, currently / }).click();
+  await page.getByRole("option", { name: /"body"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Request rejected", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Request a hint", exact: true }).click();
   await expect(page.getByText("Hint 1 · fixture guidance", { exact: true })).toBeVisible();
-  await page.getByRole("radio", { name: "content", exact: true }).check();
+  await page.getByRole("button", { name: /^Change field name, currently / }).click();
+  await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
   const saved = await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`)).json();

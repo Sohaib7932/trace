@@ -17,7 +17,7 @@ export function LessonTopBar({ title }: { title: string }) {
           </ol>
         </nav>
       </div>
-      <AccountLink guestLabel="Save progress" />
+      <AccountLink guestLabel="Sign in" />
     </header>
   );
 }

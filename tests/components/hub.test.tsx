@@ -76,7 +76,19 @@ test("post-sign-in destinations are limited to a same-origin allowlist", () => {
 });
 
 // ---------- Lessons hub ----------
-test("hub: a new guest sees both real lessons, the transfer locked with its reason, and no fake lessons", async () => {
+test("hub: a guest sees the lesson library and sign-in prompts, and no learner request is made", async () => {
+  wrap(<LessonsHub />);
+  expect(await screen.findByRole("heading", { name: "Sign in to start the lessons" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Sign in to start Follow the note" })).toHaveAttribute("href", "/sign-in?next=%2Flearn%2Ffastapi-payload-mismatch");
+  expect(screen.getByRole("link", { name: "Sign in to start The nested payload" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Try the demo" })).toHaveAttribute("href", "/#demo");
+  expect(screen.queryByText(/lessons completed/)).toBeNull();
+  expect(screen.getByText("Custom lessons you create will appear here.")).toBeVisible();
+  for (const call of [fixture.identity, fixture.journey, fixture.lesson, fixture.me]) expect(call).not.toHaveBeenCalled();
+});
+test("hub: a new signed-in learner sees both real lessons, the transfer locked with its reason, and no fake lessons", async () => {
+  fixture.auth = { status: "signed-in", email: "learner@example.test" };
   wrap(<LessonsHub />);
   expect(await screen.findByText("0 of 2 lessons completed")).toBeVisible();
   const cards = screen.getAllByRole("article");
@@ -85,10 +97,10 @@ test("hub: a new guest sees both real lessons, the transfer locked with its reas
   expect(within(cards[1]).getByText(/Opens when you complete/)).toBeVisible();
   expect(within(cards[1]).queryByRole("link")).toBeNull();
   expect(screen.getByRole("heading", { name: "More lessons are being written" })).toBeVisible();
-  expect(await screen.findByRole("complementary", { name: "Save your progress" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Start lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
 });
 test("hub: a returning learner sees where they left off and the unlocked transfer", async () => {
+  fixture.auth = { status: "signed-in", email: "learner@example.test" };
   fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("a", "completed")], attempt_count: 2 }, { available: true, sessions: [session("b", "needs_revision")], attempt_count: 1 }));
   wrap(<LessonsHub />);
   expect(await screen.findByRole("heading", { name: "Continue where you left off" })).toBeVisible();
@@ -107,10 +119,15 @@ test("hub: a signed-in account with unclaimed guest history is asked before any 
   expect(fixture.identity).toHaveBeenCalled();
 });
 test("hub: load errors offer a retry", async () => {
-  // The hub retries once on its own before showing the error.
-  fixture.journey.mockRejectedValueOnce(new Error("Trace couldn't reach your saved work.")).mockRejectedValueOnce(new Error("Trace couldn't reach your saved work."));
+  // Infrastructure failures retry once on their own before the error shows.
+  const { ApiError } = await import("@/lib/api/client");
+  const offline = new ApiError(0, "Network request failed.", "network");
+  fixture.journey.mockRejectedValueOnce(offline).mockRejectedValueOnce(offline);
+  fixture.auth = { status: "signed-in", email: "learner@example.test" };
   wrap(<LessonsHub />);
-  await userEvent.click(await screen.findByRole("button", { name: "Try again" }, { timeout: 5000 }));
+  expect(await screen.findByText(/couldn't reach the lesson server/, {}, { timeout: 5000 })).toBeVisible();
+  expect(fixture.journey).toHaveBeenCalledTimes(2);
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByText("0 of 2 lessons completed")).toBeVisible();
 });
 
@@ -200,9 +217,11 @@ test("account: details are collapsed and sign-out clears session links", async (
 });
 test("account: load errors are shown with a retry and no invented identity", async () => {
   const { ApiError } = await import("@/lib/api/client");
-  fixture.me.mockRejectedValue(new ApiError(503, "Account database unavailable"));
+  fixture.me.mockRejectedValue(new ApiError(503, "Account database unavailable", "dependency_unavailable", "req-503"));
   wrap(<AccountDashboard />);
-  expect(await screen.findByText("Account database unavailable", {}, { timeout: 5000 })).toBeVisible();
+  // 503 is infrastructure: a plain message plus the request ID in support details, never a learner error.
+  expect(await screen.findByText(/lesson server is unavailable right now/, {}, { timeout: 4000 })).toBeVisible();
+  expect(screen.getByText("req-503")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
   expect(screen.queryByText("trace-user-fixture")).toBeNull();
 });
