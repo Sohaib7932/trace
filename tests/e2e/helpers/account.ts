@@ -1,4 +1,6 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { rm } from "node:fs/promises";
+import { resolve } from "node:path";
 
 // Real lessons are for signed-in learners. These helpers use the isolated loopback auth
 // fixture (:8001) and the repo's test backend; never external credentials.
@@ -7,6 +9,9 @@ export const PASSWORD = "Controlled-fixture-password-47";
 
 /** Creates and confirms a fresh account; the page ends signed in on /account. */
 export async function signUp(page: Page, request: APIRequestContext, prefix = "learner") {
+  // Account tokens expire in real time; a test clock left behind by the timed transfer test
+  // would make the backend see them as expired. No clock file means real time.
+  await rm(resolve("test-results/e2e-clock.json"), { force: true });
   const email = `${prefix}-${crypto.randomUUID()}@example.test`;
   await page.goto("/sign-up");
   await page.getByLabel("Email address").fill(email);
@@ -39,4 +44,14 @@ export async function seedGuestHistory(page: Page, reasoning: string, lessonId =
   await page.goto("/");
   await page.evaluate(([key, id]) => localStorage.setItem(key, id), [`trace.session.${lessonId}`, session.id]);
   return session.id;
+}
+
+/** The signed-in app's Bearer header, read from its own next learner API request. */
+export function captureBearer(page: Page) {
+  let value = "";
+  page.on("request", (r) => {
+    const header = r.headers()["authorization"];
+    if (header && r.url().startsWith(`${API}/api/v1/`)) value = header;
+  });
+  return () => value;
 }

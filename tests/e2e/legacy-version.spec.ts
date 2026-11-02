@@ -1,21 +1,23 @@
 import { expect, test } from "@playwright/test";
-import { signUp } from "./helpers/account";
+import { captureBearer, signUp } from "./helpers/account";
 
 test.use({ trace: "off" });
 
 test("catalog changes cannot replace an old session's pinned content or saved evidence", async ({ page, request }) => {
   test.setTimeout(120_000);
   await signUp(page, request);
+  const bearer = captureBearer(page);
   const api = "http://127.0.0.1:8000";
   await page.route("**/api/v1/**", (route) => new URL(route.request().url()).origin === api ? route.continue() : route.abort("blockedbyclient"));
   await page.goto("/learn/fastapi-payload-mismatch");
   await expect(page.getByRole("button", { name: "Start lesson", exact: true })).toBeVisible();
+  expect(bearer()).toMatch(/^Bearer /);
   const legacyResponse = await page.request.get(`${api}/api/v1/lessons/fastapi-payload-mismatch?version=1.0.0`);
   expect(legacyResponse.status()).toBe(200);
   const legacy = await legacyResponse.json();
   const sessionResponse = await page.request.post(`${api}/api/v1/sessions`, {
     data: { lesson_id: legacy.id, version: "1.0.0" },
-    headers: { Origin: "http://127.0.0.1:3100", "X-Trace-Client": "learning-web", "Idempotency-Key": crypto.randomUUID() },
+    headers: { Origin: "http://127.0.0.1:3100", "X-Trace-Client": "learning-web", "Idempotency-Key": crypto.randomUUID(), Authorization: bearer() },
   });
   expect(sessionResponse.status()).toBe(201);
   const session = await sessionResponse.json();
@@ -35,7 +37,7 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
   await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
-  const saved = await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`)).json();
+  const saved = await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`, { headers: { Authorization: bearer() } })).json();
   try {
     const changed = await page.request.post(`${api}/__fixture__/catalog/advance`);
     expect(changed.status()).toBe(200);
@@ -54,7 +56,7 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
     const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
     await expect(passed.getByText("201", { exact: true })).toBeVisible();
     await expect(passed.getByText("1", { exact: true })).toBeVisible();
-    expect(await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`)).json()).toEqual(saved);
+    expect(await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`, { headers: { Authorization: bearer() } })).json()).toEqual(saved);
     expect(saved.session.lesson_version_id).toBe(legacy.version_id);
     expect(saved.lesson.version).toBe("1.0.0");
   } finally {

@@ -35,7 +35,7 @@ export function describeError(error: unknown): string {
     ? "Trace didn't get an answer in time. We've reloaded your saved work; check it before trying again."
     : "Trace couldn't reach the lesson server. Your draft is still here; try again.";
   switch (error.status) {
-    case 401: return "Your session needs renewing. Sign in again, or reload to continue as a guest.";
+    case 401: return "Your sign-in needs renewing. Sign in again to keep going; your saved work is safe.";
     case 403: return error.code === "unsafe_request"
       ? "This page isn't allowed to talk to the lesson server. Open Trace from its usual address and reload."
       : "Your account can't do this right now.";

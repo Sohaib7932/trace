@@ -1,11 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signUp } from "./helpers/account";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 test.use({ trace: "off" });
 const clockPath = resolve("test-results/e2e-clock.json");
+// Back to real time afterwards, so signed-in tokens in later tests are not judged by this clock.
+test.afterEach(() => rm(clockPath, { force: true }));
 async function setClock(now: string) {
   await mkdir(dirname(clockPath), { recursive: true });
   await writeFile(`${clockPath}.tmp`, JSON.stringify({ now }), "utf8");
