@@ -75,6 +75,11 @@
         "title": "AccountResponse",
         "type": "object"
       },
+      "AssistantText": {
+        "maxLength": 2400,
+        "minLength": 1,
+        "type": "string"
+      },
       "AttemptCreate": {
         "additionalProperties": false,
         "properties": {
@@ -618,6 +623,12 @@
         },
         "type": "array"
       },
+      "Items_SupportReference__MaxLen_max_length_3_": {
+        "items": {
+          "$ref": "#/components/schemas/SupportReference"
+        },
+        "type": "array"
+      },
       "JourneyResponse": {
         "additionalProperties": false,
         "properties": {
@@ -665,6 +676,47 @@
       "LessonAlias": {
         "pattern": "^l[1-5]$",
         "type": "string"
+      },
+      "LessonAssistantReply": {
+        "additionalProperties": false,
+        "properties": {
+          "can_complete_lesson": {
+            "$ref": "#/components/schemas/No",
+            "default": false
+          },
+          "interpretation_only": {
+            "$ref": "#/components/schemas/Yes",
+            "default": true
+          },
+          "source": {
+            "enum": [
+              "test_fixture",
+              "ai",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "declined",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "text": {
+            "$ref": "#/components/schemas/AssistantText"
+          }
+        },
+        "required": [
+          "status",
+          "text",
+          "source"
+        ],
+        "title": "LessonAssistantReply",
+        "type": "object"
       },
       "LessonField": {
         "enum": [
@@ -737,6 +789,20 @@
         },
         "title": "LivenessResponse",
         "type": "object"
+      },
+      "LocalId": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9-]{0,63}$",
+        "type": "string"
+      },
+      "No": {
+        "const": false,
+        "type": "boolean"
+      },
+      "PassageText": {
+        "maxLength": 1200,
+        "minLength": 1,
+        "type": "string"
       },
       "PhaseResponse": {
         "additionalProperties": false,
@@ -1525,6 +1591,132 @@
         "title": "SessionResponse",
         "type": "object"
       },
+      "SupportAskCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "question": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "SupportAskCreate",
+        "type": "object"
+      },
+      "SupportEscalation": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/Title"
+          },
+          "url": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "SupportEscalation",
+        "type": "object"
+      },
+      "SupportMessage": {
+        "enum": [
+          "Relevant approved documentation is quoted below.",
+          "No relevant approved documentation was found.",
+          "The approved documentation does not establish an answer.",
+          "Customer support is currently unavailable."
+        ],
+        "type": "string"
+      },
+      "SupportReference": {
+        "additionalProperties": false,
+        "properties": {
+          "passage_id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/PassageText"
+          },
+          "source_id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "source_name": {
+            "$ref": "#/components/schemas/Title"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_name",
+          "passage_id",
+          "quote"
+        ],
+        "title": "SupportReference",
+        "type": "object"
+      },
+      "SupportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "escalation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupportEscalation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "$ref": "#/components/schemas/SupportMessage"
+          },
+          "references": {
+            "$ref": "#/components/schemas/Items_SupportReference__MaxLen_max_length_3_",
+            "default": [],
+            "maxLength": 3
+          },
+          "source": {
+            "enum": [
+              "test_fixture",
+              "ai",
+              "unavailable"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupportStatus"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "source"
+        ],
+        "title": "SupportResponse",
+        "type": "object"
+      },
+      "SupportStatus": {
+        "enum": [
+          "answered",
+          "no_sources",
+          "unsupported",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "Title": {
+        "maxLength": 120,
+        "minLength": 1,
+        "type": "string"
+      },
       "TransferAttemptCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1553,6 +1745,22 @@
           "field_name"
         ],
         "title": "TransferAttemptCreate",
+        "type": "object"
+      },
+      "TutorQuestionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "question": {
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "TutorQuestionCreate",
         "type": "object"
       },
       "UTCInstant": {
@@ -1591,6 +1799,10 @@
         ],
         "title": "ValidationIssue",
         "type": "object"
+      },
+      "Yes": {
+        "const": true,
+        "type": "boolean"
       }
     },
     "securitySchemes": {
@@ -3968,6 +4180,155 @@
         ]
       }
     },
+    "/api/v1/sessions/{session_id}/tutor/ask": {
+      "post": {
+        "description": "Read-only question over server-owned public context and approved guidance.\n\nNo exchange persistence, live grading, full worked solution or hint-slot change.\nGemini only selects an allowed topic; trusted code supplies the returned text.",
+        "operationId": "ask_lesson_tutor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TutorQuestionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonAssistantReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask",
+        "tags": [
+          "tutoring"
+        ]
+      }
+    },
     "/api/v1/sessions/{session_id}/verifications": {
       "get": {
         "operationId": "get_verifications",
@@ -4067,6 +4428,123 @@
         "summary": "Verifications",
         "tags": [
           "learning"
+        ]
+      }
+    },
+    "/api/v1/support/ask": {
+      "post": {
+        "description": "Answer from approved public passages, with exact source quotations.\n\nNo conversation persistence, account actions, source selection, arbitrary file\ningestion or learner bootstrap. A draft/expired corpus remains unavailable.",
+        "operationId": "ask_support",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportAskCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask",
+        "tags": [
+          "support"
         ]
       }
     }

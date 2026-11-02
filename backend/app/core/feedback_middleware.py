@@ -38,9 +38,17 @@ class FeedbackSecurityMiddleware:
         allowed_origins: tuple[str, ...] = (),
         *,
         clock: Callable[[], float] = time.monotonic,
+        path_pattern: str | None = None,
+        deadline_key: str = "feedback_deadline",
+        error_subject: str = "Feedback",
+        error_code_prefix: str = "feedback",
     ) -> None:
         self.app, self.settings, self.allowed_origins = app, settings, allowed_origins
         self.clock = clock
+        self._path = re.compile(path_pattern) if path_pattern is not None else _PATH
+        self._deadline_key = deadline_key
+        self._error_subject = error_subject
+        self._error_code_prefix = error_code_prefix
         self._lock = RLock()
         self._requests: deque[float] = deque()
         self._active = 0
@@ -60,12 +68,12 @@ class FeedbackSecurityMiddleware:
             return True
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not _PATH.fullmatch(scope.get("path", "")):
+        if scope["type"] != "http" or not self._path.fullmatch(scope.get("path", "")):
             await self.app(scope, receive, send)
             return
         state = scope.setdefault("state", {})
         request_id = state.setdefault("request_id", str(uuid4()))
-        state["feedback_deadline"] = self.clock() + self.settings.request_timeout_seconds
+        state[self._deadline_key] = self.clock() + self.settings.request_timeout_seconds
         origin = next(
             (v.decode("latin-1") for k, v in scope["headers"] if k.lower() == b"origin"), ""
         )
@@ -105,6 +113,11 @@ class FeedbackSecurityMiddleware:
             code, text = _ERRORS.get(status, _ERRORS[500])
             if busy and status == 429:
                 code, text = "feedback_busy", "Feedback is busy. Try again later."
+            if self._error_subject != "Feedback":
+                code = code.replace("feedback", self._error_code_prefix)
+                text = text.replace("Feedback", self._error_subject).replace(
+                    "feedback", self._error_code_prefix
+                )
             response = error_response(request_id, code, text, status)
             await response(scope, receive, protected_send)
 
@@ -148,7 +161,7 @@ class FeedbackSecurityMiddleware:
                 await self.app(scope, replay, collect)
                 if start is None:
                     raise ValueError("Feedback response was not completed")
-                if self.clock() >= state["feedback_deadline"]:
+                if self.clock() >= state[self._deadline_key]:
                     await failure(504)
                     return
                 status = start["status"]

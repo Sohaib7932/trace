@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.ai.client import BoundedAIClient
 from app.ai.interface import TutorProvider
+from app.ai.providers.bounded_support import BoundedSupportAssistant
 from app.ai.providers.disabled_evidence_feedback import DisabledEvidenceFeedbackProvider
 from app.ai.providers.fake import FakeTutorProvider
+from app.ai.providers.guided_lesson_assistant import GuidedLessonAssistant
 from app.ai.question_generator import QuestionGenerator
 from app.ai.resources import AIResources
 from app.auth.jwt import JwtVerifier
@@ -28,6 +30,7 @@ from app.repositories.verification import NotesVerifier
 from app.schemas.feedback_release import FeedbackReleaseScope
 from app.schemas.public_feedback import FeedbackVisibilityPolicy
 from app.services.accounts import AccountService
+from app.services.candidate_generation import CandidateGenerationService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.catalog import CatalogService
@@ -39,6 +42,7 @@ from app.services.identity import COOKIE_NAME, IdentityService
 from app.services.learner_feedback import LearnerFeedbackService
 from app.services.learning import LearningService
 from app.services.lesson_assistant import LessonAssistantService
+from app.services.lesson_tutoring import LessonTutoringService
 from app.services.retrieval import RetrievalService
 from app.services.support import SupportService
 from app.services.verification import VerificationService
@@ -195,10 +199,51 @@ def get_ai_client(resources: Annotated[AIResources, Depends(get_ai_resources)]) 
     return resources.client
 
 
+def get_tutor_operations(request: Request) -> FeedbackOperations:
+    operations = getattr(request.app.state, "tutor_operations", None)
+    if not isinstance(operations, FeedbackOperations) or operations.closed:
+        raise ApplicationError("dependency_unavailable", "Tutor is unavailable.", 503)
+    return operations
+
+
+def get_support_operations(request: Request) -> FeedbackOperations:
+    operations = getattr(request.app.state, "support_operations", None)
+    if not isinstance(operations, FeedbackOperations) or operations.closed:
+        raise ApplicationError("dependency_unavailable", "Support is unavailable.", 503)
+    return operations
+
+
+def get_lesson_tutoring_service(
+    request: Request,
+    database: Annotated[Database, Depends(get_database)],
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+    operations: Annotated[FeedbackOperations, Depends(get_tutor_operations)],
+) -> LessonTutoringService:
+    return LessonTutoringService(
+        SqlFeedbackReleaseRepository(database),
+        lambda choices, subject: GuidedLessonAssistant(
+            resources.client,
+            choices,
+            subject,
+            timeout_seconds=operations.settings.provider_timeout_seconds,
+        ),
+        cast(Clock, request.app.state.clock),
+    )
+
+
 def get_question_generator(
     resources: Annotated[AIResources, Depends(get_ai_resources)],
 ) -> QuestionGenerator:
     return resources.question_generator
+
+
+def get_candidate_generation_service(request: Request) -> CandidateGenerationService:
+    # Internal orchestration only. No public route can reserve/release/assign candidates.
+    get_ai_resources(request)
+    service = getattr(request.app.state, "candidate_generation", None)
+    if not isinstance(service, CandidateGenerationService):
+        raise ApplicationError("dependency_unavailable", "Generation is unavailable.", 503)
+    return service
 
 
 def get_internal_tutor_provider(
@@ -217,6 +262,19 @@ def get_support_service(
     resources: Annotated[AIResources, Depends(get_ai_resources)],
 ) -> SupportService:
     return resources.support
+
+
+def get_http_support_service(
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+    operations: Annotated[FeedbackOperations, Depends(get_support_operations)],
+) -> SupportService:
+    return SupportService(
+        BoundedSupportAssistant(
+            resources.client, timeout_seconds=operations.settings.provider_timeout_seconds
+        ),
+        resources.support.knowledge,
+        escalation=resources.support.escalation,
+    )
 
 
 def get_evidence_feedback_service(

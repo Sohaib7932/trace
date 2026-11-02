@@ -225,6 +225,7 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
         </div>
         <p data-tutor-context="" className="mt-2 rounded-lg bg-surface-muted px-2.5 py-1.5 text-[0.8125rem] leading-snug"><span className="text-secondary">Lesson:</span> {lessonTitle}. <span className="text-secondary">Step:</span> {step}</p>
         <p className="mt-1.5 text-[0.8125rem] leading-snug text-secondary">Explains and guides. Only the server&apos;s checks decide whether a change works.</p>
+        {tutor.mode === "real" && <p className="mt-1.5 text-[0.75rem] leading-snug text-secondary">When enabled, your question is sent to Gemini to select approved Trace guidance; Google&apos;s service terms apply. Don&apos;t include personal details or secrets.</p>}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-busy={busy}>
@@ -256,7 +257,7 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
         </ol>
         <div ref={listEnd} />
 
-        {workedUnlocked(progress) && (
+        {workedUnlocked(progress) && tutor.mode === "mock" && (
           <div className="mt-4 rounded-xl border border-dashed border-border-strong p-3 text-[0.875rem]">
             {confirmWorked ? <>
               <p className="font-medium">This shows the full fix. Your attempts and hints stay as they are. Show it?</p>
@@ -291,7 +292,7 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
 
 function tutorError(error: unknown): { title: string; detail?: string; signIn?: boolean; retry: boolean } {
   if (isUnavailable(error)) return { title: "The tutor isn't connected yet.", detail: "Fixture hints and the lesson evidence still work.", retry: false };
-  if (error instanceof ApiError && error.status === 401) return { title: "Sign in to ask the tutor.", detail: "Fixture hints still work as a guest.", signIn: true, retry: false };
+  if (error instanceof ApiError && error.status === 401) return { title: "Sign in to ask the tutor.", detail: "Your saved work is preserved. Sign in again to continue.", signIn: true, retry: false };
   if (error instanceof ApiError && error.status === 429) return { title: "That's a lot of questions in a short time.", detail: "Wait a minute, then try again.", retry: true };
   return { title: "The tutor couldn't answer just now.", detail: "Your lesson progress is unaffected.", retry: true };
 }
@@ -311,7 +312,7 @@ function TutorReplyCard({ entry, aiLabel, lessonId }: { entry: Extract<Entry, { 
   const unavailable = entry.reply?.status === "unavailable";
   return (
     <article className="tutor-reply">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.06em] text-primary-ink uppercase">{aiLabel} · {entry.label}</p>
+      <p className="text-[0.6875rem] font-semibold tracking-[0.06em] text-primary-ink uppercase">{entry.reply?.source === "test_fixture" ? "Test fixture guidance" : aiLabel} · {entry.label}</p>
       {entry.state === "streaming" && !entry.text ? <span className="mt-1 inline-flex items-center gap-1 text-secondary" aria-label="The tutor is answering"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
         : unavailable ? <p className="mt-1 text-secondary">The tutor isn&apos;t available right now. Fixture hints and the lesson evidence still work.</p>
           : entry.text ? <p className="mt-1 whitespace-pre-wrap">{entry.text}</p>

@@ -52,7 +52,7 @@ def test_internal_feedback_dependency_reuses_app_provider_and_existing_repositor
         assert not transport.calls
         expected = json.loads((Path(__file__).resolve().parents[2] / "openapi.json").read_text())
         assert app.openapi() == expected
-        assert len(expected["paths"]) == 22
+        assert len(expected["paths"]) == 24
         assert "/api/v1/sessions/{session_id}/feedback" in expected["paths"]
     assert resources.client.closed
 

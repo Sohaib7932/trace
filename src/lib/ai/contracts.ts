@@ -22,7 +22,7 @@ export type AiSource = "ai" | "test_fixture" | "demo";
 export type TutorReply = {
   status: "answered" | "declined" | "unavailable";
   text: string;
-  source: AiSource;
+  source: AiSource | "none";
   /** Always true: the text explains; it is never evidence. */
   interpretation_only: true;
   /** Always false: no tutor reply can complete a lesson. */

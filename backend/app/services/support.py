@@ -66,6 +66,13 @@ class SupportService:
         except Exception:
             return unavailable
         selection = result.selection
+        # Recheck the same source scope after slow provider work. Expired, edited
+        # or newly conflicting documentation must not escape as a stale answer.
+        try:
+            if not self.knowledge.available or self.knowledge.retrieve(checked) != passages:
+                return unavailable
+        except Exception:
+            return unavailable
         by_id = {passage.passage_id: passage for passage in passages}
         if not set(selection.passage_ids) <= by_id.keys():
             return unavailable

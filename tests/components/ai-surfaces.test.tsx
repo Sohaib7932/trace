@@ -46,14 +46,14 @@ const failing: Progress = {
 };
 
 // ---------- Adapter factory ----------
-test("mock is the default mode; real mode throws 'endpoint not available yet' without any request", async () => {
+test("mock is the default; unsupported real capabilities never invent an HTTP request", async () => {
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
   expect(createAiClients().tutor.mode).toBe("mock");
   vi.stubEnv("NEXT_PUBLIC_AI_MODE", "real");
   const real = createAiClients();
   expect(real.support.mode).toBe("real");
   const context = { lessonId: "fastapi-payload-mismatch" as const, stage: "reading" as const, sessionId: null };
-  for (const call of [() => real.tutor.ask(context, "q"), () => real.tutor.explainConcept(context), () => real.tutor.whyFailed(context, failedRun), () => real.tutor.worked(context), () => real.support.ask({ question: "q" }), () => real.daily.interests(), () => real.daily.saveInterests([])]) {
+  for (const call of [() => real.tutor.ask(context, "q"), () => real.tutor.explainConcept(context), () => real.tutor.whyFailed(context, failedRun), () => real.tutor.worked(context), () => real.daily.interests(), () => real.daily.saveInterests([])]) {
     const error = await call().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(EndpointNotAvailableError);
     expect(String((error as Error).message)).toMatch(/endpoint not available yet/);
@@ -103,12 +103,25 @@ test("support chat: answers with real help-set sources, no human option unless c
 });
 
 test("support chat: streaming shows a typing state, then the full answer", async () => {
-  setMockControls({ latencyMs: 30, stream: true });
+  setMockControls({ latencyMs: 0, stream: false });
+  const client = createAiClients("mock").support;
+  const original = client.ask;
+  let release!: () => void;
+  let emit: ((text: string) => void) | undefined;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  vi.spyOn(client, "ask").mockImplementation(async (input, options) => {
+    emit = options?.onText;
+    await gate;
+    return original(input, options);
+  });
   const user = userEvent.setup();
   render(<TraceHelp />);
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(screen.getByRole("button", { name: "What is a fixture hint?" }));
   expect(screen.getByLabelText("Trace Help is answering")).toBeVisible();
+  await act(async () => { emit?.("Hints in lessons"); });
+  expect(screen.getByText("Hints in lessons")).toBeVisible();
+  await act(async () => { release(); });
   expect(await seen(/Hints in lessons are fixture guidance/)).toBeVisible();
 });
 

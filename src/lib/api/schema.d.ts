@@ -371,6 +371,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/tutor/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Read-only question over server-owned public context and approved guidance.
+         *
+         *     No exchange persistence, live grading, full worked solution or hint-slot change.
+         *     Gemini only selects an allowed topic; trusted code supplies the returned text.
+         */
+        post: operations["ask_lesson_tutor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/verifications": {
         parameters: {
             query?: never;
@@ -382,6 +405,29 @@ export interface paths {
         get: operations["get_verifications"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Answer from approved public passages, with exact source quotations.
+         *
+         *     No conversation persistence, account actions, source selection, arbitrary file
+         *     ingestion or learner bootstrap. A draft/expired corpus remains unavailable.
+         */
+        post: operations["ask_support"];
         delete?: never;
         options?: never;
         head?: never;
@@ -418,6 +464,7 @@ export interface components {
              */
             user_id: string;
         };
+        AssistantText: string;
         /** AttemptCreate */
         AttemptCreate: {
             /**
@@ -640,6 +687,7 @@ export interface components {
         Items_PublicFeedbackStatement__MinLen_min_length_1_: components["schemas"]["PublicFeedbackStatement"][];
         Items_PublicLessonCitation__MaxLen_max_length_5_: components["schemas"]["PublicLessonCitation"][];
         Items_PublicVerificationCheck__MaxLen_max_length_5_: components["schemas"]["PublicVerificationCheck"][];
+        Items_SupportReference__MaxLen_max_length_3_: components["schemas"]["SupportReference"][];
         /** JourneyResponse */
         JourneyResponse: {
             /** Checkpoints */
@@ -655,6 +703,24 @@ export interface components {
             server_time: string;
         };
         LessonAlias: string;
+        /** LessonAssistantReply */
+        LessonAssistantReply: {
+            /** @default false */
+            can_complete_lesson: components["schemas"]["No"];
+            /** @default true */
+            interpretation_only: components["schemas"]["Yes"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "test_fixture" | "ai" | "none";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "answered" | "declined" | "unavailable";
+            text: components["schemas"]["AssistantText"];
+        };
         /** @enum {string} */
         LessonField: "title" | "objective" | "scenario" | "outgoing_code" | "schema_code";
         /** LessonResponse */
@@ -688,6 +754,10 @@ export interface components {
              */
             status: "alive";
         };
+        LocalId: string;
+        /** @constant */
+        No: false;
+        PassageText: string;
         /** PhaseResponse */
         PhaseResponse: {
             /** Attempt Count */
@@ -991,6 +1061,42 @@ export interface components {
              */
             state: "awaiting_prediction" | "ready_for_attempt" | "verification_pending" | "needs_revision" | "completed" | "abandoned";
         };
+        /** SupportAskCreate */
+        SupportAskCreate: {
+            /** Question */
+            question: string;
+        };
+        /** SupportEscalation */
+        SupportEscalation: {
+            label: components["schemas"]["Title"];
+            /** Url */
+            url: string;
+        };
+        /** @enum {string} */
+        SupportMessage: "Relevant approved documentation is quoted below." | "No relevant approved documentation was found." | "The approved documentation does not establish an answer." | "Customer support is currently unavailable.";
+        /** SupportReference */
+        SupportReference: {
+            passage_id: components["schemas"]["LocalId"];
+            quote: components["schemas"]["PassageText"];
+            source_id: components["schemas"]["LocalId"];
+            source_name: components["schemas"]["Title"];
+        };
+        /** SupportResponse */
+        SupportResponse: {
+            escalation?: components["schemas"]["SupportEscalation"] | null;
+            message: components["schemas"]["SupportMessage"];
+            /** @default [] */
+            references: components["schemas"]["Items_SupportReference__MaxLen_max_length_3_"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "test_fixture" | "ai" | "unavailable";
+            status: components["schemas"]["SupportStatus"];
+        };
+        /** @enum {string} */
+        SupportStatus: "answered" | "no_sources" | "unsupported" | "unavailable";
+        Title: string;
         /** TransferAttemptCreate */
         TransferAttemptCreate: {
             /**
@@ -1009,6 +1115,11 @@ export interface components {
              */
             field_name: "flat" | "nested";
         };
+        /** TutorQuestionCreate */
+        TutorQuestionCreate: {
+            /** Question */
+            question: string;
+        };
         /** Format: date-time */
         UTCInstant: string;
         /** ValidationIssue */
@@ -1023,6 +1134,8 @@ export interface components {
              */
             message: string;
         };
+        /** @constant */
+        Yes: true;
     };
     responses: never;
     parameters: never;
@@ -2828,6 +2941,122 @@ export interface operations {
             };
         };
     };
+    ask_lesson_tutor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TutorQuestionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonAssistantReply"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_verifications: {
         parameters: {
             query?: never;
@@ -2895,6 +3124,102 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    ask_support: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportAskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
