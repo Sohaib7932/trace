@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { CodeWindow } from "@/components/code/code-window";
 import { learningApi, type Schema } from "@/lib/api/client";
+import { ErrorNotice } from "./error-notice";
 import { actionStyle, inputStyle, panelStyle } from "./forms";
 
 export function utcLabel(value: string) { return new Date(value).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC"); }
@@ -57,7 +58,7 @@ export function RetrievalCard({ checkpoint, refresh }: { checkpoint: Schema["Che
     <p className="mt-2 text-xs text-secondary">{checkpoint.attempt_count} responses saved.{checkpoint.completed_at ? ` Completed: ${utcLabel(checkpoint.completed_at)}.` : ""}</p>
     {checkpoint.status !== "upcoming" && <button type="button" className={`${actionStyle} mt-4`} onClick={() => setOpen(!open)}>{open ? "Close checkpoint" : `Open checkpoint ${checkpoint.ordinal}`}</button>}
     {open && query.isPending && <p role="status">Loading your checkpoint…</p>}
-    {open && query.error && <p role="alert">{query.error.message} <button type="button" className="min-h-11 underline" onClick={() => void query.refetch()}>Retry checkpoint</button></p>}
+    {open && query.error && <ErrorNotice error={query.error} retry={() => void query.refetch()} retryLabel="Retry checkpoint" className="mt-4" />}
     {open && data?.question && <div className="mt-5 grid gap-4">
       <h4 className="font-semibold">{data.question.title}</h4><p className="text-sm leading-6">{data.question.prompt}</p>
       <pre className="overflow-x-auto rounded-xl bg-surface-muted p-3 text-sm">{data.question.payload}</pre>
@@ -69,7 +70,7 @@ export function RetrievalCard({ checkpoint, refresh }: { checkpoint: Schema["Che
         </fieldset>
         <button className={`${actionStyle} mt-4`} disabled={!selection || submission.isPending}>{submission.isPending ? "Saving response…" : "Save retrieval response"}</button>
       </form>}
-      {submission.error && <p role="alert">{submission.error.message} Your response is still here; submit again to retry.</p>}
+      {submission.error && <ErrorNotice error={submission.error}><p className="mt-1 text-sm text-secondary">Your response is still here; submit again to retry.</p></ErrorNotice>}
       <ol aria-label="Retrieval response history" aria-live="polite" className="grid gap-3">{data.attempts.map((attempt) => <li key={attempt.id} className="rounded-xl bg-surface-muted p-4 text-sm leading-6"><p className="font-semibold">Response {attempt.number} · {attempt.correct ? "correct" : "needs revision"}</p><p>{attempt.feedback}</p>{attempt.reasoning && <p className="mt-2 whitespace-pre-wrap">Your reasoning: {attempt.reasoning}</p>}</li>)}</ol>
     </div>}
   </section>;

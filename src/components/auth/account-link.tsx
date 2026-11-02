@@ -18,7 +18,7 @@ export function AccountLink({ guestLabel = "Sign in", className = "" }: { guestL
       href={signedIn ? "/account" : "/sign-in"}
       aria-hidden={loading || undefined}
       tabIndex={loading ? -1 : undefined}
-      className={`inline-flex min-h-11 items-center rounded-lg px-3 text-[0.875rem] font-medium tracking-[-0.01em] text-secondary transition-[color,opacity] duration-150 hover:text-foreground ${loading ? "pointer-events-none opacity-0" : "opacity-100"} ${className}`}
+      className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[0.875rem] whitespace-nowrap sm:px-3 font-medium tracking-[-0.01em] text-secondary transition-[color,opacity] duration-150 hover:text-foreground ${loading ? "pointer-events-none opacity-0" : "opacity-100"} ${className}`}
     >
       {signedIn ? "Account" : guestLabel}
     </Link>

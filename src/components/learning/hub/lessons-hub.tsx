@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, PenLine, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { lessons } from "@/content/lessons";
-import { accountApi, ApiError, learningApi } from "@/lib/api/client";
+import { accountApi, learningApi, retryOnInfrastructure } from "@/lib/api/client";
+import { ClaimGate } from "@/components/account/claim-gate";
+import { ErrorNotice } from "@/components/learning/error-notice";
 import { completedCount, formatWhen, hasAnyHistory, latestSession, lessonViews, nextAction, sessionStep } from "@/lib/learning/journey";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { CheckpointCard } from "./checkpoint-card";
+import { CreateCustomLesson, YourLessons } from "./custom-lessons";
+import { GuestLibrary } from "./guest-library";
 import { LessonCard } from "./lesson-card";
 
 export function LessonsHub() {
-  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 }, mutations: { retry: false } } }));
+  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: retryOnInfrastructure, staleTime: 10_000 }, mutations: { retry: false } } }));
   return <QueryClientProvider client={client}><Hub /></QueryClientProvider>;
 }
 
@@ -22,9 +26,11 @@ function Hub() {
   // A signed-in learner may choose to start fresh instead of keeping this browser's guest history.
   const [fresh, setFresh] = useState(false);
   const ready = auth.status !== "loading";
+  // Real lessons are for signed-in learners only. Guests never trigger a learner request.
+  const signedIn = auth.status === "signed-in";
   const hub = useQuery({
     queryKey: ["hub", auth.status, fresh],
-    enabled: ready,
+    enabled: signedIn,
     queryFn: async () => {
       if (auth.status === "signed-in") {
         const account = await accountApi.me();
@@ -42,7 +48,15 @@ function Hub() {
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["hub"] });
 
-  if (!ready || hub.isPending) return <HubSkeleton />;
+  if (!ready) return <HubSkeleton />;
+  if (!signedIn) return (
+    <div className="pb-[clamp(64px,8vw,120px)]">
+      <GuestLibrary unconfigured={auth.status === "unconfigured"} />
+      <YourLessons />
+      <CreateCustomLesson />
+    </div>
+  );
+  if (hub.isPending) return <HubSkeleton />;
   if (hub.error) return <HubError error={hub.error} retry={() => void hub.refetch()} />;
   if (hub.data.gate) return <ClaimGate onClaimed={refresh} onFresh={() => setFresh(true)} />;
 
@@ -74,7 +88,6 @@ function Hub() {
         {next.kind === "checkpoint" && <a href="#follow-ups" className="inline-flex min-h-11 shrink-0 items-center self-start rounded-[11px] bg-foreground px-5 text-[0.9375rem] font-medium text-white sm:self-auto">Go to follow-ups</a>}
       </div>
 
-      {auth.status === "guest" && <GuestBanner />}
 
       {current && currentSession ? (
         <section aria-labelledby="continue-title" className="hub-enter hub-card mt-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6" style={{ "--d": "80ms" } as React.CSSProperties}>
@@ -93,7 +106,8 @@ function Hub() {
       ) : null}
 
       <section aria-labelledby="path-title" className="mt-[clamp(40px,5vw,64px)]">
-        <h2 id="path-title" className="type-label text-secondary">Your path</h2>
+        <h2 id="path-title" className="type-h3">Trace lessons</h2>
+        <p className="mt-2 max-w-[62ch] text-[0.9375rem] leading-relaxed text-secondary">Written by the Trace team and checked against a real FastAPI server.</p>
         <ol className="lesson-path mt-5">
           {views.map((view, index) => (
             <LessonCard key={view.lesson.id} view={view} index={index} content={contents[index]} last={false} />
@@ -127,67 +141,11 @@ function Hub() {
           </ol>
         )}
       </section>
+
+      {/* Future, separate feature: custom lessons. Prepared UI only; nothing is generated or requested. */}
+      <YourLessons />
+      <CreateCustomLesson />
     </div>
-  );
-}
-
-function GuestBanner() {
-  const [dismissed, setDismissed] = useState(true);
-  useEffect(() => {
-    let hidden = false;
-    try { hidden = localStorage.getItem("trace.hub.guest-banner") === "dismissed"; } catch { hidden = false; }
-    const frame = requestAnimationFrame(() => setDismissed(hidden));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  if (dismissed) return null;
-  return (
-    <aside aria-label="Save your progress" className="hub-enter relative mt-6 flex flex-col gap-3 rounded-2xl border border-[#f3d3bd] bg-primary-soft p-4 pr-14 sm:flex-row sm:items-center sm:gap-4 sm:p-5 sm:pr-16" style={{ "--d": "40ms" } as React.CSSProperties}>
-      <p className="min-w-0 flex-1 text-[0.9375rem] leading-relaxed">
-        <span className="font-semibold">Create an account to keep your progress across devices.</span>{" "}
-        <span className="text-secondary">You can keep learning as a guest; this browser remembers your work.</span>
-      </p>
-      <Link href="/sign-up?next=/learn" className="inline-flex min-h-11 shrink-0 items-center self-start rounded-[10px] bg-foreground px-4 text-[0.875rem] font-medium text-white hover:bg-foreground/85 sm:self-auto">Create account</Link>
-      <button type="button" aria-label="Dismiss" onClick={() => { setDismissed(true); try { localStorage.setItem("trace.hub.guest-banner", "dismissed"); } catch { /* storage unavailable: hide for this visit */ } }} className="absolute top-2 right-2 inline-flex size-11 items-center justify-center rounded-[10px] text-secondary hover:bg-foreground/5 hover:text-foreground sm:top-1/2 sm:right-3 sm:-translate-y-1/2">
-        <X aria-hidden="true" className="size-4" strokeWidth={1.8} />
-      </button>
-    </aside>
-  );
-}
-
-function ClaimGate({ onClaimed, onFresh }: { onClaimed: () => void; onFresh: () => void }) {
-  const [confirm, setConfirm] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
-  const key = useRef<string | null>(null);
-  async function claim() {
-    setPending(true); setMessage("");
-    key.current ??= crypto.randomUUID();
-    try { await accountApi.claim(key.current); onClaimed(); }
-    catch (error) {
-      setMessage(error instanceof ApiError && error.status === 409 ? "This account already has its own history. Neither history was changed." : error instanceof Error ? error.message : "That didn't work. Try again.");
-      setPending(false);
-    }
-  }
-  return (
-    <section aria-labelledby="gate-title" className="hub-card mt-2 max-w-[44rem] p-6 sm:p-8">
-      <h2 id="gate-title" className="type-h3">This browser has guest progress</h2>
-      <p className="mt-3 text-[0.9375rem] leading-relaxed text-secondary">You learned here as a guest before signing in. Keep that history with your account so your lessons, attempts and follow-ups stay together. If you start fresh instead, the guest history stays in this browser and isn&apos;t combined later.</p>
-      {confirm ? (
-        <div className="mt-6 grid gap-3">
-          <p className="text-[0.9375rem] font-medium">Move this browser&apos;s guest history to your account? The guest link in this browser stops working afterwards.</p>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={claim} disabled={pending} className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white disabled:opacity-45">{pending ? "Moving…" : "Yes, keep it with my account"}</button>
-            <button type="button" onClick={() => setConfirm(false)} disabled={pending} className="inline-flex min-h-11 items-center rounded-[11px] px-4 font-medium underline-offset-4 hover:underline">Cancel</button>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={() => setConfirm(true)} className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Keep my guest progress</button>
-          <button type="button" onClick={onFresh} className="inline-flex min-h-11 items-center rounded-[11px] border border-border-strong bg-surface px-5 font-medium hover:bg-surface-muted">Start fresh on this account</button>
-        </div>
-      )}
-      {message && <p role="alert" className="mt-4 text-[0.9375rem]">{message}</p>}
-    </section>
   );
 }
 
@@ -212,12 +170,5 @@ function HubSkeleton() {
 }
 
 function HubError({ error, retry }: { error: Error; retry: () => void }) {
-  const offline = error instanceof ApiError && error.status === 0;
-  return (
-    <section role="alert" className="hub-card mt-2 max-w-[44rem] p-6 sm:p-8">
-      <h2 className="type-h3">{offline ? "Trace can't reach the lesson server" : "Your lessons couldn't load"}</h2>
-      <p className="mt-3 text-[0.9375rem] leading-relaxed text-secondary">{error.message}</p>
-      <button type="button" onClick={retry} className="mt-6 inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Try again</button>
-    </section>
-  );
+  return <ErrorNotice error={error} retry={retry} className="mt-2 max-w-[44rem]" />;
 }

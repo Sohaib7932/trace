@@ -18,7 +18,7 @@ export function SiteHeader() {
             <Wordmark />
           </Link>
 
-          <ul className="hidden items-center gap-0.5 md:flex">
+          <ul className="hidden items-center gap-0.5 lg:flex">
           {navLinks.map((link) => (
             <li key={link.href}>
               <a

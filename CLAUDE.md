@@ -45,7 +45,7 @@ Trace helps engineers who work with AI coding agents learn to:
 - Give agents clearer direction because they understand the code.
 - Apply previously learned concepts independently.
 
-Trace is not an AI agent and does not contain one. It is not an AI code generator, a chatbot, an "AI tutor", a conventional coding quiz platform, or a passive tutorial application.
+Trace is not an AI agent and not an AI code generator, a conventional coding quiz platform, or a passive tutorial application. It may offer AI help that explains, guides and supports (a lesson tutor, a support assistant), but AI never decides correctness or completion and never writes the learner's fix (see "AI features" in section 15).
 
 It is a practice environment focused on understanding real program behavior. Code in a lesson is something the learner reviews and verifies (code from a project, or agent-generated code under review), never something Trace writes for them. Verification is deterministic and backend-driven.
 
@@ -1160,7 +1160,7 @@ Audience:
 Positioning in copy:
 - Frame the learner as an engineer who directs, reviews, and debugs, not as someone who only prompts.
 - Present lesson code as code under review: "code from your project", "agent-generated code under review", "the endpoint your agent wrote". Never imply Trace wrote it.
-- Trace teaches; it does not generate, chat, or tutor. Describe what the learner does, not what an AI does for them.
+- Trace teaches; it does not write code for the learner. AI help explains and guides; describe what the learner does, and never say the AI decided they are right.
 
 Preferred writing:
 - Short, useful sentences.
@@ -1198,8 +1198,8 @@ Better:
 
 Also avoid:
 - "AI-powered learning."
-- "Your AI tutor."
-- "Chat with Trace."
+- "Your AI tutor knows the answer."
+- "The AI checked your code."
 - "Trace writes the code for you."
 
 ---
@@ -1292,14 +1292,23 @@ Specifically avoid:
 18. Overcomplicated component abstractions.
 19. Unnecessary dependencies.
 20. Replacing working backend functionality with frontend simulations.
-21. Presenting Trace as an AI agent, chatbot, code generator, or AI tutor.
+21. Presenting Trace as an AI agent or code generator, or letting AI output stand in for verification.
 
 ## Positioning rule: Trace is not an AI agent
 
-- It is not an AI agent, and it does not contain one.
-- It is not an AI code generator, a chatbot, or an "AI tutor".
-- Do not add chat interfaces, assistant panels, or "AI-powered" claims anywhere in the UI or copy.
+- It is not an AI agent or an AI code generator. No "AI-powered" marketing claims.
 - Verification stays deterministic and backend-driven, as already specified.
+
+## AI features (tutor, support assistant, daily exercises)
+
+- **AI explains, guides and supports; it never decides.** Correctness and completion come only from deterministic backend verification. AI copy never says a learner is correct, complete or has mastered anything, and AI output is shown visibly apart from verified evidence.
+- **The tutor is the primary help in every lesson** (docked and collapsible from 1280px, right-edge drawer at 1024-1279px, bottom drawer below). It shows a context line (lesson and current step) and sends only the lesson id, step and ids of real stored evidence to the adapter. It explains concepts, answers lesson-scoped questions and explains a real failed run using that run's stored checks. The full worked explanation is a deliberate last step with a confirm, never revealed early. Hints come from the real `POST /sessions/{id}/hints` and stay labelled "Fixture guidance".
+- **Real lessons are for signed-in learners.** Guests get demos only (homepage demo, `/today` demo steps); lesson pages and `/learn` show sign-in prompts and make no learner, session or journey request for guests (`AccountGate` with `signIn`).
+- **AI lesson creation (custom lessons) is a separate, future feature.** `/learn` may show its disabled form and an empty "Your lessons" section, but never fake generation, invented lessons or calls to endpoints that aren't in `openapi.json`. Lessons are read through `src/lib/learning/lesson-source.ts`.
+- **The support assistant** ("Trace Help") answers product and account questions from an approved help corpus, cites its sources, says "I'm not sure" when nothing matches, and offers a human only when an escalation destination exists. It never asks for passwords or secret keys.
+- **The RAG and LLM are backend-owned.** The frontend calls only public Trace API endpoints. No provider SDK, LLM key, search index, or Next.js route handler/server action that calls a model. No credentials in any frontend variable, including `NEXT_PUBLIC_*`.
+- **Mocks are always labelled.** Until real endpoints exist, AI surfaces run from `src/lib/ai/` mocks selected by `NEXT_PUBLIC_AI_MODE=mock|real` (default `mock`). Every mock-driven surface shows a persistent "Demo responses" label. Mock output never changes real hint counts, verification, progress or the journey, and is never presented as real AI, real verification or real learner history.
+- Proposed contracts and the backend requests live in `src/lib/ai/contracts.ts` and `docs/frontend-api-requests.md`; never call a URL that isn't in `openapi.json`.
 
 The visual quality should come from composition, typography, originality, craft, and attention to detail—not from excessive decoration.
 

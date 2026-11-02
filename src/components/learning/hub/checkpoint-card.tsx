@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, CircleDashed, Clock } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { learningApi, type Schema } from "@/lib/api/client";
+import { ErrorNotice } from "@/components/learning/error-notice";
 import { checkpointLabels } from "@/content/lessons";
 import { formatWhen } from "@/lib/learning/journey";
 
@@ -68,7 +69,7 @@ function CheckpointQuestion({ checkpoint, onChange }: { checkpoint: Checkpoint; 
   });
   const data = query.data;
   if (query.isPending) return <p role="status" className="mt-5 text-[0.9375rem] text-secondary">Loading the question…</p>;
-  if (query.error) return <p role="alert" className="mt-5 text-[0.9375rem] text-error">{query.error.message} <button type="button" className="min-h-11 underline underline-offset-4" onClick={() => void query.refetch()}>Try again</button></p>;
+  if (query.error) return <ErrorNotice error={query.error} retry={() => void query.refetch()} className="mt-5" />;
   if (!data?.question) return <p className="mt-5 text-[0.9375rem] text-secondary">The question isn&apos;t available yet.</p>;
   const q = data.question;
   return (
@@ -94,7 +95,7 @@ function CheckpointQuestion({ checkpoint, onChange }: { checkpoint: Checkpoint; 
             </label>
           </fieldset>
           <button className="inline-flex min-h-11 w-fit items-center rounded-[11px] bg-foreground px-5 font-medium text-white transition-colors hover:bg-foreground/85 disabled:opacity-45" disabled={!selection || submission.isPending}>{submission.isPending ? "Saving…" : "Save my answer"}</button>
-          {submission.error && <p role="alert" className="text-[0.9375rem] text-error">{submission.error.message} Your choice is still selected; save again to retry.</p>}
+          {submission.error && <ErrorNotice error={submission.error}><p className="mt-1 text-sm text-secondary">Your choice is still selected. Saving again reuses the same request, so it can&apos;t be counted twice.</p></ErrorNotice>}
         </form>
       )}
       {data.attempts.length > 0 && (

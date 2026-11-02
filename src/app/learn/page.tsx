@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SiteHeader } from "@/components/layout/site-header";
 import { LessonsHub } from "@/components/learning/hub/lessons-hub";
 import { SplitHeading } from "@/components/motion/split-heading";
@@ -27,6 +28,9 @@ export default function LessonsPage() {
           />
           <p className="enter mt-4 max-w-[34rem] text-[1rem] leading-relaxed text-secondary sm:text-[1.0625rem]" style={{ "--d": "260ms" } as React.CSSProperties}>
             Each lesson takes 5–10 minutes. Predict what the server does, change one thing, then check what really happened.
+          </p>
+          <p className="enter mt-3 text-[0.9375rem]" style={{ "--d": "320ms" } as React.CSSProperties}>
+            <Link href="/today" className="inline-flex min-h-11 items-center font-medium underline underline-offset-4">See today&apos;s exercises (design preview)</Link>
           </p>
         </header>
         <LessonsHub />
