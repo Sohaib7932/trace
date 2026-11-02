@@ -15,6 +15,7 @@ from app.core.errors import ApplicationError
 from app.core.settings import Settings
 from app.db.accounts import SqlAccountRepository
 from app.db.candidates import SqlCandidateRepository
+from app.db.feedback_release import SqlFeedbackReleaseRepository
 from app.db.health import SqlReadinessProbe
 from app.db.learning import SqlLearningRepository
 from app.db.session import Database
@@ -23,13 +24,16 @@ from app.domain.clock import Clock
 from app.domain.learning import LearningError
 from app.repositories.learning import LearningRepository
 from app.repositories.verification import NotesVerifier
+from app.schemas.public_feedback import FeedbackVisibilityPolicy
 from app.services.accounts import AccountService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.catalog import CatalogService
 from app.services.evidence_feedback import EvidenceFeedbackService
+from app.services.feedback_release import FeedbackReleaseService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
+from app.services.learner_feedback import LearnerFeedbackService
 from app.services.learning import LearningService
 from app.services.lesson_assistant import LessonAssistantService
 from app.services.retrieval import RetrievalService
@@ -220,6 +224,27 @@ def get_evidence_feedback_service(
     # Internal composition only; no learner route or hint-provider selection changes.
     return EvidenceFeedbackService(
         repository, resources.evidence_feedback_provider, cast(Clock, request.app.state.clock)
+    )
+
+
+def get_feedback_release_service(
+    request: Request,
+    database: Annotated[Database, Depends(get_database)],
+    feedback: Annotated[EvidenceFeedbackService, Depends(get_evidence_feedback_service)],
+) -> FeedbackReleaseService:
+    return FeedbackReleaseService(
+        SqlFeedbackReleaseRepository(database), feedback, cast(Clock, request.app.state.clock)
+    )
+
+
+def get_learner_feedback_service(
+    request: Request,
+    release: Annotated[FeedbackReleaseService, Depends(get_feedback_release_service)],
+) -> LearnerFeedbackService:
+    # No audience/next-action/reflection policy is production-approved. This
+    # internal dependency stays disabled and is not mounted on a public route.
+    return LearnerFeedbackService(
+        release, FeedbackVisibilityPolicy.disabled(), cast(Clock, request.app.state.clock)
     )
 
 
