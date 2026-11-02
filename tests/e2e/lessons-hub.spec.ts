@@ -22,7 +22,21 @@ test("'Try a lesson' and 'Try Trace' lead to the lessons hub; 'See how Trace wor
   await page.locator("#top").getByRole("link", { name: "Try a lesson" }).click();
   await expect(page).toHaveURL(/\/learn$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("real code");
+  // Guests only get demos: the hub lists the lessons and asks them to sign in.
+  await expect(page.getByRole("heading", { name: "Sign in to start the lessons" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
+  await expect(page.getByText("0 of 2 lessons completed", { exact: true })).toHaveCount(0);
+  await noOverflow(page);
+  expect(errors).toEqual([]);
+});
+
+test("a signed-in learner's hub shows the progress summary from the server journey", async ({ page, request }) => {
+  const errors: string[] = [];
+  await signUp(page, request);
+  await guard(page, errors);
+  await page.goto("/learn");
   await expect(page.getByText("0 of 2 lessons completed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
   await noOverflow(page);
   expect(errors).toEqual([]);
 });

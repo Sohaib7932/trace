@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, PenLine, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowRight, PenLine } from "lucide-react";
+import { useState } from "react";
 import { lessons } from "@/content/lessons";
 import { accountApi, learningApi, retryOnInfrastructure } from "@/lib/api/client";
 import { ClaimGate } from "@/components/account/claim-gate";
