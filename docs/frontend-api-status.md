@@ -187,13 +187,15 @@ guest/account hub expectations and shared fixture-clock cleanup/reset. Productio
 authentication and JWT-expiry enforcement were not weakened.
 
 The combined-main [quality run](https://github.com/Sohaib7932/trace/actions/runs/41449851907)
-passed frontend checks: **134 component/unit tests, 58 browser tests passed and
-4 existing browser tests skipped**. Ubuntu passed **3,271 backend tests**, Ruff,
+completed successfully on 2 November at 13:18 UTC (18:18 PKT). Frontend checks
+passed: **134 component/unit tests, 58 browser tests passed and 4 existing browser
+tests skipped**. Windows and Ubuntu each passed **3,271 backend tests**, Ruff,
 formatting (226 files), mypy (146 source files), migration and schema checks.
-Ubuntu's full-suite coverage is **97.34%**, with the existing threshold unchanged.
+Both full-suite coverage results are **97.34%**, with the existing threshold
+unchanged. Windows pytest took 712.27 seconds; Ubuntu took 373.26 seconds.
 A fresh local Windows run passed **97 focused feedback API/security tests** in
 43.07 seconds using disposable fixtures. The application schema was independently
 compared with both current full JSON exports; all matched at 22 paths / 24
-operations. At this audit, the full Windows CI job is still running; the overall
-combined run must not be described as green until that job also succeeds.
+operations. These full-suite results belong to merged main at the audited commit;
+this handoff adds only documentation and the genuine shared session log.
 This does not establish a real hosted sign-in or a feedback browser walkthrough.
