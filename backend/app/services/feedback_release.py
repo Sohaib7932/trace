@@ -1,4 +1,4 @@
-"""Fresh authorization and source-current evaluation, with no public endpoint."""
+"""Fresh authorization and source-current evaluation for guarded orchestration."""
 
 from collections.abc import Iterable, Iterator
 from contextlib import AbstractContextManager, contextmanager
@@ -26,6 +26,7 @@ from app.schemas.feedback_release import (
     FreshAuthorization,
     ReleasedFeedbackResult,
     ReleaseSession,
+    ReleaseSessionState,
     SelectedAttempt,
     SelectedRun,
     feedback_release_digest,
@@ -257,6 +258,7 @@ class FeedbackReleaseService:
         principal: Principal,
         session_id: UUID,
         scope: FeedbackReleaseScope,
+        allowed_states: tuple[ReleaseSessionState, ...] | None = None,
     ) -> FeedbackEvaluationEnvelope:
         cutoff = as_utc(self.clock())
         request_id = uuid4()
@@ -270,6 +272,7 @@ class FeedbackReleaseService:
                 lesson, public = _supported_lesson(read.session, read.lesson)
                 if (
                     authorization.mode not in scope.allowed_modes
+                    or (allowed_states is not None and session.state not in allowed_states)
                     or (
                         session.state in {"completed", "abandoned"}
                         and not scope.allow_terminal_reflection
@@ -388,6 +391,7 @@ class FeedbackReleaseService:
         session_id: UUID,
         *,
         scope: FeedbackReleaseScope,
+        allowed_states: tuple[ReleaseSessionState, ...] | None = None,
     ) -> ReleasedFeedbackResult:
         """Only server-side authenticated callers may supply this typed scope.
 
@@ -395,12 +399,14 @@ class FeedbackReleaseService:
         observed in the final consistent read; released_at records the post-read
         decision. Known expiry is checked again after result validation, just
         before handoff. Later storage commits cannot retract an emitted result.
-        There is no public endpoint, cache, retry loop or authorization token.
+        This service does not own a cache, retry loop or authorization token.
+        The HTTP integration adds its own admission/deadline boundary and can
+        narrow eligible session states without changing legacy internal scope.
         """
         if not isinstance(session_id, UUID):
             raise ValueError("A feedback session identifier must be a UUID")
         checked_scope = FeedbackReleaseScope.model_validate(scope.model_dump(warnings=False))
-        envelope = self._capture(principal, session_id, checked_scope)
+        envelope = self._capture(principal, session_id, checked_scope, allowed_states)
         reply: FeedbackReply | None = None
         try:
             self._time_valid(envelope.authorization, as_utc(self.clock()))

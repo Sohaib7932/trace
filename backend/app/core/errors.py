@@ -37,6 +37,7 @@ def register_error_handlers(app: FastAPI) -> None:
             "conflict": 409,
             "invalid_state": 409,
             "hint_limit": 409,
+            "feedback_changed": 409,
             "unsupported_change": 422,
             "dependency_unavailable": 503,
         }

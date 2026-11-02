@@ -294,6 +294,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Feedback
+         * @description Build feedback from owned backend evidence; clients provide no facts.
+         *
+         *     This read-only POST recomputes the current authorized projection. It does
+         *     not create an assignment, alter an attempt or accept an evaluator result.
+         *     The worker owns its permit until synchronous work actually finishes even
+         *     if its HTTP waiter reaches the request deadline or disconnects.
+         */
+        post: operations["get_session_feedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/hints": {
         parameters: {
             query?: never;
@@ -441,6 +466,8 @@ export interface components {
             /** Number */
             number: number;
         };
+        /** @enum {string} */
+        CheckCode: "http_status" | "api_response" | "validation" | "row_count" | "stored_values";
         /** CheckResponse */
         CheckResponse: {
             /** Code */
@@ -500,6 +527,7 @@ export interface components {
         };
         /** Contract */
         Contract: Record<string, never>;
+        Digest: string;
         /** ErrorDetail */
         ErrorDetail: {
             /** Code */
@@ -527,6 +555,9 @@ export interface components {
             /** Reference Id */
             reference_id: string | null;
         };
+        EvidenceAlias: string;
+        /** @enum {string} */
+        EvidenceDescription: "Your original prediction" | "Your submitted attempt" | "Your runtime verification" | "Your recorded recovery sequence" | "Your completed Tasks exercise" | "Your hint request" | "Your tutor guidance record";
         /** EvidenceSummary */
         EvidenceSummary: {
             /** Attempt Count */
@@ -544,6 +575,9 @@ export interface components {
             /** Verification Errors */
             verification_errors: number;
         };
+        /** @enum {string} */
+        FeedbackState: "supported" | "partially_supported" | "insufficient_evidence" | "unavailable";
+        FeedbackText: string;
         /** HintCreate */
         HintCreate: {
             /** Attempt Id */
@@ -600,6 +634,12 @@ export interface components {
              */
             learner_id: string;
         };
+        Items_EvidenceAlias__MaxLen_max_length_8_: components["schemas"]["EvidenceAlias"][];
+        Items_LessonAlias__MaxLen_max_length_5_: components["schemas"]["LessonAlias"][];
+        Items_PublicFeedbackSection__MaxLen_max_length_4_: components["schemas"]["PublicFeedbackSection"][];
+        Items_PublicFeedbackStatement__MinLen_min_length_1_: components["schemas"]["PublicFeedbackStatement"][];
+        Items_PublicLessonCitation__MaxLen_max_length_5_: components["schemas"]["PublicLessonCitation"][];
+        Items_PublicVerificationCheck__MaxLen_max_length_5_: components["schemas"]["PublicVerificationCheck"][];
         /** JourneyResponse */
         JourneyResponse: {
             /** Checkpoints */
@@ -614,6 +654,9 @@ export interface components {
              */
             server_time: string;
         };
+        LessonAlias: string;
+        /** @enum {string} */
+        LessonField: "title" | "objective" | "scenario" | "outgoing_code" | "schema_code";
         /** LessonResponse */
         LessonResponse: {
             /** Id */
@@ -702,6 +745,97 @@ export interface components {
             summary: components["schemas"]["EvidenceSummary"];
             /** Verifications */
             verifications: components["schemas"]["RunResponse"][];
+        };
+        /** PublicEvidenceCitation */
+        PublicEvidenceCitation: {
+            alias: components["schemas"]["EvidenceAlias"];
+            checks: components["schemas"]["Items_PublicVerificationCheck__MaxLen_max_length_5_"];
+            description: components["schemas"]["EvidenceDescription"];
+            occurred_at: components["schemas"]["UTCInstant"];
+        };
+        /** PublicFeedbackReply */
+        PublicFeedbackReply: {
+            as_of: components["schemas"]["UTCInstant"] | null;
+            /**
+             * Availability
+             * @enum {string}
+             */
+            availability: "available" | "not_ready" | "not_supported" | "unavailable";
+            /**
+             * Delivery State
+             * @enum {string}
+             */
+            delivery_state: "deterministic" | "mock" | "unavailable";
+            /** Evidence Citations */
+            evidence_citations: components["schemas"]["PublicEvidenceCitation"][];
+            feedback_state: components["schemas"]["FeedbackState"] | null;
+            lesson: components["schemas"]["PublicLessonIdentity"] | null;
+            lesson_citations: components["schemas"]["Items_PublicLessonCitation__MaxLen_max_length_5_"];
+            notice: components["schemas"]["PublicNotice"];
+            /**
+             * Policy Version
+             * @default evidence-feedback-visibility-v1
+             * @constant
+             */
+            policy_version: "evidence-feedback-visibility-v1";
+            /**
+             * Schema Version
+             * @default evidence-feedback-public-v1
+             * @constant
+             */
+            schema_version: "evidence-feedback-public-v1";
+            sections: components["schemas"]["Items_PublicFeedbackSection__MaxLen_max_length_4_"];
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
+        /** PublicFeedbackSection */
+        PublicFeedbackSection: {
+            items: components["schemas"]["Items_PublicFeedbackStatement__MinLen_min_length_1_"];
+            kind: components["schemas"]["SectionName"];
+        };
+        /** PublicFeedbackStatement */
+        PublicFeedbackStatement: {
+            evidence_aliases: components["schemas"]["Items_EvidenceAlias__MaxLen_max_length_8_"];
+            lesson_aliases: components["schemas"]["Items_LessonAlias__MaxLen_max_length_5_"];
+            role: components["schemas"]["PublicRole"];
+            text: components["schemas"]["FeedbackText"];
+        };
+        /** PublicLessonCitation */
+        PublicLessonCitation: {
+            alias: components["schemas"]["LessonAlias"];
+            field: components["schemas"]["LessonField"];
+            label: components["schemas"]["PublicLessonLabel"];
+            lesson: components["schemas"]["PublicLessonIdentity"];
+            sha256: components["schemas"]["Digest"];
+        };
+        /** PublicLessonIdentity */
+        PublicLessonIdentity: {
+            /**
+             * Lesson Id
+             * @enum {string}
+             */
+            lesson_id: "fastapi-payload-mismatch" | "fastapi-nested-payload-transfer";
+            public_content_sha256: components["schemas"]["Digest"];
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+        };
+        /** @enum {string} */
+        PublicLessonLabel: "Lesson title" | "Learning objective" | "Lesson scenario" | "Outgoing request builder" | "Receiving schema";
+        /** @enum {string} */
+        PublicNotice: "Feedback is not ready until an attempt has been submitted." | "Feedback is not enabled for this session." | "Feedback is unavailable. Try again later." | "This feedback uses deterministic evidence rules." | "This feedback uses a deterministic mock wording selection." | "There is not enough evidence for a competency conclusion.";
+        /** @enum {string} */
+        PublicRole: "observation" | "limitation" | "next_action";
+        /** PublicVerificationCheck */
+        PublicVerificationCheck: {
+            code: components["schemas"]["CheckCode"];
+            /** Matched */
+            matched: boolean;
         };
         /** QuestionOption */
         QuestionOption: {
@@ -820,6 +954,8 @@ export interface components {
              */
             status: "pending" | "passed" | "failed" | "error";
         };
+        /** @enum {string} */
+        SectionName: "demonstrated" | "needs_improvement" | "why" | "next";
         /** SessionCreate */
         SessionCreate: {
             /** Lesson Id */
@@ -873,6 +1009,8 @@ export interface components {
              */
             field_name: "flat" | "nested";
         };
+        /** Format: date-time */
+        UTCInstant: string;
         /** ValidationIssue */
         ValidationIssue: {
             /** Code */
@@ -2249,6 +2387,122 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_session_feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Contract"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFeedbackReply"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };

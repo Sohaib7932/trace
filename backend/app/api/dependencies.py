@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.client import BoundedAIClient
 from app.ai.interface import TutorProvider
+from app.ai.providers.disabled_evidence_feedback import DisabledEvidenceFeedbackProvider
 from app.ai.providers.fake import FakeTutorProvider
 from app.ai.question_generator import QuestionGenerator
 from app.ai.resources import AIResources
@@ -24,12 +25,14 @@ from app.domain.clock import Clock
 from app.domain.learning import LearningError
 from app.repositories.learning import LearningRepository
 from app.repositories.verification import NotesVerifier
+from app.schemas.feedback_release import FeedbackReleaseScope
 from app.schemas.public_feedback import FeedbackVisibilityPolicy
 from app.services.accounts import AccountService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.catalog import CatalogService
 from app.services.evidence_feedback import EvidenceFeedbackService
+from app.services.feedback_operations import FeedbackOperations
 from app.services.feedback_release import FeedbackReleaseService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
@@ -245,6 +248,54 @@ def get_learner_feedback_service(
     # internal dependency stays disabled and is not mounted on a public route.
     return LearnerFeedbackService(
         release, FeedbackVisibilityPolicy.disabled(), cast(Clock, request.app.state.clock)
+    )
+
+
+def get_feedback_operations(request: Request) -> FeedbackOperations:
+    """Reuse one application-owned admission controller, never one per request."""
+    operations = getattr(request.app.state, "feedback_operations", None)
+    if not isinstance(operations, FeedbackOperations):
+        raise ApplicationError("dependency_unavailable", "Feedback is unavailable.", 503)
+    return operations
+
+
+def get_http_feedback_release_service(
+    request: Request,
+    database: Annotated[Database, Depends(get_database)],
+    repository: Annotated[LearningRepository, Depends(get_learning_repository)],
+    operations: Annotated[FeedbackOperations, Depends(get_feedback_operations)],
+) -> FeedbackReleaseService:
+    """Keep public delivery deterministic even if internal tests inject a mock."""
+    clock = cast(Clock, request.app.state.clock)
+    feedback = EvidenceFeedbackService(
+        repository, operations.bounded_provider(DisabledEvidenceFeedbackProvider()), clock
+    )
+    return FeedbackReleaseService(SqlFeedbackReleaseRepository(database), feedback, clock)
+
+
+def get_http_learner_feedback_service(
+    request: Request,
+    release: Annotated[FeedbackReleaseService, Depends(get_http_feedback_release_service)],
+) -> LearnerFeedbackService:
+    """The explicitly approved account reflection audience, without repair hints."""
+    policy = FeedbackVisibilityPolicy(
+        scope=FeedbackReleaseScope(allowed_modes=("account",), allow_terminal_reflection=True),
+        include_recall=False,
+        next_action_ids=(),
+        allow_mock_delivery=False,
+        approval_reference="phase35c-mvp-account-reflection-v1",
+    )
+    return LearnerFeedbackService(
+        release,
+        policy,
+        cast(Clock, request.app.state.clock),
+        allowed_states=(
+            "awaiting_prediction",
+            "ready_for_attempt",
+            "verification_pending",
+            "needs_revision",
+            "completed",
+        ),
     )
 
 

@@ -161,6 +161,16 @@
         "title": "AttemptResponse",
         "type": "object"
       },
+      "CheckCode": {
+        "enum": [
+          "http_status",
+          "api_response",
+          "validation",
+          "row_count",
+          "stored_values"
+        ],
+        "type": "string"
+      },
       "CheckResponse": {
         "additionalProperties": false,
         "properties": {
@@ -287,6 +297,12 @@
         "title": "Contract",
         "type": "object"
       },
+      "Digest": {
+        "maxLength": 64,
+        "minLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
       "ErrorDetail": {
         "additionalProperties": false,
         "properties": {
@@ -363,6 +379,22 @@
         "title": "EventResponse",
         "type": "object"
       },
+      "EvidenceAlias": {
+        "pattern": "^e(?:[1-9]|[1-5][0-9]|6[0-4])$",
+        "type": "string"
+      },
+      "EvidenceDescription": {
+        "enum": [
+          "Your original prediction",
+          "Your submitted attempt",
+          "Your runtime verification",
+          "Your recorded recovery sequence",
+          "Your completed Tasks exercise",
+          "Your hint request",
+          "Your tutor guidance record"
+        ],
+        "type": "string"
+      },
       "EvidenceSummary": {
         "additionalProperties": false,
         "properties": {
@@ -413,6 +445,20 @@
         ],
         "title": "EvidenceSummary",
         "type": "object"
+      },
+      "FeedbackState": {
+        "enum": [
+          "supported",
+          "partially_supported",
+          "insufficient_evidence",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "FeedbackText": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
       },
       "HintCreate": {
         "additionalProperties": false,
@@ -536,6 +582,42 @@
         "title": "IdentityResponse",
         "type": "object"
       },
+      "Items_EvidenceAlias__MaxLen_max_length_8_": {
+        "items": {
+          "$ref": "#/components/schemas/EvidenceAlias"
+        },
+        "type": "array"
+      },
+      "Items_LessonAlias__MaxLen_max_length_5_": {
+        "items": {
+          "$ref": "#/components/schemas/LessonAlias"
+        },
+        "type": "array"
+      },
+      "Items_PublicFeedbackSection__MaxLen_max_length_4_": {
+        "items": {
+          "$ref": "#/components/schemas/PublicFeedbackSection"
+        },
+        "type": "array"
+      },
+      "Items_PublicFeedbackStatement__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/PublicFeedbackStatement"
+        },
+        "type": "array"
+      },
+      "Items_PublicLessonCitation__MaxLen_max_length_5_": {
+        "items": {
+          "$ref": "#/components/schemas/PublicLessonCitation"
+        },
+        "type": "array"
+      },
+      "Items_PublicVerificationCheck__MaxLen_max_length_5_": {
+        "items": {
+          "$ref": "#/components/schemas/PublicVerificationCheck"
+        },
+        "type": "array"
+      },
       "JourneyResponse": {
         "additionalProperties": false,
         "properties": {
@@ -579,6 +661,20 @@
         ],
         "title": "JourneyResponse",
         "type": "object"
+      },
+      "LessonAlias": {
+        "pattern": "^l[1-5]$",
+        "type": "string"
+      },
+      "LessonField": {
+        "enum": [
+          "title",
+          "objective",
+          "scenario",
+          "outgoing_code",
+          "schema_code"
+        ],
+        "type": "string"
       },
       "LessonResponse": {
         "additionalProperties": false,
@@ -805,6 +901,286 @@
           "summary"
         ],
         "title": "ProgressResponse",
+        "type": "object"
+      },
+      "PublicEvidenceCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "$ref": "#/components/schemas/EvidenceAlias"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/Items_PublicVerificationCheck__MaxLen_max_length_5_",
+            "maxLength": 5
+          },
+          "description": {
+            "$ref": "#/components/schemas/EvidenceDescription"
+          },
+          "occurred_at": {
+            "$ref": "#/components/schemas/UTCInstant"
+          }
+        },
+        "required": [
+          "alias",
+          "description",
+          "occurred_at",
+          "checks"
+        ],
+        "title": "PublicEvidenceCitation",
+        "type": "object"
+      },
+      "PublicFeedbackReply": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UTCInstant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "not_ready",
+              "not_supported",
+              "unavailable"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "delivery_state": {
+            "enum": [
+              "deterministic",
+              "mock",
+              "unavailable"
+            ],
+            "title": "Delivery State",
+            "type": "string"
+          },
+          "evidence_citations": {
+            "items": {
+              "$ref": "#/components/schemas/PublicEvidenceCitation"
+            },
+            "maxItems": 64,
+            "title": "Evidence Citations",
+            "type": "array"
+          },
+          "feedback_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedbackState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lesson": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicLessonIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lesson_citations": {
+            "$ref": "#/components/schemas/Items_PublicLessonCitation__MaxLen_max_length_5_",
+            "maxLength": 5
+          },
+          "notice": {
+            "$ref": "#/components/schemas/PublicNotice"
+          },
+          "policy_version": {
+            "const": "evidence-feedback-visibility-v1",
+            "default": "evidence-feedback-visibility-v1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "evidence-feedback-public-v1",
+            "default": "evidence-feedback-public-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "sections": {
+            "$ref": "#/components/schemas/Items_PublicFeedbackSection__MaxLen_max_length_4_",
+            "maxLength": 4
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "availability",
+          "feedback_state",
+          "delivery_state",
+          "session_id",
+          "lesson",
+          "as_of",
+          "sections",
+          "evidence_citations",
+          "lesson_citations",
+          "notice"
+        ],
+        "title": "PublicFeedbackReply",
+        "type": "object"
+      },
+      "PublicFeedbackSection": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "$ref": "#/components/schemas/Items_PublicFeedbackStatement__MinLen_min_length_1_",
+            "maxLength": 12,
+            "minLength": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SectionName"
+          }
+        },
+        "required": [
+          "kind",
+          "items"
+        ],
+        "title": "PublicFeedbackSection",
+        "type": "object"
+      },
+      "PublicFeedbackStatement": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_aliases": {
+            "$ref": "#/components/schemas/Items_EvidenceAlias__MaxLen_max_length_8_",
+            "maxLength": 8
+          },
+          "lesson_aliases": {
+            "$ref": "#/components/schemas/Items_LessonAlias__MaxLen_max_length_5_",
+            "maxLength": 5
+          },
+          "role": {
+            "$ref": "#/components/schemas/PublicRole"
+          },
+          "text": {
+            "$ref": "#/components/schemas/FeedbackText"
+          }
+        },
+        "required": [
+          "role",
+          "text",
+          "evidence_aliases",
+          "lesson_aliases"
+        ],
+        "title": "PublicFeedbackStatement",
+        "type": "object"
+      },
+      "PublicLessonCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "$ref": "#/components/schemas/LessonAlias"
+          },
+          "field": {
+            "$ref": "#/components/schemas/LessonField"
+          },
+          "label": {
+            "$ref": "#/components/schemas/PublicLessonLabel"
+          },
+          "lesson": {
+            "$ref": "#/components/schemas/PublicLessonIdentity"
+          },
+          "sha256": {
+            "$ref": "#/components/schemas/Digest"
+          }
+        },
+        "required": [
+          "alias",
+          "lesson",
+          "field",
+          "label",
+          "sha256"
+        ],
+        "title": "PublicLessonCitation",
+        "type": "object"
+      },
+      "PublicLessonIdentity": {
+        "additionalProperties": false,
+        "properties": {
+          "lesson_id": {
+            "enum": [
+              "fastapi-payload-mismatch",
+              "fastapi-nested-payload-transfer"
+            ],
+            "title": "Lesson Id",
+            "type": "string"
+          },
+          "public_content_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "version": {
+            "const": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "version",
+          "public_content_sha256"
+        ],
+        "title": "PublicLessonIdentity",
+        "type": "object"
+      },
+      "PublicLessonLabel": {
+        "enum": [
+          "Lesson title",
+          "Learning objective",
+          "Lesson scenario",
+          "Outgoing request builder",
+          "Receiving schema"
+        ],
+        "type": "string"
+      },
+      "PublicNotice": {
+        "enum": [
+          "Feedback is not ready until an attempt has been submitted.",
+          "Feedback is not enabled for this session.",
+          "Feedback is unavailable. Try again later.",
+          "This feedback uses deterministic evidence rules.",
+          "This feedback uses a deterministic mock wording selection.",
+          "There is not enough evidence for a competency conclusion."
+        ],
+        "type": "string"
+      },
+      "PublicRole": {
+        "enum": [
+          "observation",
+          "limitation",
+          "next_action"
+        ],
+        "type": "string"
+      },
+      "PublicVerificationCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CheckCode"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "matched"
+        ],
+        "title": "PublicVerificationCheck",
         "type": "object"
       },
       "QuestionOption": {
@@ -1063,6 +1439,15 @@
         "title": "RunResponse",
         "type": "object"
       },
+      "SectionName": {
+        "enum": [
+          "demonstrated",
+          "needs_improvement",
+          "why",
+          "next"
+        ],
+        "type": "string"
+      },
       "SessionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1169,6 +1554,10 @@
         ],
         "title": "TransferAttemptCreate",
         "type": "object"
+      },
+      "UTCInstant": {
+        "format": "date-time",
+        "type": "string"
       },
       "ValidationIssue": {
         "properties": {
@@ -2989,6 +3378,155 @@
         "summary": "Verify",
         "tags": [
           "learning"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/feedback": {
+      "post": {
+        "description": "Build feedback from owned backend evidence; clients provide no facts.\n\nThis read-only POST recomputes the current authorized projection. It does\nnot create an assignment, alter an attempt or accept an evaluator result.\nThe worker owns its permit until synchronous work actually finishes even\nif its HTTP waiter reaches the request deadline or disconnects.",
+        "operationId": "get_session_feedback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Contract"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicFeedbackReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Feedback",
+        "tags": [
+          "feedback"
         ]
       }
     },

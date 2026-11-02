@@ -37,6 +37,7 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
         "/api/v1/sessions/{session_id}/prediction",
         "/api/v1/sessions/{session_id}/attempts",
         "/api/v1/sessions/{session_id}/hints",
+        "/api/v1/sessions/{session_id}/feedback",
         "/api/v1/sessions/{session_id}/attempts/{attempt_id}/verify",
         "/api/v1/sessions/{session_id}/verifications",
         "/api/v1/sessions/{session_id}/progress",
