@@ -144,3 +144,11 @@ export const accountApi = {
   learner: () => request<Schema["AccountLearnerResponse"]>("/account/me/learner"),
   claim: (key: string) => request<Schema["ClaimResponse"]>("/account/claim-anonymous", {}, key),
 };
+
+/** Real protected AI APIs. Context and source selection stay on the backend. */
+export const aiApi = {
+  tutor: (sessionId: string, question: string) => request<Schema["LessonAssistantReply"]>(
+    `/sessions/${encodeURIComponent(sessionId)}/tutor/ask`, { question },
+  ),
+  support: (question: string) => request<Schema["SupportResponse"]>("/support/ask", { question }),
+};

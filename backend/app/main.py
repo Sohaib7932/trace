@@ -9,6 +9,8 @@ from app.api.v1.accounts import router as account_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.learning import router as learning_router
 from app.api.v1.router import router
+from app.api.v1.support import router as support_router
+from app.api.v1.tutoring import router as tutor_router
 from app.auth.jwt import JwtVerifier
 from app.core.ai_settings import AIClientSettings
 from app.core.errors import register_error_handlers
@@ -17,10 +19,17 @@ from app.core.feedback_settings import FeedbackSettings
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
 from app.core.settings import Settings
+from app.core.support_settings import SupportSettings
+from app.core.tutor_settings import TutorSettings
+from app.db.candidates import SqlCandidateRepository
 from app.db.migrations import expected_heads
 from app.db.session import Database
 from app.domain.clock import Clock, utc_now
+from app.services.candidate_generation import CandidateGenerationService
+from app.services.candidate_lifecycle import CandidateLifecycleService
+from app.services.candidate_validation import CandidateValidationService
 from app.services.feedback_operations import FeedbackOperations
+from app.verification.candidate_runtime import IsolatedCandidateRuntime
 
 
 def create_app(
@@ -31,6 +40,8 @@ def create_app(
     ai_settings: AIClientSettings | None = None,
     ai_transport_factory: AITransportFactory | None = None,
     feedback_settings: FeedbackSettings | None = None,
+    tutor_settings: TutorSettings | None = None,
+    support_settings: SupportSettings | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
@@ -54,6 +65,37 @@ def create_app(
             ),
         }
     )
+    requested_tutor = (
+        tutor_settings if tutor_settings is not None else TutorSettings(_env_file=None)
+    )
+    tutor_deadline = min(requested_tutor.request_timeout_seconds, config.request_timeout_seconds)
+    tutor_config = TutorSettings.model_validate(
+        {
+            **requested_tutor.model_dump(warnings=False),
+            "request_timeout_seconds": tutor_deadline,
+            "provider_timeout_seconds": min(
+                requested_tutor.provider_timeout_seconds, tutor_deadline
+            ),
+            "max_request_bytes": min(requested_tutor.max_request_bytes, config.max_request_bytes),
+        }
+    )
+
+    requested_support = (
+        support_settings if support_settings is not None else SupportSettings(_env_file=None)
+    )
+    support_deadline = min(
+        requested_support.request_timeout_seconds, config.request_timeout_seconds
+    )
+    support_config = SupportSettings.model_validate(
+        {
+            **requested_support.model_dump(warnings=False),
+            "request_timeout_seconds": support_deadline,
+            "provider_timeout_seconds": min(
+                requested_support.provider_timeout_seconds, support_deadline
+            ),
+            "max_request_bytes": min(requested_support.max_request_bytes, config.max_request_bytes),
+        }
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -62,13 +104,27 @@ def create_app(
         ai: AIResources | None = None
         feedback_operations = FeedbackOperations(feedback_config)
         app.state.feedback_operations = feedback_operations
+        tutor_operations = FeedbackOperations(tutor_config)
+        app.state.tutor_operations = tutor_operations
+        support_operations = FeedbackOperations(support_config)
+        app.state.support_operations = support_operations
         try:
-            ai = AIResources.create(ai_config, ai_transport_factory)
+            ai = AIResources.create(ai_config, ai_transport_factory, clock=clock)
             app.state.ai_resources = ai
+            app.state.candidate_generation = CandidateGenerationService(
+                ai.question_generator,
+                CandidateLifecycleService(
+                    SqlCandidateRepository(resource),
+                    CandidateValidationService(IsolatedCandidateRuntime()),
+                    clock,
+                ),
+            )
             yield
         finally:
             try:
                 feedback_operations.close()
+                tutor_operations.close()
+                support_operations.close()
                 if ai is not None:
                     ai.close()
             finally:
@@ -79,6 +135,8 @@ def create_app(
     app.state.settings = config
     app.state.ai_settings = ai_config
     app.state.feedback_settings = feedback_config
+    app.state.tutor_settings = tutor_config
+    app.state.support_settings = support_config
     app.state.migration_heads = expected_heads()
     app.state.logger = logger
     app.state.clock = clock
@@ -88,6 +146,8 @@ def create_app(
     app.include_router(learning_router)
     app.include_router(account_router)
     app.include_router(feedback_router)
+    app.include_router(tutor_router)
+    app.include_router(support_router)
     # Request context wraps feedback ingress, CORS and generic limit handling.
     app.add_middleware(
         RequestLimitsMiddleware,
@@ -113,6 +173,24 @@ def create_app(
         FeedbackSecurityMiddleware,
         settings=feedback_config,
         allowed_origins=config.cors_origins,
+    )
+    app.add_middleware(
+        FeedbackSecurityMiddleware,
+        settings=tutor_config,
+        allowed_origins=config.cors_origins,
+        path_pattern=r"/api/v1/sessions/[^/]+/tutor/ask/?\Z",
+        deadline_key="tutor_deadline",
+        error_subject="Lesson tutor",
+        error_code_prefix="tutor",
+    )
+    app.add_middleware(
+        FeedbackSecurityMiddleware,
+        settings=support_config,
+        allowed_origins=config.cors_origins,
+        path_pattern=r"/api/v1/support/ask/?\Z",
+        deadline_key="support_deadline",
+        error_subject="Customer support",
+        error_code_prefix="support",
     )
     app.add_middleware(RequestContextMiddleware, logger=logger)
     return app

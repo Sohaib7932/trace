@@ -1,4 +1,4 @@
-"""Inactive, provider-neutral AI limits. No credential values are loaded here."""
+"""Provider-neutral limits and explicitly approved free-tier activation metadata."""
 
 from typing import Annotated, Literal, Self
 
@@ -16,8 +16,7 @@ class AIClientSettings(BaseSettings):
         env_prefix="TRACE_LLM_", extra="forbid", frozen=True, hide_input_in_errors=True
     )
 
-    # Live mode requires separately reviewed provider-specific implementation.
-    mode: Literal["disabled", "mock"] = "disabled"
+    mode: Literal["disabled", "mock", "gemini_free"] = "disabled"
     provider_id: TransportIdentifier | None = None
     generation_model_id: TransportIdentifier | None = None
     conversational_model_id: TransportIdentifier | None = None
@@ -34,6 +33,8 @@ class AIClientSettings(BaseSettings):
     max_subjects: Annotated[Limit, Field(le=10000)] = 1000
     spend_limit_microusd: Money = 0
     max_cost_per_attempt_microusd: Money = 0
+    free_tier_project_confirmed: bool = False
+    max_live_requests_per_process: Annotated[Limit, Field(le=100)] = 20
 
     @field_validator(
         "max_request_bytes",
@@ -45,6 +46,7 @@ class AIClientSettings(BaseSettings):
         "max_subjects",
         "spend_limit_microusd",
         "max_cost_per_attempt_microusd",
+        "max_live_requests_per_process",
         mode="before",
     )
     @classmethod
@@ -66,6 +68,15 @@ class AIClientSettings(BaseSettings):
     def empty_optional_configuration(cls, value: object) -> object:
         return None if value == "" else value
 
+    @field_validator("free_tier_project_confirmed", mode="before")
+    @classmethod
+    def explicit_free_tier_confirmation(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.lower() in {"true", "false"}:
+            return value.lower() == "true"
+        raise ValueError("Free-tier confirmation must be explicitly true or false")
+
     @model_validator(mode="after")
     def consistent_limits(self) -> Self:
         if self.mode == "mock" and self.provider_id not in {None, "mock"}:
@@ -74,4 +85,17 @@ class AIClientSettings(BaseSettings):
             raise ValueError("Per-attempt reservation cannot exceed the process spending cap")
         if self.response_timeout_seconds > self.total_timeout_seconds:
             raise ValueError("Response timeout cannot exceed the total call deadline")
+        if self.mode == "gemini_free" and (
+            self.provider_id != "gemini"
+            or self.generation_model_id != "gemini-3.5-flash-lite"
+            or self.conversational_model_id != "gemini-3.5-flash-lite"
+            or self.credential_env_var != "GEMINI_API_KEY"
+            or not self.free_tier_project_confirmed
+            or self.spend_limit_microusd != 0
+            or self.max_cost_per_attempt_microusd != 0
+            or self.max_retries != 0
+        ):
+            raise ValueError(
+                "Gemini requires the approved model, confirmed free project and zero paid budget"
+            )
         return self

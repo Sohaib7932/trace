@@ -1,4 +1,4 @@
-"""Application-owned internal AI capabilities. Only disabled/explicit mock operation exists."""
+"""Application-owned AI capabilities with disabled, mock and approved free-tier modes."""
 
 from collections.abc import Callable
 
@@ -8,8 +8,11 @@ from app.ai.providers.bounded_question_generator import BoundedQuestionGenerator
 from app.ai.providers.bounded_support import BoundedSupportAssistant
 from app.ai.providers.bounded_tutor import BoundedLessonAssistant, BoundedTutorProvider
 from app.core.ai_settings import AIClientSettings
+from app.domain.clock import Clock, utc_now
+from app.repositories.support_knowledge import ApprovedSupportKnowledge
 from app.services.lesson_assistant import LessonAssistantService
 from app.services.support import SupportService
+from app.support.knowledge import ReviewedSupportKnowledge
 
 type AITransportFactory = Callable[[], AITransport]
 
@@ -20,20 +23,29 @@ class AIResourceError(RuntimeError):
 
 
 class AIResources:
-    def __init__(self, settings: AIClientSettings, client: BoundedAIClient) -> None:
+    def __init__(
+        self, settings: AIClientSettings, client: BoundedAIClient, clock: Clock = utc_now
+    ) -> None:
         self.settings, self.client = settings, client
         self.question_generator = BoundedQuestionGenerator(client)
         self.evidence_feedback_provider = BoundedEvidenceFeedbackProvider(client)
         self.tutor_provider = BoundedTutorProvider(client)
         self.lesson_assistant = LessonAssistantService(BoundedLessonAssistant(client))
-        # No corpus/contact is approved. This service remains unavailable by default.
-        self.support = SupportService(BoundedSupportAssistant(client))
+        # Draft/missing/expired review keeps the corpus unavailable. No contact invented.
+        self.support = SupportService(
+            BoundedSupportAssistant(client),
+            ReviewedSupportKnowledge(clock=clock)
+            if settings.mode == "gemini_free"
+            else ApprovedSupportKnowledge(),
+        )
 
     @classmethod
     def create(
         cls,
         settings: AIClientSettings,
         transport_factory: AITransportFactory | None = None,
+        *,
+        clock: Clock = utc_now,
     ) -> "AIResources":
         client: BoundedAIClient | None = None
         transport: AITransport | None = None
@@ -47,9 +59,21 @@ class AIResources:
                     getattr(transport, "complete", None)
                 ):
                     raise AIResourceError()
+            elif checked.mode == "gemini_free":
+                from app.ai.providers.gemini import GeminiTransport
+
+                transport = (
+                    transport_factory()
+                    if transport_factory is not None
+                    else GeminiTransport.from_environment(checked)
+                )
+                if getattr(transport, "source", None) != "ai" or not callable(
+                    getattr(transport, "complete", None)
+                ):
+                    raise AIResourceError()
             # Disabled mode never constructs a transport, including an injected factory.
             client = BoundedAIClient(checked, transport)
-            return cls(checked, client)
+            return cls(checked, client, clock)
         except Exception:
             try:
                 if client is not None:

@@ -65,6 +65,7 @@ export function TraceHelp() {
 
 function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
   const support = useMemo(() => createAiClients().support, []);
+  const real = aiMode() === "real";
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [announce, setAnnounce] = useState("");
@@ -83,11 +84,11 @@ function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
       setTurns((all) => all.map((t) => (t.id === id && t.role === "help" ? { ...t, ...patch } : t)));
     try {
       const reply = await support.ask({ question, route }, { onText: (text) => update({ text }) });
-      if (reply.status === "unavailable") { setUnavailable(true); update({ state: "done", text: "", reply }); setAnnounce("Trace Help isn't connected yet. Help articles are listed below."); return; }
+      if (reply.status === "unavailable") { setUnavailable(true); update({ state: "done", text: "", reply }); setAnnounce(real ? "Trace Help is unavailable right now. Help articles are listed below." : "Trace Help isn't connected yet. Help articles are listed below."); return; }
       update({ state: "done", text: reply.answer, reply });
       setAnnounce(reply.answer || "No answer came back.");
     } catch (error) {
-      if (isUnavailable(error)) { setUnavailable(true); update({ state: "done", text: "" }); setAnnounce("Trace Help isn't connected yet. Help articles are listed below."); return; }
+      if (isUnavailable(error)) { setUnavailable(true); update({ state: "done", text: "" }); setAnnounce(real ? "Trace Help is unavailable right now. Help articles are listed below." : "Trace Help isn't connected yet. Help articles are listed below."); return; }
       update({ state: "error", error });
       setAnnounce(errorText(error));
     }
@@ -119,6 +120,7 @@ function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
             <p className="text-[0.8125rem] text-secondary">Questions about accounts, lessons and progress.</p>
             <DemoLabel />
           </div>
+          {support.mode === "real" && <p className="mt-2 text-[0.75rem] text-secondary">When enabled, Gemini selects passages from approved public help. Don&apos;t include personal details.</p>}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-busy={busy}>
@@ -167,7 +169,7 @@ function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
             {supportEmail && <a href={`mailto:${supportEmail}`} className="font-medium text-foreground underline underline-offset-4">Talk to a human</a>}
           </div>
           {secret && <p role="alert" className="mt-1 text-[0.8125rem] text-error">That looks like a password or secret key. Remove it before sending.</p>}
-          <p id={`${titleId}-privacy`} className="mt-2 text-[0.75rem] leading-snug text-secondary">This chat isn&apos;t saved; it&apos;s gone when you close the tab. Don&apos;t include personal details.</p>
+          <p id={`${titleId}-privacy`} className="mt-2 text-[0.75rem] leading-snug text-secondary">{real ? "Trace doesn't save this chat. When enabled, your question is sent to Gemini; Google's service terms apply. Don't include personal details." : "This chat isn't saved; it's gone when you close the tab. Don't include personal details."}</p>
         </form>
       </div>
     </>
@@ -194,6 +196,7 @@ function HelpAnswer({ turn, onRetry }: { turn: Extract<Turn, { role: "help" }>; 
   const reply = turn.reply;
   return (
     <div className="rounded-xl rounded-bl-sm border border-border bg-surface p-3 text-[0.875rem] leading-relaxed">
+      {reply?.source === "test_fixture" && <p className="mb-1 text-[0.75rem] text-secondary">Test fixture response</p>}
       {turn.state === "streaming" && !turn.text ? <span className="inline-flex items-center gap-1 text-secondary" aria-label="Trace Help is answering"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
         : turn.text ? <p className="whitespace-pre-wrap">{turn.text}</p>
           : <p className="text-secondary">No answer came back. Try rephrasing your question.</p>}
@@ -201,7 +204,7 @@ function HelpAnswer({ turn, onRetry }: { turn: Extract<Turn, { role: "help" }>; 
         <div className="mt-3 border-t border-border pt-2">
           <p className="text-[0.75rem] font-medium tracking-[0.04em] text-secondary uppercase">Sources</p>
           <ul className="mt-1 grid gap-1.5">
-            {reply.sources.map((source) => <li key={source.id}><Link href={source.link} className="font-medium underline underline-offset-4">{source.title}</Link><p className="text-[0.8125rem] text-secondary">{source.snippet}</p></li>)}
+            {reply.sources.map((source) => <li key={source.id} id={`${turn.id}-source-${source.id}`}><Link href={source.link.startsWith("#source-") ? `#${turn.id}-${source.link.slice(1)}` : source.link} className="font-medium underline underline-offset-4">{source.title}</Link><p className="text-[0.8125rem] text-secondary">{source.snippet}</p></li>)}
           </ul>
         </div>
       )}
@@ -213,10 +216,11 @@ function HelpAnswer({ turn, onRetry }: { turn: Extract<Turn, { role: "help" }>; 
 
 function Unavailable() {
   const faq = FAQ_IDS.map((id) => helpArticles.find((a) => a.id === id)).filter((a) => a !== undefined);
+  const real = aiMode() === "real";
   return (
     <section aria-label="Help articles" className="mt-4 rounded-xl border border-border bg-surface p-3 text-[0.875rem]">
-      <p className="font-semibold">Trace Help isn&apos;t connected yet</p>
-      <p className="mt-1 text-secondary">The answering service is still being set up. These pages cover the most common questions:</p>
+      <p className="font-semibold">{real ? "Trace Help is unavailable right now" : "Trace Help isn't connected yet"}</p>
+      <p className="mt-1 text-secondary">{real ? "An answer could not be verified. Try again later, or use these help shortcuts:" : "The answering service is still being set up. These pages cover the most common questions:"}</p>
       <ul className="mt-2 grid gap-1">
         {faq.map((article) => <li key={article.id}><Link href={article.link} className="inline-flex min-h-9 items-center underline underline-offset-4">{article.title}</Link></li>)}
       </ul>

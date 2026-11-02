@@ -1,4 +1,4 @@
-import type { Verification } from "@/lib/api/client";
+import { aiApi, type Verification } from "@/lib/api/client";
 import type { Interest, LessonId, LessonStage, SupportAskRequest, SupportReply, TutorReply } from "./contracts";
 import type { StreamOptions } from "./mock/controls";
 import { mockSupportAsk } from "./mock/support";
@@ -6,13 +6,13 @@ import { mockTutor } from "./mock/tutor";
 import { mockDaily } from "./mock/daily";
 
 /**
- * AI clients for capabilities that have no public endpoint yet. One switch:
+ * AI clients with explicit real or labelled demo operation. One switch:
  * NEXT_PUBLIC_AI_MODE=mock|real (default mock; the only AI-related frontend variable).
  *
  * - mock: scripted demo responses (src/lib/ai/mock/*), always labelled "Demo responses".
- * - real: will call the Trace backend through the existing API client (src/lib/api/client.ts)
- *   once the endpoints in docs/frontend-api-requests.md are published. Until then each method
- *   throws EndpointNotAvailableError and calls nothing: no URL outside openapi.json is used.
+ * - real: tutor/support call the protected backend APIs. Backend configuration,
+ *   valid account auth and approved support sources still determine availability.
+ *   Daily interests and full worked solutions remain explicitly unavailable.
  *
  * Hints are NOT here: they always use the real POST /sessions/{id}/hints (fixture guidance).
  */
@@ -67,6 +67,32 @@ export interface DailyLearningClient {
 
 const notAvailable = (capability: string) => () => Promise.reject<never>(new EndpointNotAvailableError(capability));
 
+async function realTutor(context: TutorContext, question: string, options?: StreamOptions): Promise<TutorReply> {
+  if (!context.sessionId) throw new EndpointNotAvailableError("Start a signed-in lesson before using the tutor");
+  // Do not send client stage, claims, hints, raw submissions or runtime evidence.
+  const reply = await aiApi.tutor(context.sessionId, question);
+  options?.onText?.(reply.text);
+  return reply;
+}
+
+async function realSupport(input: SupportAskRequest, options?: StreamOptions): Promise<SupportReply> {
+  // Client route/conversation/document hints are unnecessary for public-document retrieval.
+  const reply = await aiApi.support(input.question);
+  const answer = reply.status === "answered"
+    ? reply.references.map((reference) => reference.quote).join("\n\n")
+    : reply.message;
+  const mapped: SupportReply = {
+    status: reply.status === "no_sources" ? "unsupported" : reply.status,
+    answer, source: reply.source, escalation: reply.escalation ?? null,
+    sources: reply.references.map((reference) => ({
+      id: reference.passage_id, title: reference.source_name,
+      link: `#source-${encodeURIComponent(reference.passage_id)}`, snippet: reference.quote,
+    })),
+  };
+  options?.onText?.(mapped.answer);
+  return mapped;
+}
+
 type AiClients = { tutor: TutorClient; support: SupportClient; daily: DailyLearningClient };
 
 const mockClients: AiClients = {
@@ -86,16 +112,16 @@ const mockClients: AiClients = {
   } satisfies DailyLearningClient,
 };
 
-// Proposed paths are named only in the error text; nothing is requested until they are published.
+// Only implemented HTTP paths are called. No full-solution or assignment bypass.
 const realClients: AiClients = {
   tutor: {
     mode: "real",
-    explainConcept: notAvailable("Concept explanation (proposed POST /api/v1/tutor/explain)"),
-    ask: notAvailable("Tutor question (proposed POST /api/v1/tutor/ask)"),
-    whyFailed: notAvailable("Why did this fail (proposed POST /api/v1/sessions/{id}/verifications/{run_id}/explanation)"),
-    worked: notAvailable("Worked explanation (proposed POST /api/v1/tutor/worked-explanation)"),
+    explainConcept: (context, options) => realTutor(context, "Explain the main request-contract concept for this lesson.", options),
+    ask: realTutor,
+    whyFailed: (context, _run, options) => realTutor(context, "Explain the latest saved verification failure without giving the full fix.", options),
+    worked: notAvailable("Full worked solutions are not enabled for the live tutor"),
   } satisfies TutorClient,
-  support: { mode: "real", ask: notAvailable("Support assistant (proposed POST /api/v1/support/ask)") } satisfies SupportClient,
+  support: { mode: "real", ask: realSupport } satisfies SupportClient,
   daily: {
     mode: "real",
     interests: notAvailable("Interest taxonomy (proposed GET /api/v1/interests)"),

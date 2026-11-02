@@ -53,6 +53,7 @@ backend/*.db
 backend/*.db-*
 backend/*.sqlite*
 !backend/.env.example
+!backend/.env.gemini.example
 !.env.local.example
 
 # Browser test output

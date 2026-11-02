@@ -209,7 +209,7 @@ def test_mock_mode_from_environment_still_requires_explicit_factory(
 def test_public_api_schema_matches_export_and_existing_fixture_hints_are_unchanged(learner):
     baseline = json.loads((Path(__file__).resolve().parents[2] / "openapi.json").read_text())
     assert learner.app.openapi() == baseline
-    assert len(baseline["paths"]) == 22
+    assert len(baseline["paths"]) == 24
     assert "/api/v1/sessions/{session_id}/feedback" in baseline["paths"]
     session = start(learner)
     assert predict(learner, session).status_code == 201

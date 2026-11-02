@@ -126,10 +126,14 @@ class FeedbackOperations:
     def run(
         self, principal: Principal, operation: Callable[[], T], *, deadline: float | None = None
     ) -> T:
+        return self._run(self._subject(principal), operation, deadline=deadline)
+
+    def _run(
+        self, subject: Subject, operation: Callable[[], T], *, deadline: float | None = None
+    ) -> T:
         limit = self.clock() + self.settings.request_timeout_seconds
         if deadline is not None:
             limit = min(limit, deadline)
-        subject = self._subject(principal)
         state = self._admit(subject, limit)
         token = self._context.set(_Context(subject, limit))
         try:
@@ -159,6 +163,20 @@ class FeedbackOperations:
 
     def bounded_provider(self, provider: EvidenceFeedbackProvider) -> EvidenceFeedbackProvider:
         return _DeadlineProvider(self, provider)
+
+    async def execute_account(
+        self, account_id: UUID, operation: Callable[[], T], *, deadline: float | None = None
+    ) -> T:
+        """Admit an authenticated account without creating a learner history."""
+        if not isinstance(account_id, UUID):
+            raise ApplicationError("unauthenticated", "Account authentication is required.", 401)
+        limit = self.clock() + self.settings.request_timeout_seconds
+        if deadline is not None:
+            limit = min(limit, deadline)
+        return await anyio.to_thread.run_sync(
+            partial(self._run, ("account", account_id), operation, deadline=limit),
+            abandon_on_cancel=True,
+        )
 
     def _explain(
         self, provider: EvidenceFeedbackProvider, request: FeedbackRequest

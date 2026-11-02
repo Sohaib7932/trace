@@ -1,0 +1,151 @@
+{
+  "schema_version": "support-corpus-v1",
+  "revision": "1.0.0",
+  "review_status": "approved",
+  "reviewed_by": "soorej",
+  "reviewed_at": "2026-11-02T15:34:07+00:00",
+  "valid_until": "2026-12-02T15:34:07+00:00",
+  "document_digests": {
+    "trace-overview": "a2872c50de29ca5f4a3b60ad9a5a35329f228711758db89c1b2a21a2f01f7344",
+    "registration-authentication": "137eb7f9e7dac102d2a9d2d762b5b9f233b21f0b58c26dbdaa749702ce0dd632",
+    "google-authentication": "8d02c0c7e04c88471a3310916b8ab8175f41531a4657e8aa01440eb3df747cfa",
+    "learning-navigation": "76f51610168091be80fc96f0ca9be9db07a60ec8e71ffb7d2606372488bd034f",
+    "prediction-attempts-verification": "a0a83bc767c96a590db42f8aa82eb46ff9ed5e3a7915d3240bb47db183ab3da8",
+    "hints-explanations": "08d1f0d28b5ab687737d5e586fe9bb117ceb57df03b6e67a663d0a9ad609781b",
+    "progress-retrieval": "067ae8032831fc489f0c410e5b12fdb4d14f78f53f30dc86ee071c34986b2a9b",
+    "daily-availability": "a6773da444ec458dba3cc7642e4962a0384d2fb1aa81fa023803ec856c683eb4",
+    "technical-problems": "90780a9ed8e9c428de8fe41d8b34bda48c71e3d2aab4b15e8490227960d5a436"
+  },
+  "documents": [
+    {
+      "source_id": "trace-overview",
+      "title": "What Trace does",
+      "passages": [
+        {
+          "passage_id": "trace-learning-cycle",
+          "text": "Trace helps you read, diagnose, change and verify Python/FastAPI code. The current lessons cover a Notes request-contract problem and a nested Tasks transfer problem. The learning cycle includes prediction, investigation, modification, verification, transfer and later review."
+        },
+        {
+          "passage_id": "trace-evidence-boundary",
+          "text": "Trusted verification determines whether a change works using observed HTTP results and independently read saved data. Tutor guidance and support answers cannot grade a change, complete a lesson or certify mastery."
+        }
+      ]
+    },
+    {
+      "source_id": "registration-authentication",
+      "title": "Signing up, signing in and recovering access",
+      "passages": [
+        {
+          "passage_id": "account-email-confirmation",
+          "text": "Use Sign up to register, then follow the confirmation email before signing in. If confirmation email delivery or sign-in fails, check the displayed message and try the relevant account flow again. Email delivery depends on the authentication service configuration; this article does not confirm delivery for your account."
+        },
+        {
+          "passage_id": "account-password-recovery",
+          "text": "Use Forgot password to request a recovery email. The general confirmation message does not reveal whether an address has an account. An invalid or expired recovery link needs a fresh recovery request. Do not send your password or recovery link to support."
+        },
+        {
+          "passage_id": "account-historical-guest-progress",
+          "text": "The current web app requires sign-in to start real lessons. Guests can view labelled demos. If this browser holds accessible progress from an earlier guest session, the account flow offers an explicit claim decision. Separate histories are not automatically merged; a conflict preserves them."
+        }
+      ]
+    },
+    {
+      "source_id": "google-authentication",
+      "title": "Google sign-in troubleshooting",
+      "passages": [
+        {
+          "passage_id": "google-sign-in-retry",
+          "text": "Choose the intended Google account when using the Google sign-in option. If you cancel or the callback fails, follow the displayed safe guidance and start a fresh sign-in attempt. Successful login depends on the team's Google and authentication-project setup; a demo does not prove that setup works."
+        },
+        {
+          "passage_id": "google-account-linking",
+          "text": "A different external identity can produce a different Trace account. Trace does not promise automatic merging or manual linking of different Google accounts. Do not send authentication callback URLs, passwords or sign-in credentials in a support question."
+        }
+      ]
+    },
+    {
+      "source_id": "learning-navigation",
+      "title": "Starting and returning to lessons",
+      "passages": [
+        {
+          "passage_id": "learning-notes-tasks-order",
+          "text": "Sign in and open Learn to start the Notes lesson. Completing Notes unlocks the nested Tasks transfer lesson. A saved session stays pinned to the lesson version it started with. Return through the same account to resume accessible saved work."
+        },
+        {
+          "passage_id": "learning-session-states",
+          "text": "Submit the original prediction before making a mapping change or requesting a fixture hint. Inspect the displayed request and receiving schema, submit a supported change and run verification. Completed and abandoned sessions do not accept new learning attempts."
+        }
+      ]
+    },
+    {
+      "source_id": "prediction-attempts-verification",
+      "title": "Predictions, attempts and verification evidence",
+      "passages": [
+        {
+          "passage_id": "prediction-and-attempt-history",
+          "text": "Your saved original prediction stays preserved. Each later mapping change is a separate numbered attempt. A later correction does not replace the original prediction. Read saved progress after a network error before submitting again."
+        },
+        {
+          "passage_id": "verification-five-checks",
+          "text": "Verification compares the observed HTTP status, response shape, API response, saved row count and independently read stored fields with the trusted lesson contract. Required evidence must agree for a successful result. The tutor does not decide whether these checks pass."
+        },
+        {
+          "passage_id": "verification-infrastructure-errors",
+          "text": "A failed mapping and a verification infrastructure error have different meanings. An unavailable dependency or inconsistent database readback is not proof that your answer was wrong. Inspect the saved run and visible checks before choosing the next change."
+        }
+      ]
+    },
+    {
+      "source_id": "hints-explanations",
+      "title": "Hints and AI-assisted lesson guidance",
+      "passages": [
+        {
+          "passage_id": "hints-three-fixture-requests",
+          "text": "The existing fixture-hint flow permits up to three requests per core session after prediction. Failed requests still use a request slot. The interface shows requests used separately from hints delivered. Fixture hints are pre-written guidance, not live model output."
+        },
+        {
+          "passage_id": "tutor-guidance-limit",
+          "text": "When the live tutor is enabled, Gemini matches your question to approved lesson guidance. The backend supplies the explanation text and reads the owned session's current context. The pilot does not provide full worked solutions, arbitrary code, competency scores or completion decisions. Provider failure is reported as unavailable."
+        }
+      ]
+    },
+    {
+      "source_id": "progress-retrieval",
+      "title": "Saved progress and follow-up reviews",
+      "passages": [
+        {
+          "passage_id": "retrieval-one-seven-days",
+          "text": "Completing the Tasks transfer lesson schedules two review checkpoints at one and seven elapsed days after transfer completion. The journey shows upcoming, due and completed checkpoints. A due checkpoint remains available if you missed its original due time."
+        },
+        {
+          "passage_id": "retrieval-saved-answers",
+          "text": "Review answers are saved and receive feedback after submission. Existing review exercises are separate from any future new-exercise assignment quota. This release does not promise reminder emails or external notifications."
+        }
+      ]
+    },
+    {
+      "source_id": "daily-availability",
+      "title": "Daily exercise availability",
+      "passages": [
+        {
+          "passage_id": "daily-preview-not-assignments",
+          "text": "The daily-exercise design preview does not mean that new AI exercises have been assigned. The working learner journey currently uses the existing Notes and Tasks lessons. Automatic daily assignment and its learner-timezone policy are not active features. Hints, retries and review checkpoints are not new daily assignments."
+        }
+      ]
+    },
+    {
+      "source_id": "technical-problems",
+      "title": "Technical problems and safe support questions",
+      "passages": [
+        {
+          "passage_id": "technical-preserve-progress",
+          "text": "If an action times out or a connection fails, keep your draft and return to the same account and session to inspect saved progress before retrying. An uncertain response does not prove that an earlier action was rolled back. Do not repeatedly submit the same change as a new action."
+        },
+        {
+          "passage_id": "technical-safe-support",
+          "text": "Support answers are limited to approved public help articles. The assistant cannot inspect or change your account, retrieve another learner's history, reset passwords or perform account actions. Never include personal details, passwords, secret keys or sign-in links in your question. No human escalation destination is currently configured."
+        }
+      ]
+    }
+  ]
+}

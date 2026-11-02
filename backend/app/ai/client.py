@@ -1,10 +1,11 @@
-"""Bounded synchronous AI boundary. This milestone permits only injected mock transport.
+"""Bounded synchronous AI boundary with explicit mock or approved free-tier transport.
 
-No SDK, credential loading, HTTP, retries to another model or raw-content logging.
+No credentials, retries to another model or raw-content logging in this layer.
 Limits and accounting are per client/process, not a distributed billing guarantee.
 """
 
 import json
+import math
 import time
 from collections.abc import Callable
 from threading import RLock
@@ -38,7 +39,8 @@ class AITransportError(Exception):
 
 
 class AITransport(Protocol):
-    source: Literal["test_fixture"]
+    @property
+    def source(self) -> Literal["test_fixture", "ai"]: ...
 
     def complete(self, request: TransportRequest) -> TransportCompletion: ...
 
@@ -58,6 +60,7 @@ class BoundedAIClient:
         self._usage: dict[tuple[Capability, str | None], list[int]] = {}
         self._spent = 0
         self._closed = False
+        self._live_attempts = 0
 
     @property
     def closed(self) -> bool:
@@ -100,6 +103,7 @@ class BoundedAIClient:
         data: dict[str, object],
         output_schema: dict[str, object] | None = None,
         subject: str = "internal",
+        timeout_seconds: float | None = None,
     ) -> ClientCompletion:
         model = (
             self.settings.generation_model_id
@@ -131,18 +135,42 @@ class BoundedAIClient:
             return ClientCompletion(
                 status=status,
                 text=response.text if response else None,
-                provider_id="mock" if self.settings.mode == "mock" else "unconfigured",
+                provider_id=(
+                    "gemini"
+                    if self.settings.mode == "gemini_free"
+                    else "mock"
+                    if self.settings.mode == "mock"
+                    else "unconfigured"
+                ),
                 requested_model_id=model,
                 returned_model_id=response.returned_model_id if response else None,
                 request_id=response.request_id if response else None,
-                source="test_fixture",
+                source="ai" if self.settings.mode == "gemini_free" else "test_fixture",
                 error_code=code,
             )
 
-        if self.closed or self.settings.mode != "mock":
+        if self.closed or self.settings.mode == "disabled":
             return result("disabled")
-        if self.transport is None or getattr(self.transport, "source", None) != "test_fixture":
+        expected_source = "ai" if self.settings.mode == "gemini_free" else "test_fixture"
+        if self.transport is None or getattr(self.transport, "source", None) != expected_source:
             return result("configuration_missing")
+        if self.settings.mode == "gemini_free" and capability not in {
+            "tutor",
+            "generation",
+            "support",
+        }:
+            return result("disabled")
+        if timeout_seconds is not None and (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+        ):
+            return result("invalid_request")
+        call_timeout = min(
+            self.settings.total_timeout_seconds,
+            timeout_seconds if timeout_seconds is not None else self.settings.total_timeout_seconds,
+        )
         try:
             if capability not in {"generation", "tutor", "support", "feedback"}:
                 return result("invalid_request")
@@ -198,6 +226,10 @@ class BoundedAIClient:
             with self._lock:
                 if self._closed:
                     return result("disabled")
+                if self.settings.mode == "gemini_free":
+                    if self._live_attempts >= self.settings.max_live_requests_per_process:
+                        return result("budget_exhausted")
+                    self._live_attempts += 1
                 reserve = self.settings.max_cost_per_attempt_microusd
                 if self._spent + reserve > self.settings.spend_limit_microusd:
                     return result("budget_exhausted")
@@ -208,7 +240,7 @@ class BoundedAIClient:
             response: TransportCompletion | None = None
             accounted = reserve
             try:
-                remaining = self.settings.total_timeout_seconds - (self.clock() - started)
+                remaining = call_timeout - (self.clock() - started)
                 if remaining <= 0:
                     raise AITransportError("timeout")
                 bounded = request.model_copy(
@@ -226,7 +258,7 @@ class BoundedAIClient:
                 text = response.text
                 if response.cost_microusd is not None:
                     accounted = response.cost_microusd
-                if self.clock() - started >= self.settings.total_timeout_seconds:
+                if self.clock() - started >= call_timeout:
                     error = "timeout"
                 elif (
                     text is not None

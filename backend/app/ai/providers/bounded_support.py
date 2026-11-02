@@ -22,8 +22,9 @@ return unsupported with no identifiers. Return only the supplied JSON schema.
 
 
 class BoundedSupportAssistant:
-    def __init__(self, client: BoundedAIClient) -> None:
+    def __init__(self, client: BoundedAIClient, *, timeout_seconds: float | None = None) -> None:
         self.client = client
+        self.timeout_seconds = timeout_seconds
 
     def select(
         self, question: SupportQuestion, passages: tuple[SupportMatch, ...], *, subject: str
@@ -49,6 +50,7 @@ class BoundedSupportAssistant:
             data=data,
             output_schema=SupportSelection.model_json_schema(),
             subject=subject,
+            timeout_seconds=self.timeout_seconds,
         )
         if completion.status != "success" or completion.text is None:
             return None
