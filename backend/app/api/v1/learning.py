@@ -233,7 +233,13 @@ def hint(
     session_id: UUID, body: HintCreate, owner: Owner, service: Learning, key: Key
 ) -> HintResponse:
     return HintResponse.model_validate(
-        service.hint(owner.learner_id, session_id, body.attempt_id, str(key))
+        service.hint(
+            owner.learner_id,
+            session_id,
+            body.attempt_id,
+            str(key),
+            authorization_expires_at=owner.expires_at,
+        )
     )
 
 

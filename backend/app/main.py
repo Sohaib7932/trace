@@ -4,10 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.resources import AIResources, AITransportFactory
 from app.api.v1.accounts import router as account_router
 from app.api.v1.learning import router as learning_router
 from app.api.v1.router import router
 from app.auth.jwt import JwtVerifier
+from app.core.ai_settings import AIClientSettings
 from app.core.errors import register_error_handlers
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
@@ -22,22 +24,33 @@ def create_app(
     database: Database | None = None,
     clock: Clock = utc_now,
     jwt_verifier: JwtVerifier | None = None,
+    ai_settings: AIClientSettings | None = None,
+    ai_transport_factory: AITransportFactory | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
+    ai_config = ai_settings if ai_settings is not None else AIClientSettings(_env_file=None)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         resource = database if database is not None else Database(config)
         app.state.database = resource
+        ai: AIResources | None = None
         try:
+            ai = AIResources.create(ai_config, ai_transport_factory)
+            app.state.ai_resources = ai
             yield
         finally:
-            if database is None:
-                resource.dispose()
+            try:
+                if ai is not None:
+                    ai.close()
+            finally:
+                if database is None:
+                    resource.dispose()
 
     app = FastAPI(title="Trace API", version="0.1.0", lifespan=lifespan)
     app.state.settings = config
+    app.state.ai_settings = ai_config
     app.state.migration_heads = expected_heads()
     app.state.logger = logger
     app.state.clock = clock

@@ -54,7 +54,7 @@ def present_progress(progress: Progress) -> ProgressResponse:
         events=[EventResponse.model_validate(e) for e in progress.events],
         summary=EvidenceSummary(
             attempt_count=len(progress.attempts),
-            hint_request_count=len(progress.hints),
+            hint_request_count=max(len(progress.hints), progress.hint_request_count),
             hints_delivered=len(delivered),
             verification_errors=sum(r.status == "error" for r, _ in progress.runs),
             prediction_correct=prediction_correct,

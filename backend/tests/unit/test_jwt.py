@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx2
@@ -12,8 +13,9 @@ from tests.auth_fixtures import AuthClock, KeysFixture, SigningFixture, auth_set
 
 @pytest.fixture
 def fixture(settings):
-    signer = SigningFixture()
-    keys, clock = KeysFixture(signer), AuthClock()
+    clock = AuthClock()
+    signer = SigningFixture(clock=clock)
+    keys = KeysFixture(signer)
     return signer, keys, clock, JwtVerifier(auth_settings(settings), keys, clock)
 
 
@@ -112,7 +114,7 @@ def test_cache_rotation_unknown_kid_outage_and_refresh_cooldown(fixture):
     for _ in range(10):
         verifier.verify(signer.token())
     assert keys.calls == 1
-    rotated = SigningFixture(kid="rotated")
+    rotated = SigningFixture(kid="rotated", clock=clock)
     with pytest.raises(LearningError):
         verifier.verify(rotated.token())
     assert keys.calls == 1  # random kid storms cannot cause unbounded fetches
@@ -131,6 +133,27 @@ def test_cache_rotation_unknown_kid_outage_and_refresh_cooldown(fixture):
     clock.advance(5)
     verifier.verify(rotated.token())
     assert keys.calls == 4
+
+
+def test_fixture_tokens_follow_shared_clock_across_wall_clock_boundaries(fixture):
+    signer, keys, clock, verifier = fixture
+    with patch("tests.auth_fixtures.datetime") as wall_clock:
+        for seconds in (1, 2, 3601):
+            wall_clock.now.return_value = clock() + timedelta(seconds=seconds)
+            assert verifier.verify(signer.token()).subject == signer.subject
+        clock.advance(5)
+        claims = jwt.decode(signer.token(), options={"verify_signature": False})
+        assert claims["iat"] == int(clock().timestamp())
+        assert claims["exp"] == claims["iat"] + 1800
+        assert verifier.verify(signer.token()).subject == signer.subject
+    assert keys.calls == 1
+
+
+def test_shared_fixture_clock_does_not_allow_future_issued_at(fixture):
+    signer, _, clock, verifier = fixture
+    with pytest.raises(LearningError) as error:
+        verifier.verify(signer.token({"iat": int(clock().timestamp()) + 1}))
+    assert error.value.code == "unauthenticated"
 
 
 @pytest.mark.parametrize(

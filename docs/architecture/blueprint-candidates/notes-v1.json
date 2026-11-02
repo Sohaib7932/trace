@@ -1,0 +1,447 @@
+{
+  "spec_version": "1.0.0",
+  "lesson_id": "fastapi-payload-mismatch",
+  "version_id": "803045f2-aaf9-538e-bc80-d0ac60260fc5",
+  "version": "1.1.0",
+  "entry_mode": "catalog",
+  "title": "Follow a note through its request contract",
+  "summary": "Diagnose a bounded FastAPI request mismatch and verify the committed result.",
+  "objectives": [
+    {
+      "id": "trace-contract",
+      "statement": "Trace a value from the outgoing JSON field into the receiving contract and verify a committed save.",
+      "evidence_checkpoint_ids": [
+        "predict-request",
+        "investigate-contract",
+        "modify-request",
+        "verify-save",
+        "transfer-contract",
+        "revisit-day-1",
+        "revisit-day-7"
+      ]
+    }
+  ],
+  "scenario": {
+    "context": "A notes request contains the intended text but no note is saved. Inspect the sender, receiver and actual validation evidence before selecting a mapping change.",
+    "input_values": {
+      "title": "Trace verification note",
+      "content": "Understanding request validation"
+    },
+    "initial_state_description": "This isolated verification run begins without stored exercise rows.",
+    "artifacts": [
+      {
+        "id": "request-builder",
+        "label": "The unchanged outgoing request",
+        "language": "python",
+        "content": "payload = {\n    \"title\": note.title,\n    \"body\": note.content,\n}\nresponse = client.post(\"/notes\", json=payload)"
+      },
+      {
+        "id": "receiver-schema",
+        "label": "The actual receiving model contract",
+        "language": "python",
+        "content": "from pydantic import BaseModel, ConfigDict, Field\n\nclass NoteCreate(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    title: str = Field(min_length=1, max_length=200)\n    content: str = Field(min_length=1, max_length=2000)"
+      }
+    ]
+  },
+  "checkpoints": [
+    {
+      "id": "predict-request",
+      "title": "Predict the unchanged request",
+      "prompt": "Predict the outcome of the shown request before changing its mapping.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [],
+      "hint_ids": [],
+      "evaluation_rule_id": "rule-prediction",
+      "type": "prediction",
+      "choices": [
+        {
+          "id": "rejected",
+          "label": "The receiving contract rejects the request."
+        },
+        {
+          "id": "saved",
+          "label": "The request saves a row successfully."
+        },
+        {
+          "id": "server_error",
+          "label": "The service has an infrastructure failure."
+        }
+      ],
+      "reasoning_required": true
+    },
+    {
+      "id": "investigate-contract",
+      "title": "Trace the receiving contract",
+      "prompt": "Compare the sender and receiver with the observed initial validation evidence. Identify the outgoing field and its required receiving location.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [
+        "predict-request"
+      ],
+      "hint_ids": [
+        "hint-orient",
+        "hint-compare",
+        "hint-evidence"
+      ],
+      "evaluation_rule_id": "rule-investigation",
+      "type": "investigation",
+      "artifact_ids": [
+        "request-builder",
+        "receiver-schema"
+      ],
+      "baseline_profile_id": "initial_failure",
+      "baseline_evidence_artifact_id": "observed-initial-validation"
+    },
+    {
+      "id": "modify-request",
+      "title": "Choose a request mapping",
+      "prompt": "Choose the bounded mapping change you want Trace to verify.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [
+        "investigate-contract"
+      ],
+      "hint_ids": [
+        "hint-orient",
+        "hint-compare",
+        "hint-evidence"
+      ],
+      "evaluation_rule_id": "rule-modification",
+      "type": "modification",
+      "change_type": "rename_payload_field",
+      "choices": [
+        {
+          "id": "body",
+          "label": "Keep the original request mapping."
+        },
+        {
+          "id": "content",
+          "label": "Match the receiving contract's field location."
+        }
+      ],
+      "explanation_required": false
+    },
+    {
+      "id": "verify-save",
+      "title": "Verify the committed result",
+      "prompt": "Use the observed HTTP response, validation and independent database readback to assess the mapping.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [
+        "modify-request"
+      ],
+      "hint_ids": [
+        "hint-orient",
+        "hint-compare",
+        "hint-evidence"
+      ],
+      "evaluation_rule_id": "rule-verification",
+      "type": "verification",
+      "modification_checkpoint_id": "modify-request",
+      "profile_id": "repair"
+    },
+    {
+      "id": "transfer-contract",
+      "title": "Transfer the contract diagnosis",
+      "prompt": "Apply the same request-contract reasoning to the nested Tasks lesson.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [
+        "verify-save"
+      ],
+      "hint_ids": [],
+      "evaluation_rule_id": "rule-transfer",
+      "type": "transfer",
+      "target_version": {
+        "lesson_id": "fastapi-nested-payload-transfer",
+        "version_id": "23262bf1-335b-53c5-904f-c0868f0be236",
+        "version": "1.1.0",
+        "content_sha256": "4b47587a9781e5ed855c4ba08245090de095b187f6d83f2565f938bcb0b2348b"
+      }
+    },
+    {
+      "id": "revisit-day-1",
+      "title": "Recall the shipment contract",
+      "prompt": "Recall the contract concept using this new bounded example.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [
+        "transfer-contract"
+      ],
+      "hint_ids": [],
+      "evaluation_rule_id": "rule-retrieval-1",
+      "type": "retrieval",
+      "ordinal": 1,
+      "schedule": {
+        "anchor_checkpoint_id": "transfer-contract",
+        "delay_days": 1
+      },
+      "question": {
+        "id": "shipping-contract-v1",
+        "title": "Recall the shipment contract",
+        "prompt": "The shipment request contains all the intended values but is rejected. Which diagnosis fits the receiving contract?",
+        "payload": {
+          "reference": "PKG-42",
+          "zone": "east"
+        },
+        "schema_code": "class Destination(BaseModel):\n    zone: str\n\nclass ShipmentCreate(BaseModel):\n    reference: str\n    destination: Destination",
+        "options": [
+          {
+            "id": "a",
+            "label": "Any request containing zone must be accepted."
+          },
+          {
+            "id": "b",
+            "label": "The zone value is at a different JSON level than the schema expects."
+          },
+          {
+            "id": "c",
+            "label": "A rejected request proves that the database is down."
+          }
+        ]
+      },
+      "feedback_after": "saved_response"
+    },
+    {
+      "id": "revisit-day-7",
+      "title": "Recall the report mapping",
+      "prompt": "Recall the contract concept using this new bounded example.",
+      "objective_ids": [
+        "trace-contract"
+      ],
+      "depends_on": [
+        "transfer-contract"
+      ],
+      "hint_ids": [],
+      "evaluation_rule_id": "rule-retrieval-2",
+      "type": "retrieval",
+      "ordinal": 2,
+      "schedule": {
+        "anchor_checkpoint_id": "transfer-contract",
+        "delay_days": 7
+      },
+      "question": {
+        "id": "report-contract-v1",
+        "title": "Recall the report mapping",
+        "prompt": "A report form provides name and format. Which mapping change preserves the information and satisfies the contract?",
+        "payload": {
+          "format": "csv",
+          "name": "Weekly digest"
+        },
+        "schema_code": "class Output(BaseModel):\n    format: Literal[\"csv\", \"json\"]\n\nclass ReportCreate(BaseModel):\n    name: str\n    output: Output",
+        "options": [
+          {
+            "id": "a",
+            "label": "Place format inside an output object and retain name at the root."
+          },
+          {
+            "id": "b",
+            "label": "Rename format to body and keep it at the root."
+          },
+          {
+            "id": "c",
+            "label": "Send the unchanged JSON as a string instead of an object."
+          }
+        ]
+      },
+      "feedback_after": "saved_response"
+    }
+  ],
+  "hints": [
+    {
+      "id": "hint-orient",
+      "level": 1,
+      "text": "Trace the request data from its sender into its receiving model.",
+      "checkpoint_ids": [
+        "investigate-contract",
+        "modify-request",
+        "verify-save"
+      ]
+    },
+    {
+      "id": "hint-compare",
+      "level": 2,
+      "text": "Compare each outgoing field location with the required receiving location.",
+      "checkpoint_ids": [
+        "investigate-contract",
+        "modify-request",
+        "verify-save"
+      ]
+    },
+    {
+      "id": "hint-evidence",
+      "level": 3,
+      "text": "Use the missing and extra validation fields before investigating database code.",
+      "checkpoint_ids": [
+        "investigate-contract",
+        "modify-request",
+        "verify-save"
+      ]
+    }
+  ],
+  "explanations": [
+    {
+      "id": "explain-core",
+      "title": "What the runtime evidence establishes",
+      "text": "The receiver requires content and forbids the outgoing body field. The unchanged request produces HTTP 422 with missing content and extra body validation errors, and saves no note. A content mapping succeeds only when HTTP 201, valid response data, no validation errors and one independently read row agree, including row identity.",
+      "checkpoint_id": "verify-save",
+      "release_event": "core_verification_passed"
+    },
+    {
+      "id": "explain-revisit-1",
+      "title": "Feedback after your saved response",
+      "text": "Values and structure both matter. The receiving contract places zone inside destination; a flat zone does not satisfy that nested object.",
+      "checkpoint_id": "revisit-day-1",
+      "release_event": "retrieval_response_saved"
+    },
+    {
+      "id": "explain-revisit-2",
+      "title": "Feedback after your saved response",
+      "text": "Trace each value into its receiving location. The contract expects output.format, while name remains at the root. A rename or string conversion does not supply that object.",
+      "checkpoint_id": "revisit-day-7",
+      "release_event": "retrieval_response_saved"
+    }
+  ],
+  "misconceptions": [
+    {
+      "id": "presence-implies-validity",
+      "statement": "Containing the intended value alone means a request satisfies its contract.",
+      "indicator": {
+        "kind": "mapping_selected",
+        "checkpoint_id": "modify-request",
+        "value": "body"
+      },
+      "suggested_feedback": "Compare both the value and its receiving field location; presence alone is insufficient."
+    }
+  ],
+  "completion_policy": {
+    "core_checkpoint_ids": [
+      "predict-request",
+      "investigate-contract",
+      "modify-request",
+      "verify-save"
+    ],
+    "transfer_checkpoint_ids": [
+      "transfer-contract"
+    ],
+    "retrieval_checkpoint_ids": [
+      "revisit-day-1",
+      "revisit-day-7"
+    ]
+  },
+  "tutor_policy": {
+    "mode": "authored_only",
+    "max_requests_per_core_session": 3,
+    "available_after_checkpoint_id": "predict-request"
+  },
+  "private": {
+    "runtime_binding": {
+      "template_id": "notes-v1",
+      "revision": "1.0.0"
+    },
+    "evaluation": {
+      "policy_id": "payload-contract-v1",
+      "revision": "1.0.0",
+      "rules": {
+        "rule-investigation": {
+          "kind": "field_trace",
+          "expected_outgoing_field": "body",
+          "expected_required_path": "/content",
+          "required_artifact_ids": [
+            "request-builder",
+            "receiver-schema",
+            "observed-initial-validation"
+          ]
+        },
+        "rule-modification": {
+          "kind": "allowed_mapping",
+          "allowed_values": [
+            "body",
+            "content"
+          ],
+          "correct_value": "content"
+        },
+        "rule-prediction": {
+          "kind": "outcome_diagnostic",
+          "answer": "rejected",
+          "gate": "valid_submission"
+        },
+        "rule-retrieval-1": {
+          "kind": "single_choice",
+          "answer": "b",
+          "explanation_id": "explain-revisit-1"
+        },
+        "rule-retrieval-2": {
+          "kind": "single_choice",
+          "answer": "a",
+          "explanation_id": "explain-revisit-2"
+        },
+        "rule-transfer": {
+          "kind": "linked_session_completion"
+        },
+        "rule-verification": {
+          "kind": "verified_repair"
+        }
+      }
+    },
+    "verification": {
+      "timeout_seconds": 10,
+      "fixture": {
+        "id": "empty-notes-v1",
+        "input_values": {
+          "title": "Trace verification note",
+          "content": "Understanding request validation"
+        },
+        "initial_mapping": "body"
+      },
+      "profiles": {
+        "initial_failure": {
+          "purpose": "baseline",
+          "http_status": 422,
+          "response_shape": "validation_errors",
+          "validation_codes": [
+            "missing:content",
+            "extra_forbidden:body"
+          ],
+          "row_count": 0,
+          "stored_values": {},
+          "require_response_row_identity_match": false,
+          "required_checks": [
+            "http_status",
+            "api_response",
+            "validation",
+            "row_count",
+            "stored_values"
+          ]
+        },
+        "repair": {
+          "purpose": "repair",
+          "http_status": 201,
+          "response_shape": "saved_note",
+          "validation_codes": [],
+          "row_count": 1,
+          "stored_values": {
+            "title": "Trace verification note",
+            "content": "Understanding request validation"
+          },
+          "require_response_row_identity_match": true,
+          "required_checks": [
+            "http_status",
+            "api_response",
+            "validation",
+            "row_count",
+            "stored_values"
+          ]
+        }
+      }
+    }
+  },
+  "content_sha256": "226d4b797e58622ecb2e6c6866f0d1d6bc549ba0ee5e64f02b1e56e105fc1880"
+}

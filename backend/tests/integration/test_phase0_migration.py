@@ -6,9 +6,11 @@ from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
+from alembic.autogenerate import compare_metadata
+from alembic.runtime.migration import MigrationContext
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
-from sqlalchemy import select, text
+from sqlalchemy import MetaData, select, text
 
 from alembic import command
 from app.api.dependencies import get_notes_verifier
@@ -24,6 +26,7 @@ from app.services.catalog import seed_first_lesson, seed_transfer_lesson
 from app.services.identity import COOKIE_NAME
 from tests.auth_fixtures import KeysFixture, SigningFixture, auth_settings
 from tests.conftest import migrate
+from tests.historical_tutoring import historical_hint_operations
 from tests.integration.test_learning import attempt, post, predict, progress, start, verify
 from tests.integration.test_transfer_retrieval import (
     MutableClock,
@@ -42,6 +45,34 @@ ACCOUNT_TABLES = {
     "account_learners",
     "account_action_limits",
 }
+# This fixture deliberately tests 0004 -> 0005, not the current migration head.
+# Additive candidate/tutoring tables do not belong to this historical schema.
+LEGACY_0005_TABLES = frozenset(
+    {
+        "account_action_limits",
+        "account_learners",
+        "attempts",
+        "auth_subjects",
+        "learner_credentials",
+        "learners",
+        "learning_events",
+        "learning_sessions",
+        "lesson_versions",
+        "lessons",
+        "predictions",
+        "retrieval_attempts",
+        "retrieval_checkpoints",
+        "role_grant_events",
+        "runtime_notes",
+        "runtime_tasks",
+        "tutor_interactions",
+        "user_roles",
+        "users",
+        "verification_checks",
+        "verification_runs",
+        "write_gate",
+    }
+)
 ACCOUNT_GUARDS = {
     "account_owner_exclusive",
     "account_credential_insert",
@@ -84,6 +115,14 @@ def assert_integrity(connection, revision):
     assert connection.scalar(text("SELECT version_num FROM alembic_version")) == revision
 
 
+def assert_legacy_schema_matches_models(connection):
+    legacy = MetaData(naming_convention=m.Base.metadata.naming_convention)
+    for name in sorted(LEGACY_0005_TABLES):
+        m.Base.metadata.tables[name].to_metadata(legacy)
+    context = MigrationContext.configure(connection, opts={"compare_type": True})
+    assert compare_metadata(context, legacy) == []
+
+
 def test_populated_0004_upgrade_preserves_history_constraints_and_account_claim(tmp_path):
     path = tmp_path / "populated-pre-0005.db"
     settings = Settings(
@@ -110,9 +149,13 @@ def test_populated_0004_upgrade_preserves_history_constraints_and_account_claim(
             )
             return snapshot(Credential, row) if row else None
 
-        # Only the historical lookup differs: current ownership joins require 0005.
-        # All actual HTTP validation, writes, readbacks and orchestration remain real.
-        with TestClient(app) as client, TestClient(app) as second_guest:
+        # Ownership joins require 0005; tutoring reservations were added after 0005.
+        # The test-only reservation port leaves all historical interaction rows real.
+        with (
+            historical_hint_operations(),
+            TestClient(app) as client,
+            TestClient(app) as second_guest,
+        ):
             client.headers.update(
                 {"Origin": "http://localhost:3000", "X-Trace-Client": "learning-web"}
             )
@@ -191,7 +234,7 @@ def test_populated_0004_upgrade_preserves_history_constraints_and_account_claim(
                 }
                 before_journey = journey(client)
 
-            names = set(m.Base.metadata.tables) - ACCOUNT_TABLES
+            names = LEGACY_0005_TABLES - ACCOUNT_TABLES
             config = migration_config()
             with database.engine.begin() as connection:
                 assert_integrity(connection, "0004_transfer_retrieval")
@@ -209,14 +252,14 @@ def test_populated_0004_upgrade_preserves_history_constraints_and_account_claim(
                     command.downgrade(config, "0003_constraint_names")
                 assert records(connection, names) == before
                 command.upgrade(config, "0005_account_identity")
-                command.check(config)
+                assert_legacy_schema_matches_models(connection)
                 assert_integrity(connection, "0005_account_identity")
                 assert records(connection, names) == before
                 upgraded = schema(connection)
                 assert all(upgraded[key] == sql for key, sql in old_schema.items())
-                assert {name for kind, name in upgraded if kind == "table"} == set(
-                    m.Base.metadata.tables
-                ) | {"alembic_version"}
+                assert {name for kind, name in upgraded if kind == "table"} == (
+                    LEGACY_0005_TABLES | {"alembic_version"}
+                )
                 assert {name for kind, name in upgraded if kind == "trigger"} == {
                     name for kind, name in old_schema if kind == "trigger"
                 } | ACCOUNT_GUARDS
@@ -281,11 +324,11 @@ def test_populated_0004_upgrade_preserves_history_constraints_and_account_claim(
                         }
                     else:
                         assert row == previous
-                after_claim = records(connection, set(m.Base.metadata.tables))
+                after_claim = records(connection, LEGACY_0005_TABLES)
                 config.attributes["connection"] = connection
                 with pytest.raises(RuntimeError, match="downgrade refused"):
                     command.downgrade(config, "0004_transfer_retrieval")
-                assert records(connection, set(m.Base.metadata.tables)) == after_claim
+                assert records(connection, LEGACY_0005_TABLES) == after_claim
                 assert_integrity(connection, "0005_account_identity")
             with TestClient(app) as old_guest:
                 old_guest.cookies.set(COOKIE_NAME, raw_cookie)

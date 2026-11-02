@@ -1,0 +1,117 @@
+{
+  "status": "draft",
+  "production_approved": false,
+  "escalation_destination": null,
+  "documents": [
+    {
+      "source_id": "trace-overview",
+      "title": "Trace overview",
+      "revision": "0.1.0",
+      "draft_path": "01-trace-overview.md",
+      "draft_file_sha256": "fba3d6df6dcc6ede1ce60813adaa1ce461a7ef1adbc356b0bb3dbee900d2e64d",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "registration-authentication",
+      "title": "Registration and authentication",
+      "revision": "0.1.0",
+      "draft_path": "02-registration-authentication.md",
+      "draft_file_sha256": "5871634e69b516efb092334991720252e41a724ac2961c534660262766c46575",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "google-authentication",
+      "title": "Google authentication troubleshooting",
+      "revision": "0.1.0",
+      "draft_path": "03-google-authentication.md",
+      "draft_file_sha256": "cb8e293ae0a0254d3ba7ef324d6f471c4a95ab9fdd7b549c4fbfdd64fe0bc7b1",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "learning-navigation",
+      "title": "Learning session navigation",
+      "revision": "0.1.0",
+      "draft_path": "04-learning-navigation.md",
+      "draft_file_sha256": "e85e6396858a309df02066678ec6cfad9359977eb1b7d5ea9123c9375ea00a9c",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "prediction-attempts-verification",
+      "title": "Predictions, attempts and verification",
+      "revision": "0.1.0",
+      "draft_path": "05-prediction-attempts-verification.md",
+      "draft_file_sha256": "8d4403b96fab7e7c56fdb3cedcd9421f71458e6ec2704de08c7da6f5a34930fe",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "hints-explanations",
+      "title": "Hints and lesson explanations",
+      "revision": "0.1.0",
+      "draft_path": "06-hints-explanations.md",
+      "draft_file_sha256": "9af5388dbeab35c1a4d65cd3419a510206db828e8562e06b2a878214db0f0782",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "progress-retrieval",
+      "title": "Progress and retrieval exercises",
+      "revision": "0.1.0",
+      "draft_path": "07-progress-retrieval.md",
+      "draft_file_sha256": "547e0e2035184332989641dd01b5a842b17fc2c00605bf35d810def997c0dd84",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "daily-availability",
+      "title": "Daily exercise availability",
+      "revision": "0.1.0",
+      "draft_path": "08-daily-availability.md",
+      "draft_file_sha256": "03b05b19ac5f431366a4803bef00cc585e990bcc63f6ca055ba210ba0c51a368",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "technical-problems",
+      "title": "Common technical problems",
+      "revision": "0.1.0",
+      "draft_path": "09-technical-problems.md",
+      "draft_file_sha256": "42b53af153d758fcb3460198a93de2f1f432e93f55f3a29bb528690908382347",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    },
+    {
+      "source_id": "human-escalation",
+      "title": "Human support and escalation",
+      "revision": "0.1.0",
+      "draft_path": "10-human-escalation.md",
+      "draft_file_sha256": "720296abfe5ff41a4cbc7ae4001d836a0d5ba143b8fcdd427f9f7e9679d0b578",
+      "review_status": "draft",
+      "reviewed_at": null,
+      "valid_until": null,
+      "conflict_review": "pending"
+    }
+  ]
+}
