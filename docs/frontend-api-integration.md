@@ -915,3 +915,53 @@ Executed documentation checks:
   exposure. No such values were found.
 - No backend pytest suite was rerun, and no browser or live-provider smoke test
   was performed. Those are explicit limits, not unreported passing checks.
+
+## 12. Learner-requested (custom) lessons
+
+Added on branch `feat/custom-lesson-creation` (additive; existing contracts unchanged). A
+signed-in learner describes what they want to learn; Trace drafts a short lesson set with the
+shared Gemini setup, validates it, stores it privately and lets the learner study it.
+
+**Auth and transport (all endpoints):** account Bearer token with the `learner` role (guest
+cookies are refused), `X-Trace-Client: learning-web` and an allowed `Origin` on writes,
+`Cache-Control: no-store`, the standard `ErrorResponse` envelope. Every resource is private to
+the requesting account: another account gets **404**.
+
+| Method and path | Purpose | Notes |
+|---|---|---|
+| `GET /api/v1/custom-lessons/languages` | Suggested languages and how answers are checked | `generation_available: false` when AI is disabled. Every language is `answer_key`; generated code is never run. |
+| `POST /api/v1/custom-lessons/requests` | Queue generation | **202** with the request. `Idempotency-Key` (UUID) required: same key + same body replays; same key + different body is **409** `idempotency_conflict`. Body: `topic` (10–1000), `language` (1–40), `framework?`, `level`, `goal`, `lesson_count` 1–3, `practice_styles` (≥1 of `predict_output`, `find_bug`, `multiple_choice`, `explain`). |
+| `GET /api/v1/custom-lessons/requests/{id}` | Status | `queued`, `generating`, `ready`, `failed`, `cancelled`, `rejected`; `error_code`, learner-safe `message`, `lessons_ready`, `lesson_ids`, timestamps. |
+| `POST /api/v1/custom-lessons/requests/{id}/cancel` | Cancel while queued/generating | Final states are returned unchanged. |
+| `GET /api/v1/custom-lessons` | The learner's lessons | Newest first, with progress counts. |
+| `GET /api/v1/custom-lessons/{id}` | One lesson | **No answer keys.** `explanation` appears per challenge only after it was answered. `next_lesson_id` links a set. |
+| `DELETE /api/v1/custom-lessons/{id}` | Delete a lesson and its answers | **204**. |
+| `POST /api/v1/custom-lessons/{id}/challenges/{challengeId}/answers` | Check an answer on the server | `Idempotency-Key` required. `answer_key` challenges take `selected_option` and return `correct` true/false + explanation; `practice_only` (explain) take `text` and return `correct: null`, an example answer and the explanation. The key itself is never returned. |
+
+**Errors:** 401 not signed in; 403 role/origin; 404 missing or foreign; 409
+`idempotency_conflict`; 422 validation, `custom_lesson_sensitive_input` (secrets/emails),
+`custom_lesson_policy_rejected` (clearly unsafe topics, with a rewrite hint),
+`invalid_answer`; 429 `custom_lesson_rate_limited` (per minute) and
+`custom_lesson_quota_reached` (per day); 503 `custom_lessons_unavailable`.
+
+**Request `error_code` values (failed/rejected):** `provider_rate_limited`, `quota_exhausted`,
+`provider_timeout`, `provider_unavailable`, `provider_error`, `invalid_output`, `interrupted`
+(restart or stale job), validation codes (`answer_leak`, `missing_correct_option`,
+`invalid_options`, `invalid_python`, `unsafe_output`, `language_mismatch`,
+`unrequested_style`, `invalid_structure`, `code_too_long`), and for `rejected`:
+`off_topic`, `unsafe`, `unclear`.
+
+**Generation:** one background worker per process (the HTTP request returns at once). Each
+lesson is one provider call through a separate bounded client that shares the Gemini
+transport, settings class and usage ledger with the tutor and Trace Help. One retry only for
+malformed output; none for rate limits or quota. Output is validated (schema, a unique
+correct option, no answer text in prompts or hints, Python parsed with `ast` and never
+executed, no URLs or secret-like strings, language matches) before anything is stored. No
+prompts or model output are stored or logged. At startup, unfinished jobs are marked
+`failed` / `interrupted`; a job not updated for `stale_after_seconds` is marked the same.
+
+**Limits (process variables, safe defaults; `TRACE_CUSTOM_LESSONS_` prefix):**
+`ENABLED` (true), `PROVIDER_TIMEOUT_SECONDS` (20, the Gemini adapter maximum; the tutor stays
+at 10), `REQUESTS_PER_MINUTE` (2), `DAILY_REQUESTS_PER_ACCOUNT` (5),
+`MAX_LIVE_CALLS_PER_PROCESS` (15, never above the shared `TRACE_LLM_MAX_LIVE_REQUESTS_PER_PROCESS`),
+`STALE_AFTER_SECONDS` (600). Spend and token caps come from the shared `TRACE_LLM_*` settings.

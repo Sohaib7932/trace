@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/layout/site-header";
+import { createCta } from "@/components/layout/nav-links";
 import { SplitHeading } from "@/components/motion/split-heading";
 import { TodayPath } from "@/components/daily/today-path";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function TodayPage() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader cta={createCta} />
       <main id="main" className="shell">
         <header className="pt-[clamp(48px,7vw,96px)] pb-[clamp(24px,3vw,40px)]">
           <p className="enter inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-[0.75rem] font-medium text-secondary shadow-[0_1px_2px_rgba(21,25,35,0.04)]">

@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.ai.accounting import AdmissionPolicy, AIAccountingError, SharedAdmission
 from app.ai.resources import AIResources, AITransportFactory, EmbeddingTransportFactory
 from app.ai.support_diagnostics import record_support_runtime
+from app.api.custom_lessons_runtime import build_custom_lessons
 from app.api.v1.accounts import router as account_router
+from app.api.v1.custom_lessons import router as custom_lessons_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.knowledge_admin import router as knowledge_admin_router
 from app.api.v1.knowledge_indexes import router as knowledge_indexes_router
@@ -21,6 +23,7 @@ from app.api.v1.tutoring import router as tutor_router
 from app.auth.jwt import JwtVerifier
 from app.core.accounting_settings import AccountingSettings
 from app.core.ai_settings import AIClientSettings
+from app.core.custom_lesson_settings import CustomLessonSettings
 from app.core.embedding_settings import EmbeddingSettings
 from app.core.errors import register_error_handlers
 from app.core.feedback_middleware import FeedbackSecurityMiddleware
@@ -72,6 +75,7 @@ def create_app(
     embedding_settings: EmbeddingSettings | None = None,
     embedding_transport_factory: EmbeddingTransportFactory | None = None,
     retrieval_settings: RetrievalSettings | None = None,
+    custom_lesson_settings: CustomLessonSettings | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
@@ -79,6 +83,7 @@ def create_app(
     accounting_config = accounting_settings or AccountingSettings(_env_file=None)
     embedding_config = embedding_settings or EmbeddingSettings(_env_file=None)
     retrieval_config = retrieval_settings or RetrievalSettings(_env_file=None)
+    custom_lesson_config = custom_lesson_settings or CustomLessonSettings()
     if config.environment == "production":
         if ai_config.mode == "mock" or embedding_config.mode == "mock":
             raise ValueError("Production AI accepts disabled or approved genuine modes only")
@@ -299,8 +304,17 @@ def create_app(
                     clock,
                 ),
             )
+            # Learner-requested lessons: own client over the same transport and ledger.
+            app.state.custom_lessons = build_custom_lessons(
+                resource, ai, custom_lesson_config, clock, app.state.logger
+            )
             yield
         finally:
+            custom_lessons = getattr(app.state, "custom_lessons", None)
+            if custom_lessons is not None:
+                with anyio.CancelScope(shield=True):
+                    await anyio.to_thread.run_sync(custom_lessons.close)
+                app.state.custom_lessons = None
             for operation in operations:
                 operation.close()
             if ingress_jobs is not None:
@@ -378,6 +392,7 @@ def create_app(
     app.state.accounting_settings = accounting_config
     app.state.embedding_settings = embedding_config
     app.state.retrieval_settings = retrieval_config
+    app.state.custom_lesson_settings = custom_lesson_config
     app.state.migration_heads = expected_heads()
     app.state.logger = logger
     app.state.clock = clock
@@ -415,6 +430,7 @@ def create_app(
     app.include_router(support_router)
     app.include_router(knowledge_admin_router)
     app.include_router(knowledge_indexes_router)
+    app.include_router(custom_lessons_router)
     # Request context wraps feedback ingress, CORS and generic limit handling.
     app.add_middleware(
         RequestLimitsMiddleware,
@@ -426,7 +442,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=list(config.cors_origins),
         allow_credentials=True,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "DELETE"],
         allow_headers=[
             "Content-Type",
             "X-Request-ID",
