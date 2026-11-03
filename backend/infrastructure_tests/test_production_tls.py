@@ -42,6 +42,20 @@ def docker(*args, check=True):
     return result
 
 
+def container_private_ipv4(name):
+    # Docker API 1.52 removed NetworkSettings.IPAddress. The fixture uses one
+    # bridge endpoint; inspect its supported per-network address instead.
+    networks = json.loads(
+        docker("inspect", "--format", "{{json .NetworkSettings.Networks}}", name).stdout
+    )
+    assert isinstance(networks, dict) and len(networks) == 1
+    endpoint = next(iter(networks.values()))
+    assert isinstance(endpoint, dict)
+    address = ipaddress.ip_address(endpoint["IPAddress"])
+    assert address.version == 4 and address.is_private and not address.is_loopback
+    return str(address)
+
+
 def stop_owned(name, label):
     found = docker(
         "inspect", "--format", '{{index .Config.Labels "codex-test"}}', name, check=False
@@ -278,10 +292,7 @@ def test_production_image_migration_and_startup_over_verified_tls(tls_postgres):
                 raise RuntimeError("Production container failed its disposable-TLS readiness probe")
             time.sleep(0.2)
         assert observed == {"uid": 10001, "ready": 200}
-        private_ip = docker(
-            "inspect", "--format", "{{.NetworkSettings.IPAddress}}", fixture["name"]
-        ).stdout.strip()
-        assert ipaddress.ip_address(private_ip).is_private
+        private_ip = container_private_ipv4(fixture["name"])
         scheme_probe = (
             "import json,urllib.request,urllib.error\n"
             "opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))\n"
