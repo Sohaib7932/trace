@@ -218,7 +218,9 @@ def test_provider_wait_is_bounded_and_timed_out_provider_keeps_subject_lease():
             operations.run(owner, lambda: pytest.fail("Old provider still owns subject lease"))
         assert error.value.code == "feedback_busy"
         release.set()
-        operations._executor.submit(lambda: None).result(5)
+        # The provider's done-callback frees the subject lease on the provider's own thread.
+        # A no-op on another pool thread can finish first, so wait for the real release.
+        assert operations.wait_for_idle(5)
         assert operations.run(owner, lambda: "restored") == "restored"
     finally:
         release.set()
