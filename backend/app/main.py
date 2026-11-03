@@ -8,13 +8,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.ai.accounting import AdmissionPolicy, AIAccountingError, SharedAdmission
+from app.ai.providers.github_app import GitHubAppClient
+from app.ai.providers.private_guides import BoundedGuideGenerator
 from app.ai.resources import AIResources, AITransportFactory, EmbeddingTransportFactory
 from app.ai.support_diagnostics import record_support_runtime
 from app.api.v1.accounts import router as account_router
 from app.api.v1.feedback import router as feedback_router
+from app.api.v1.github_projects import router as github_projects_router
 from app.api.v1.knowledge_admin import router as knowledge_admin_router
 from app.api.v1.knowledge_indexes import router as knowledge_indexes_router
 from app.api.v1.learning import router as learning_router
+from app.api.v1.private_guides import router as private_guides_router
 from app.api.v1.router import router
 from app.api.v1.support import router as support_router
 from app.api.v1.tutoring import router as tutor_router
@@ -25,6 +29,7 @@ from app.core.embedding_settings import EmbeddingSettings
 from app.core.errors import register_error_handlers
 from app.core.feedback_middleware import FeedbackSecurityMiddleware
 from app.core.feedback_settings import FeedbackSettings
+from app.core.github_settings import GitHubSettings
 from app.core.https_middleware import ProductionHTTPSMiddleware
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
@@ -34,14 +39,18 @@ from app.core.support_settings import SupportSettings
 from app.core.tutor_settings import TutorSettings
 from app.db.accounting import SqlAIControls
 from app.db.candidates import SqlCandidateRepository
+from app.db.github_projects import SqlGitHubProjectRepository
 from app.db.knowledge import SqlKnowledgeRepository
 from app.db.migrations import expected_heads
+from app.db.private_guides import SqlPrivateGuideRepository
 from app.db.session import Database
 from app.domain.clock import Clock, utc_now
 from app.services.candidate_generation import CandidateGenerationService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.feedback_operations import FeedbackOperations, SharedIngressJobs
+from app.services.github_projects import GitHubProjectService
+from app.services.private_guides import PrivateGuideService
 from app.support.database import DatabaseSupportKnowledge
 from app.support.semantic import SemanticRetrievalSettings, SemanticSupportKnowledge
 from app.verification.candidate_runtime import IsolatedCandidateRuntime
@@ -72,6 +81,7 @@ def create_app(
     embedding_settings: EmbeddingSettings | None = None,
     embedding_transport_factory: EmbeddingTransportFactory | None = None,
     retrieval_settings: RetrievalSettings | None = None,
+    github_settings: GitHubSettings | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
@@ -79,7 +89,12 @@ def create_app(
     accounting_config = accounting_settings or AccountingSettings(_env_file=None)
     embedding_config = embedding_settings or EmbeddingSettings(_env_file=None)
     retrieval_config = retrieval_settings or RetrievalSettings(_env_file=None)
+    github_config = github_settings or GitHubSettings(_env_file=None)
     if config.environment == "production":
+        if github_config.mode == "enabled" and not github_config.callback_url.startswith(
+            "https://"
+        ):
+            raise ValueError("Production GitHub callbacks require HTTPS")
         if ai_config.mode == "mock" or embedding_config.mode == "mock":
             raise ValueError("Production AI accepts disabled or approved genuine modes only")
         if accounting_config.mode != "durable":
@@ -143,6 +158,9 @@ def create_app(
             "max_response_bytes": 262144,
         }
     )
+    github_limits = TutorSettings.model_validate(
+        {**knowledge_config.model_dump(warnings=False), "requests_per_minute": 10}
+    )
 
     def admission_policy(
         family: str, limits: FeedbackSettings, *, ingress: bool = False
@@ -171,6 +189,8 @@ def create_app(
             ("tutor", tutor_config),
             ("support", support_config),
             ("knowledge", knowledge_config),
+            ("guide", tutor_config),
+            ("github", github_limits),
         )
     )
     ingress_policies = {
@@ -180,6 +200,8 @@ def create_app(
             ("tutor", tutor_config),
             ("support", support_config),
             ("knowledge", knowledge_config),
+            ("guide", tutor_config),
+            ("github", github_limits),
         )
     }
     # A default verifier belongs to this application, never to a state override.
@@ -199,6 +221,7 @@ def create_app(
         operations: list[FeedbackOperations] = []
         ingress_jobs: SharedIngressJobs | None = None
         verifier_acquired = False
+        github_client: GitHubAppClient | None = None
         try:
             with verifier_lock:
                 if owned_verifier is not None:
@@ -214,8 +237,15 @@ def create_app(
             ingress_jobs = SharedIngressJobs() if controls is not None else None
             app.state.shared_ingress_jobs = ingress_jobs
             for name, limits, policy in zip(
-                ("feedback", "tutor", "support", "knowledge"),
-                (feedback_config, tutor_config, support_config, knowledge_config),
+                ("feedback", "tutor", "support", "knowledge", "guide", "github"),
+                (
+                    feedback_config,
+                    tutor_config,
+                    support_config,
+                    knowledge_config,
+                    tutor_config,
+                    github_limits,
+                ),
                 worker_policies,
                 strict=True,
             ):
@@ -257,6 +287,20 @@ def create_app(
                     ),
                 )
             app.state.ai_resources = ai
+            github_client = GitHubAppClient(github_config)
+            app.state.github_projects = GitHubProjectService(
+                SqlGitHubProjectRepository(resource),
+                github_config,
+                github_client,
+                ai.client,
+                clock=clock,
+            )
+            app.state.guide_service = PrivateGuideService(
+                SqlPrivateGuideRepository(resource),
+                BoundedGuideGenerator(ai.client),
+                clock,
+                remaining_seconds=app.state.guide_operations.remaining_seconds,
+            )
             available: bool | None = None
             source_count: int | None = None
             try:
@@ -315,15 +359,23 @@ def create_app(
                         ai.close()
                 finally:
                     try:
-                        with verifier_lock:
-                            if owned_verifier is not None:
-                                if verifier_acquired:
-                                    verifier_owners -= 1
-                                if verifier_owners == 0:
-                                    owned_verifier.close()
+                        if github_client is not None:
+                            github_client.close()
                     finally:
-                        if database is None and resource is not None:
-                            resource.dispose()
+                        dispose_verifier()
+
+            def dispose_verifier() -> None:
+                nonlocal verifier_owners
+                try:
+                    with verifier_lock:
+                        if owned_verifier is not None:
+                            if verifier_acquired:
+                                verifier_owners -= 1
+                            if verifier_owners == 0:
+                                owned_verifier.close()
+                finally:
+                    if database is None and resource is not None:
+                        resource.dispose()
 
             # ASGI cancellation does not mean its abandoned sync worker stopped.
             # Keep the DB/AI alive through fresh final authorization and readback.
@@ -413,6 +465,8 @@ def create_app(
     app.include_router(feedback_router)
     app.include_router(tutor_router)
     app.include_router(support_router)
+    app.include_router(private_guides_router)
+    app.include_router(github_projects_router)
     app.include_router(knowledge_admin_router)
     app.include_router(knowledge_indexes_router)
     # Request context wraps feedback ingress, CORS and generic limit handling.
@@ -474,6 +528,28 @@ def create_app(
         error_subject="Knowledge administration",
         error_code_prefix="knowledge",
         shared_admission_factory=ingress_factory("knowledge", knowledge_config),
+        shared_admission_tracker_factory=tracker_factory,
+    )
+    app.add_middleware(
+        FeedbackSecurityMiddleware,
+        settings=tutor_config,
+        allowed_origins=config.cors_origins,
+        path_pattern=r"/api/v1/learning-guides(?:/[^/]+)?/?\Z",
+        deadline_key="guide_deadline",
+        error_subject="Private learning guides",
+        error_code_prefix="guide",
+        shared_admission_factory=ingress_factory("guide", tutor_config),
+        shared_admission_tracker_factory=tracker_factory,
+    )
+    app.add_middleware(
+        FeedbackSecurityMiddleware,
+        settings=github_limits,
+        allowed_origins=config.cors_origins,
+        path_pattern=r"/api/v1/projects/github(?:/.*)?\Z",
+        deadline_key="github_deadline",
+        error_subject="GitHub Project Learning",
+        error_code_prefix="github",
+        shared_admission_factory=ingress_factory("github", github_limits),
         shared_admission_tracker_factory=tracker_factory,
     )
     if config.environment == "production":

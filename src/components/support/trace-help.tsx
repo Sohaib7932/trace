@@ -83,7 +83,11 @@ function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
     const update = (patch: Partial<Extract<Turn, { role: "help" }>>) =>
       setTurns((all) => all.map((t) => (t.id === id && t.role === "help" ? { ...t, ...patch } : t)));
     try {
-      const reply = await support.ask({ question, route }, { onText: (text) => update({ text }) });
+      const history = turns.flatMap((turn): { role: "user" | "assistant"; text: string }[] => turn.role === "you"
+        ? [{ role: "user", text: turn.text.slice(0, 250) }]
+        : turn.state === "done" && turn.reply?.status === "answered"
+          ? [{ role: "assistant", text: turn.text.slice(0, 250) }] : []).slice(-4);
+      const reply = await support.ask({ question, route, history }, { onText: (text) => update({ text }) });
       if (reply.status === "unavailable") { setUnavailable(true); update({ state: "done", text: "", reply }); setAnnounce(real ? "Trace Help is unavailable right now. Help articles are listed below." : "Trace Help isn't connected yet. Help articles are listed below."); return; }
       setUnavailable(false);
       update({ state: "done", text: reply.answer, reply });

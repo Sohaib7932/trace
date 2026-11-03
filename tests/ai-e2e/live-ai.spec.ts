@@ -47,6 +47,19 @@ test("real frontend adapter reaches owned tutor and sourced support APIs; fixtur
   expect((await supportResponse).status()).toBe(200);
   await expect(help.getByText("Sources", { exact: true })).toBeVisible();
   await expect(help.getByText("Test fixture response", { exact: true })).toBeVisible();
+  const followUpResponse = page.waitForResponse((r) => r.url().endsWith("/support/ask") && r.request().method() === "POST");
+  await help.getByLabel("Your question").fill("When is that due?");
+  await help.getByRole("button", { name: "Send question" }).click();
+  const followUp = await followUpResponse;
+  expect(followUp.status()).toBe(200);
+  expect(followUp.request().postDataJSON()).toMatchObject({
+    question: "When is that due?",
+    history: [
+      { role: "user", text: "When are review checkpoints due?" },
+      { role: "assistant", text: expect.any(String) },
+    ],
+  });
+  expect((await followUp.json()).status).toBe("answered");
   expect((await (await request.get(`${API}/__fixture__/ai-stats`)).json()).capabilities).toContain("support");
 });
 
@@ -101,4 +114,60 @@ test("conversational tutor sends natural questions and bounded follow-up history
   await panel.getByRole("button", { name: "Clear conversation" }).click();
   await expect(panel.locator(".tutor-reply")).toHaveCount(0);
   // This is the real HTTP adapter with explicit fixture provenance, never a Gemini live test.
+});
+
+test("private guide generation persists an owned readable guide and never becomes verified lesson progress", async ({ page, request }, testInfo) => {
+  test.setTimeout(120_000);
+  await signUp(page, request);
+  await page.goto("/learn");
+  await page.getByLabel("What do you want to learn?").fill("Python variables");
+  await page.getByLabel("Learning goals (optional)").fill("Explain assignment clearly");
+  await page.getByLabel("Explanation preferences (optional)").fill("Short examples");
+  const verificationCalls: string[] = [];
+  page.on("request", (r) => { if (/\/attempts\/[^/]+\/verify/.test(r.url())) verificationCalls.push(r.url()); });
+  const createdResponse = page.waitForResponse((r) => r.url().endsWith("/learning-guides") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Create guide", exact: true }).click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  expect(created.headers()["cache-control"]).toBe("no-store");
+  expect(created.request().headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/);
+  const saved = await created.json();
+  expect(saved).toMatchObject({ status: "ready", source: "test_fixture", ungraded: true, execution_status: "not_executed" });
+  expect(saved.content.schema_version).toBe("private-learning-guide-v1");
+  await expect(page.getByRole("region", { name: "Create a private learning guide" }).getByText("Test fixture content · This is not a live Gemini result.")).toBeVisible();
+  await page.getByRole("link", { name: "Open your guide", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/learn/guides/${saved.id}$`));
+  await expect(page.getByRole("heading", { name: saved.content.title, exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Guide limitations" })).toContainText("Practice is ungraded");
+  await expect(page.getByRole("complementary", { name: "Guide limitations" }).getByText("Test fixture content · This is not a live Gemini result.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: saved.content.title, exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("private-guide-reader.png"), fullPage: true });
+  await page.getByRole("link", { name: "Back to your lessons", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Open guide", exact: true })).toHaveAttribute("href", `/learn/guides/${saved.id}`);
+  expect(verificationCalls).toEqual([]);
+  // Another actual fixture account cannot open this resource, even knowing its URL.
+  await page.context().clearCookies();
+  await signUp(page, request);
+  await page.goto(`/learn/guides/${saved.id}`);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("unavailable or does not belong");
+  await expect(page.getByRole("heading", { name: saved.content.title, exact: true })).toHaveCount(0);
+});
+
+test("a guide provider timeout persists only an unavailable request and never invents a guide", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await signUp(page, request);
+  await request.post(`${API}/__fixture__/ai-outcome/timeout`);
+  await page.goto("/learn");
+  await page.getByLabel("What do you want to learn?").fill("Python variables");
+  const createdResponse = page.waitForResponse((r) => r.url().endsWith("/learning-guides") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Create guide", exact: true }).click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  expect(await created.json()).toMatchObject({ status: "unavailable", content: null });
+  await expect(page.getByText("Gemini could not create a valid guide. No lesson was completed or published.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open your guide" })).toHaveCount(0);
+  await page.getByRole("link", { name: "View saved request", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "This guide is unavailable" })).toBeVisible();
 });

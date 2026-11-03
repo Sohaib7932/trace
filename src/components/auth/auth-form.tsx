@@ -26,20 +26,20 @@ const intros: Record<Mode, string> = {
 const callbackMessages: Record<Exclude<CallbackError, boolean>, string> = {
   link: "That sign-in or email link could not be completed. It may have expired, been used, or been cancelled. Sign in or request a new link.",
   cancelled: "Sign-in was cancelled. You can try again or use email and password.",
-  provider: "Google sign-in isn't set up on this site yet. Use email and password, or keep learning as a guest.",
+  provider: "The requested sign-in provider isn't set up on this site yet. Use email and password, or keep learning as a guest.",
   session: "Your session ended. Sign in again to continue.",
 };
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Asks the provider whether Google is enabled. Unknown (network, fixture) → null, and we try anyway. */
-async function googleEnabled(): Promise<boolean | null> {
+/** Check the requested OAuth provider; unknown network/fixture state still permits a normal SDK attempt. */
+async function providerEnabled(provider: "google" | "github"): Promise<boolean | null> {
   const config = authConfig();
   if (!config) return null;
   try {
     const response = await fetch(`${config.url}/auth/v1/settings`, { headers: { apikey: config.key }, signal: AbortSignal.timeout(5000) });
     if (!response.ok) return null;
     const settings = await response.json() as { external?: Record<string, boolean> };
-    return typeof settings.external?.google === "boolean" ? settings.external.google : null;
+    return typeof settings.external?.[provider] === "boolean" ? settings.external[provider] : null;
   } catch { return null; }
 }
 
@@ -50,7 +50,7 @@ export function AuthForm({ mode, callbackError = false, next }: { mode: Mode; ca
   const [confirmation, setConfirmation] = useState("");
   const [show, setShow] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [pending, setPending] = useState<"" | "form" | "google" | "resend">("");
+  const [pending, setPending] = useState<"" | "form" | "google" | "github" | "resend">("");
   const [inbox, setInbox] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -83,7 +83,7 @@ export function AuthForm({ mode, callbackError = false, next }: { mode: Mode; ca
     return `${authConfig()?.siteUrl ?? window.location.origin}/auth/callback${query}`;
   }
 
-  async function run(kind: "form" | "google" | "resend", action: () => Promise<void>) {
+  async function run(kind: "form" | "google" | "github" | "resend", action: () => Promise<void>) {
     setPending(kind); setMessage("");
     try { await action(); }
     catch { fail("The sign-in service is unavailable. Please try again."); }
@@ -128,16 +128,17 @@ export function AuthForm({ mode, callbackError = false, next }: { mode: Mode; ca
       }
     });
   }
-  async function google() {
+  async function oauth(provider: "google" | "github") {
     if (!supabase) return;
-    await run("google", async () => {
+    const label = provider === "github" ? "GitHub" : "Google";
+    await run(provider, async () => {
       if (authConfig() && window.location.origin !== authConfig()!.siteUrl) {
-        fail(`Open Trace at ${authConfig()!.siteUrl} to sign in with Google. Sign-in links only work on that address.`); return;
+        fail(`Open Trace at ${authConfig()!.siteUrl} to sign in with ${label}. Sign-in links only work on that address.`); return;
       }
-      if (await googleEnabled() === false) { fail(callbackMessages.provider); return; }
+      if (await providerEnabled(provider) === false) { fail(`${label} sign-in isn't set up on this site yet. Use email and password, or keep learning as a guest.`); return; }
       rememberNext(destination);
-      const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl() } });
-      if (error) fail("Google sign-in could not be started. Try again or use email and password.");
+      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: callbackUrl() } });
+      if (error) fail(`${label} sign-in could not be started. Try again or use email and password.`);
     });
   }
   async function resend() {
@@ -183,9 +184,13 @@ export function AuthForm({ mode, callbackError = false, next }: { mode: Mode; ca
       {!supabase && <p role="alert" className="mt-6 rounded-xl border border-border bg-surface-muted p-4 text-[0.875rem]">Account sign-in is not configured on this installation. Guest learning is available.</p>}
       {!forgot && !reset && (
         <div style={{ "--i": 3 } as React.CSSProperties} className="mt-8">
-          <button type="button" className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-border-strong bg-surface px-5 font-medium transition-[background-color,translate] duration-[180ms] hover:bg-surface-muted active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50" onClick={google} disabled={Boolean(pending) || !supabase}>
+          <button type="button" className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-border-strong bg-surface px-5 font-medium transition-[background-color,translate] duration-[180ms] hover:bg-surface-muted active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void oauth("google")} disabled={Boolean(pending) || !supabase}>
             {pending === "google" ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <GoogleMark />}
             Continue with Google
+          </button>
+          <button type="button" className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-border-strong bg-surface px-5 font-medium hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void oauth("github")} disabled={Boolean(pending) || !supabase}>
+            {pending === "github" ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <span aria-hidden="true" className="text-xs font-semibold">GH</span>}
+            Continue with GitHub
           </button>
           <p className="my-6 flex items-center gap-3 text-[0.8125rem] text-secondary"><span aria-hidden="true" className="h-px flex-1 bg-border" />or use email and password<span aria-hidden="true" className="h-px flex-1 bg-border" /></p>
         </div>

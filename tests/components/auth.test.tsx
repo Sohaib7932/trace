@@ -134,6 +134,33 @@ test("forgot-password requests a recovery link without revealing account existen
   expect(await screen.findByRole("status")).toHaveTextContent("If an account");
   expect(fixture.auth.resetPasswordForEmail).toHaveBeenCalledWith("unknown@example.test", { redirectTo: expect.stringContaining("type=recovery") });
 });
+
+test.each(["sign-in", "sign-up"] as const)("GitHub OAuth reuses the safe callback on %s", async (mode) => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://auth.example.test");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test_fixture");
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", window.location.origin);
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ external: { github: true } })));
+  render(<AuthForm mode={mode} next="/account" />);
+  await userEvent.click(screen.getByRole("button", { name: "Continue with GitHub" }));
+  await waitFor(() => expect(fixture.auth.signInWithOAuth).toHaveBeenCalledWith({ provider: "github", options: { redirectTo: `${window.location.origin}/auth/callback` } }));
+  expect(fixture.auth.signUp).not.toHaveBeenCalled();
+});
+
+test("GitHub disabled provider and SDK errors are safe", async () => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://auth.example.test");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test_fixture");
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", window.location.origin);
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ external: { github: false } })));
+  render(<AuthForm mode="sign-in" />);
+  await userEvent.click(screen.getByRole("button", { name: "Continue with GitHub" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("GitHub sign-in isn't set up");
+  expect(fixture.auth.signInWithOAuth).not.toHaveBeenCalled();
+  fetch.mockResolvedValue(new Response(JSON.stringify({ external: { github: true } })));
+  fixture.auth.signInWithOAuth.mockResolvedValue({ error: { message: "private-provider-canary" } });
+  await userEvent.click(screen.getByRole("button", { name: "Continue with GitHub" }));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("GitHub sign-in could not be started"));
+  expect(screen.queryByText("private-provider-canary")).toBeNull();
+});
 test("reset uses provider password update and signs out afterwards", async () => {
   const user = await credentials("reset-password");
   await user.click(screen.getByRole("button", { name: "Change password" }));

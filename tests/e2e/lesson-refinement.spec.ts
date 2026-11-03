@@ -119,17 +119,17 @@ test("tutor: context line, collapse at desktop, drawer below 1280px", async ({ p
   expect(errors).toEqual([]);
 });
 
-test("library: Trace lessons, an empty Your lessons, and a disabled custom lesson form", async ({ page }) => {
+test("library: verified Trace lessons and private-guide creation stay gated for guests", async ({ page }) => {
   const errors = guard(page);
   const requests: string[] = [];
-  page.on("request", (request) => { if (/lessons\/custom|generate/.test(request.url())) requests.push(request.url()); });
+  page.on("request", (request) => { if (/learning-guides|lessons\/custom|generate/.test(request.url())) requests.push(request.url()); });
   await page.goto("/learn");
   await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
-  await expect(page.getByText("Custom lessons you create will appear here.")).toBeVisible();
+  await expect(page.getByText("Private guides you create will appear here.")).toBeVisible();
   await page.getByLabel("What do you want to learn?").fill("FastAPI authentication");
-  const create = page.getByRole("button", { name: "Create lesson" });
+  const create = page.getByRole("button", { name: "Create guide" });
   await expect(create).toBeDisabled();
-  await expect(page.getByText("Coming soon: custom lessons are being built.")).toBeVisible();
+  await expect(page.getByText("Sign in to create a private guide.")).toBeVisible();
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });

@@ -182,6 +182,10 @@ test("real support clears an unavailable notice after a verified answer and pres
   expect(within(dialog).queryByRole("button", { name: "Demo responses" })).toBeNull();
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(fetch.mock.calls[1][0]).toBe("http://127.0.0.1:8000/api/v1/support/ask");
+  expect(JSON.parse(fetch.mock.calls[1][1]!.body as string)).toEqual({
+    question: "When are reviews due?",
+    history: [{ role: "user", text: "How do follow-ups work?" }],
+  });
 });
 
 test("support chat: 'Talk to a human' appears when a support email is configured", async () => {

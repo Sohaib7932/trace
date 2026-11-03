@@ -58,6 +58,10 @@ class BrowserFixtureTransport:
                     "types with the submitted JSON before editing. What mismatch do you observe?",
                 }
             )
+        elif json.loads(request.data_json).get("operation") == "private_learning_guide_v1":
+            from tests.integration.test_private_guides import content
+
+            text = json.dumps(content())
         else:
             text = '{"guidance_id":"extra-fields"}'
         return TransportCompletion(text=text, input_tokens=100, output_tokens=30, cost_microusd=0)

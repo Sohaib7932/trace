@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from concurrent.futures import Future
 from contextlib import suppress
 from contextvars import ContextVar
+from copy import deepcopy
 from pathlib import Path
 from threading import Condition, Event, RLock, Thread, current_thread
 from typing import Literal
@@ -33,6 +34,67 @@ _WIRE_LIMIT = 131072
 _KEY_FILE = Path(__file__).resolve().parents[3] / ".env.gemini"
 _CONNECT_TIMEOUT: ContextVar[float] = ContextVar("gemini_connect_timeout", default=3.0)
 _DEADLINE: ContextVar[float | None] = ContextVar("gemini_response_deadline", default=None)
+
+
+def _gemini_json_schema(schema: dict[str, object]) -> dict[str, object]:
+    """Express string constants using Gemini's supported singleton enums.
+
+    GenerateContent's responseJsonSchema keyword subset includes enum, not const.
+    The SDK's raw JSON-schema path passes it through unchanged. Match its string
+    Literal compatibility behavior without changing the original domain schema,
+    annotations, field names or any adjacent constraints. Local output validation
+    remains authoritative. Non-string constants and contradictions fail closed.
+    """
+    copied = deepcopy(schema)
+
+    def visit(value: object) -> None:
+        if not isinstance(value, dict):
+            return
+        if "const" in value:
+            constant = value["const"]
+            if not isinstance(constant, str):
+                raise AITransportError("invalid_request")
+            existing = value.get("enum")
+            if "enum" in value and (not isinstance(existing, list) or constant not in existing):
+                raise AITransportError("invalid_request")
+            value["enum"] = [constant]
+            del value["const"]
+        # These dictionaries contain named schema nodes. A property literally
+        # named "const" is a field, not a keyword to rewrite in this dictionary.
+        for key in ("properties", "$defs", "definitions", "patternProperties", "dependentSchemas"):
+            mapping = value.get(key)
+            if isinstance(mapping, dict):
+                for child in mapping.values():
+                    visit(child)
+        for key in (
+            "items",
+            "additionalItems",
+            "additionalProperties",
+            "contains",
+            "propertyNames",
+            "unevaluatedItems",
+            "unevaluatedProperties",
+            "not",
+            "if",
+            "then",
+            "else",
+        ):
+            child = value.get(key)
+            if isinstance(child, list):
+                for item in child:
+                    visit(item)
+            else:
+                visit(child)
+        for key in ("anyOf", "oneOf", "allOf", "prefixItems"):
+            children = value.get(key)
+            if isinstance(children, list):
+                for child in children:
+                    visit(child)
+
+    visit(copied)
+    if len(json.dumps(copied, ensure_ascii=False).encode("utf-8")) > 65536:
+        raise AITransportError("request_too_large")
+    return copied
 
 
 class GeminiCredentials(BaseSettings):
@@ -329,7 +391,9 @@ class GeminiTransport:
         metadata: TransportCompletion | None = None
         try:
             data = strict_json_object(checked.data_json, max_bytes=65536)
-            schema = strict_json_object(checked.output_schema_json or "", max_bytes=65536)
+            schema = _gemini_json_schema(
+                strict_json_object(checked.output_schema_json or "", max_bytes=65536)
+            )
             timeout = checked.response_timeout_seconds
             result = await self._client.aio.models.generate_content(
                 model=MODEL,

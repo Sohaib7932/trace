@@ -210,7 +210,7 @@ def test_public_api_schema_matches_export_and_existing_fixture_hints_are_unchang
     baseline = json.loads((Path(__file__).resolve().parents[2] / "openapi.json").read_text())
     assert learner.app.openapi() == baseline
     legacy_paths = {path for path in baseline["paths"] if not path.startswith("/api/v1/admin/")}
-    assert len(legacy_paths) == 24
+    assert len(legacy_paths) == 34  # 24 existing + two guide + eight Project Learning paths
     assert set(baseline["paths"]) - legacy_paths == {
         "/api/v1/admin/knowledge/revisions",
         "/api/v1/admin/knowledge/revisions/{revision_id}",

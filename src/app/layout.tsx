@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { TraceHelp } from "@/components/support/trace-help";
 
@@ -52,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="site-canvas">{children}</div>
         </div>
         {/* Trace Help: on every route (it hides itself on the auth callback). */}
-        <TraceHelp />
+        <Suspense fallback={null}><TraceHelp /></Suspense>
       </body>
     </html>
   );

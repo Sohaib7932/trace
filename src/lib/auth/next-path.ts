@@ -2,7 +2,7 @@
  * Post-sign-in destinations. Only a small allowlist of same-origin app paths is ever
  * accepted, so a crafted ?next= can't send someone to another site or an auth loop.
  */
-const ALLOWED = /^\/(?:learn(?:\/[a-z0-9-]{1,80})?|account)?(?:#[a-z0-9-]{1,40})?$/;
+const ALLOWED = /^\/(?:learn(?:\/[a-z0-9-]{1,80}|\/guides\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|account|projects)?(?:#[a-z0-9-]{1,40})?$/;
 
 export const DEFAULT_NEXT = "/learn";
 export const NEXT_COOKIE = "trace_next";

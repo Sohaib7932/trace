@@ -5,6 +5,8 @@ from alembic import context
 from app.core.settings import Settings
 from app.db import (
     accounting_models,  # noqa: F401 -- durable AI controls
+    github_models,  # noqa: F401 -- owned GitHub App project metadata
+    guide_models,  # noqa: F401 -- private instructional guide metadata
     knowledge_models,  # noqa: F401 -- register additive archive metadata
     models,  # noqa: F401 -- register mapped product tables for migration metadata
 )

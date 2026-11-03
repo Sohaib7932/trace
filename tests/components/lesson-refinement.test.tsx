@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Progress } from "@/lib/api/client";
 import { TutorPanel, stepLabel } from "@/components/learning/tutor/tutor-panel";
 import { CreateCustomLesson, YourLessons } from "@/components/learning/hub/custom-lessons";
@@ -99,29 +100,30 @@ test("the catalog lists only real Trace lessons; generated lessons are unavailab
   expect(generatedSource.list()).toEqual([]);
 });
 
-test("Your lessons shows an honest empty state", () => {
-  render(<YourLessons />);
+test("Your lessons shows a private-guide sign-in gate for guests", () => {
+  render(<QueryClientProvider client={new QueryClient()}><YourLessons /></QueryClientProvider>);
   expect(screen.getByRole("heading", { name: "Your lessons" })).toBeVisible();
-  expect(screen.getByText("Custom lessons you create will appear here.")).toBeVisible();
+  expect(screen.getByText("Private guides you create will appear here.")).toBeVisible();
+  expect(screen.getByText("Sign in to create and read your private guides.")).toBeVisible();
 });
 
-test("the custom lesson form is disabled, says why, and makes no network request", async () => {
+test("the private-guide form remains disabled for guests and makes no network request", async () => {
   const fetchSpy = vi.fn();
   vi.stubGlobal("fetch", fetchSpy);
   const user = userEvent.setup();
-  render(<CreateCustomLesson />);
+  render(<QueryClientProvider client={new QueryClient()}><CreateCustomLesson /></QueryClientProvider>);
   const topic = screen.getByLabelText("What do you want to learn?");
-  expect(topic).toHaveAttribute("placeholder", "I want to learn FastAPI authentication from beginner to intermediate with practical exercises");
+  expect(topic).toHaveAttribute("placeholder", "Python variables, with small practical examples");
   await user.type(topic, "FastAPI dependencies");
   expect(screen.getByLabelText("Starting level")).toHaveValue("beginner");
   expect(screen.getByLabelText("Target level")).toHaveValue("intermediate");
   expect(screen.getByLabelText("Prefer practical exercises")).toBeChecked();
-  const submit = screen.getByRole("button", { name: "Create lesson" });
+  const submit = screen.getByRole("button", { name: "Create guide" });
   expect(submit).toBeDisabled();
-  expect(submit).toHaveAccessibleDescription("Coming soon: custom lessons are being built.");
+  expect(submit).toHaveAccessibleDescription("Sign in to create a private guide.");
   await user.click(submit);
   await user.keyboard("{Enter}");
-  expect(screen.getByRole("complementary", { name: "Preview of the format" })).toHaveTextContent(/Coding challenges/);
+  expect(screen.getByRole("complementary", { name: "Preview of the format" })).toHaveTextContent(/Practice is ungraded/);
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 

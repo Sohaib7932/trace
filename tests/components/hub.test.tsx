@@ -84,7 +84,7 @@ test("hub: a guest sees the lesson library and sign-in prompts, and no learner r
   expect(screen.getByRole("link", { name: "Sign in to start The nested payload" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Try the demo" })).toHaveAttribute("href", "/#demo");
   expect(screen.queryByText(/lessons completed/)).toBeNull();
-  expect(screen.getByText("Custom lessons you create will appear here.")).toBeVisible();
+  expect(screen.getByText("Private guides you create will appear here.")).toBeVisible();
   for (const call of [fixture.identity, fixture.journey, fixture.lesson, fixture.me]) expect(call).not.toHaveBeenCalled();
 });
 test("hub: a new signed-in learner sees both real lessons, the transfer locked with its reason, and no fake lessons", async () => {

@@ -2,12 +2,12 @@ import { lessons, type LessonEntry } from "@/content/lessons";
 import type { CustomLessonSummary } from "@/lib/ai/contracts";
 
 /**
- * Where lessons come from. Today only the catalog is real: Trace lessons published by the
+ * Where verified executable lessons come from: Trace lessons published by the
  * backend (content from GET /lessons/{id}, status from GET /learners/me/journey).
  *
- * Generated ("custom") lessons are a separate, future feature. Their source reports
- * "unavailable" and never makes a request; there is no lesson-creation endpoint in
- * openapi.json yet (see docs/frontend-api-requests.md, "AI lesson creation").
+ * Generated executable lessons remain a reviewed-candidate capability without a
+ * learner publication endpoint. Private instructional guides use a separate API
+ * (lib/api/learning-guides.ts); they are ungraded and never enter this catalog.
  */
 export type LessonSource<T> =
   | { kind: "catalog"; status: "available"; list: () => readonly T[] }
@@ -22,7 +22,7 @@ export const catalogSource: LessonSource<LessonEntry> = {
 export const generatedSource: LessonSource<CustomLessonSummary> = {
   kind: "generated",
   status: "unavailable",
-  reason: "Coming soon: custom lessons are being built.",
-  // No backend endpoint exists yet, so there is nothing to fetch and nothing to show.
+  reason: "Generated executable lessons require review before learner delivery.",
+  // No learner publication endpoint exists for executable candidates.
   list: () => [],
 };
