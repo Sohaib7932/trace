@@ -1,5 +1,7 @@
 """Stateless support orchestration with extractive grounding and explicit availability."""
 
+from collections.abc import Callable
+
 from app.ai.support_assistant import SupportAssistant
 from app.repositories.support_knowledge import ApprovedSupportKnowledge, SupportKnowledge
 from app.schemas.support import (
@@ -10,8 +12,9 @@ from app.schemas.support import (
     SupportResponse,
     SupportSelectionResult,
 )
-from app.support.knowledge import ReviewedSupportKnowledge
+from app.support.contracts import VersionedSupportKnowledge
 from app.support.receipts import VersionedSupportAnswer
+from app.support.semantic import BoundRetrievalOutcome, SemanticSupportKnowledge
 
 
 class SupportService:
@@ -21,8 +24,10 @@ class SupportService:
         knowledge: SupportKnowledge | None = None,
         *,
         escalation: SupportEscalation | None = None,
+        remaining_seconds: Callable[[], float] | None = None,
     ) -> None:
         self.assistant = assistant
+        self.remaining_seconds = remaining_seconds
         self.knowledge = knowledge if knowledge is not None else ApprovedSupportKnowledge()
         self.escalation = (
             SupportEscalation.model_validate(escalation.model_dump(warnings=False))
@@ -48,15 +53,27 @@ class SupportService:
             return VersionedSupportAnswer(response=response)
 
         try:
+            outcome: BoundRetrievalOutcome | None = None
+            if isinstance(self.knowledge, SemanticSupportKnowledge):
+                remaining = self.remaining_seconds() if self.remaining_seconds else None
+                if remaining is not None and remaining <= 0:
+                    return finish(unavailable)
+                outcome = self.knowledge.retrieve_with_snapshot(
+                    checked, timeout_seconds=remaining, subject=subject
+                )
             snapshot = (
-                self.knowledge.snapshot()
-                if isinstance(self.knowledge, ReviewedSupportKnowledge)
-                else None
+                outcome.snapshot
+                if outcome is not None
+                else (
+                    self.knowledge.snapshot()
+                    if isinstance(self.knowledge, VersionedSupportKnowledge)
+                    else None
+                )
             )
             knowledge = snapshot if snapshot is not None else self.knowledge
             if not knowledge.available:
                 return finish(unavailable)
-            received = knowledge.retrieve(checked)
+            received = outcome.matches if outcome is not None else knowledge.retrieve(checked)
             if type(received) is not tuple or len(received) > 3:
                 return finish(unavailable)
             passages = tuple(
@@ -81,6 +98,8 @@ class SupportService:
         if self.assistant is None:
             return finish(unavailable)
         try:
+            if self.remaining_seconds is not None and self.remaining_seconds() <= 0:
+                return finish(unavailable)
             result = self.assistant.select(checked, passages, subject=subject)
             if result is None:
                 return finish(unavailable)
@@ -91,7 +110,10 @@ class SupportService:
         # Recheck the same source scope after slow provider work. Expired, edited
         # or newly conflicting documentation must not escape as a stale answer.
         try:
-            if snapshot is not None and isinstance(self.knowledge, ReviewedSupportKnowledge):
+            if outcome is not None and isinstance(self.knowledge, SemanticSupportKnowledge):
+                if not self.knowledge.revalidate(outcome):
+                    return finish(unavailable)
+            elif snapshot is not None and isinstance(self.knowledge, VersionedSupportKnowledge):
                 fresh = self.knowledge.snapshot()
                 if (
                     not fresh.available
@@ -139,4 +161,8 @@ class SupportService:
             response=response,
             manifest_sha256=snapshot.manifest_sha256,
             passages=tuple(by_version_id[key] for key in selection.passage_ids),
+            retrieval_profile=outcome.mode
+            if outcome is not None and outcome.mode != "unavailable"
+            else "lexical",
+            index_sha256=outcome.index_sha256 if outcome is not None else None,
         )

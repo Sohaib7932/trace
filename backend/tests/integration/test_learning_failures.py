@@ -247,10 +247,15 @@ def test_finalized_evidence_and_version_pin_are_immutable(
     learner: TestClient, database: Database
 ) -> None:
     session = start(learner)
-    predict(learner, session)
-    post(learner, f"/sessions/{session}/hints", {})
+    prediction = predict(learner, session)
+    assert prediction.status_code == 201
+    hint = post(learner, f"/sessions/{session}/hints", {})
+    assert hint.status_code == 201
+    assert hint.json()["status"] == "delivered"
     a = attempt(learner, session, "content")
-    verify(learner, session, a["id"])
+    verification = verify(learner, session, a["id"])
+    assert verification.status_code == 200
+    assert verification.json()["status"] == "passed"
     for statement in [
         update(m.VerificationRun).values(feedback="rewritten"),
         update(m.VerificationCheck).values(observed="invented"),

@@ -1,37 +1,48 @@
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from threading import Thread
+from threading import RLock, Thread
 
 import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.ai.resources import AIResources, AITransportFactory
+from app.ai.accounting import AdmissionPolicy, AIAccountingError, SharedAdmission
+from app.ai.resources import AIResources, AITransportFactory, EmbeddingTransportFactory
 from app.api.v1.accounts import router as account_router
 from app.api.v1.feedback import router as feedback_router
+from app.api.v1.knowledge_admin import router as knowledge_admin_router
+from app.api.v1.knowledge_indexes import router as knowledge_indexes_router
 from app.api.v1.learning import router as learning_router
 from app.api.v1.router import router
 from app.api.v1.support import router as support_router
 from app.api.v1.tutoring import router as tutor_router
 from app.auth.jwt import JwtVerifier
+from app.core.accounting_settings import AccountingSettings
 from app.core.ai_settings import AIClientSettings
+from app.core.embedding_settings import EmbeddingSettings
 from app.core.errors import register_error_handlers
 from app.core.feedback_middleware import FeedbackSecurityMiddleware
 from app.core.feedback_settings import FeedbackSettings
+from app.core.https_middleware import ProductionHTTPSMiddleware
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
+from app.core.retrieval_settings import RetrievalSettings
 from app.core.settings import Settings
 from app.core.support_settings import SupportSettings
 from app.core.tutor_settings import TutorSettings
+from app.db.accounting import SqlAIControls
 from app.db.candidates import SqlCandidateRepository
+from app.db.knowledge import SqlKnowledgeRepository
 from app.db.migrations import expected_heads
 from app.db.session import Database
 from app.domain.clock import Clock, utc_now
 from app.services.candidate_generation import CandidateGenerationService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
-from app.services.feedback_operations import FeedbackOperations
+from app.services.feedback_operations import FeedbackOperations, SharedIngressJobs
+from app.support.database import DatabaseSupportKnowledge
+from app.support.semantic import SemanticRetrievalSettings, SemanticSupportKnowledge
 from app.verification.candidate_runtime import IsolatedCandidateRuntime
 
 _SHUTDOWN_GRACE_SECONDS = 30.0
@@ -56,10 +67,24 @@ def create_app(
     feedback_settings: FeedbackSettings | None = None,
     tutor_settings: TutorSettings | None = None,
     support_settings: SupportSettings | None = None,
+    accounting_settings: AccountingSettings | None = None,
+    embedding_settings: EmbeddingSettings | None = None,
+    embedding_transport_factory: EmbeddingTransportFactory | None = None,
+    retrieval_settings: RetrievalSettings | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
     ai_config = ai_settings if ai_settings is not None else AIClientSettings(_env_file=None)
+    accounting_config = accounting_settings or AccountingSettings(_env_file=None)
+    embedding_config = embedding_settings or EmbeddingSettings(_env_file=None)
+    retrieval_config = retrieval_settings or RetrievalSettings(_env_file=None)
+    if config.environment == "production":
+        if ai_config.mode == "mock" or embedding_config.mode == "mock":
+            raise ValueError("Production AI accepts disabled or approved genuine modes only")
+        if accounting_config.mode != "durable":
+            raise ValueError("Production requires durable shared allowance accounting")
+        if retrieval_config.mode != "lexical":
+            raise ValueError("Production vector ranking awaits independent quality approval")
     requested_feedback = (
         feedback_settings if feedback_settings is not None else FeedbackSettings(_env_file=None)
     )
@@ -110,20 +135,126 @@ def create_app(
             "max_request_bytes": min(requested_support.max_request_bytes, config.max_request_bytes),
         }
     )
+    knowledge_config = TutorSettings.model_validate(
+        {
+            **tutor_config.model_dump(warnings=False),
+            "max_request_bytes": min(16384, config.max_request_bytes),
+            "max_response_bytes": 262144,
+        }
+    )
+
+    def admission_policy(
+        family: str, limits: FeedbackSettings, *, ingress: bool = False
+    ) -> AdmissionPolicy | None:
+        if accounting_config.mode != "durable":
+            return None
+        return AdmissionPolicy(
+            scope=f"{accounting_config.scope}:{family}:{'ingress' if ingress else 'worker'}",
+            global_requests_per_minute=limits.ingress_requests_per_minute,
+            subject_requests_per_minute=limits.ingress_requests_per_minute
+            if ingress
+            else limits.requests_per_minute,
+            max_global_in_flight=limits.max_ingress_in_flight
+            if ingress
+            else limits.max_global_in_flight,
+            max_subject_in_flight=min(16, limits.max_ingress_in_flight)
+            if ingress
+            else limits.max_subject_in_flight,
+        )
+
+    # Validate namespace lengths and all limits before opening any resources.
+    worker_policies = tuple(
+        admission_policy(name, limits)
+        for name, limits in (
+            ("feedback", feedback_config),
+            ("tutor", tutor_config),
+            ("support", support_config),
+            ("knowledge", knowledge_config),
+        )
+    )
+    ingress_policies = {
+        name: admission_policy(name, limits, ingress=True)
+        for name, limits in (
+            ("feedback", feedback_config),
+            ("tutor", tutor_config),
+            ("support", support_config),
+            ("knowledge", knowledge_config),
+        )
+    }
+    # A default verifier belongs to this application, never to a state override.
+    # Nested/repeated lifespans share it until their final real worker drains.
+    # Preserve the existing UTC authentication clock. The separately injectable
+    # learning/retrieval clock is not a token issuer clock; explicit verifier
+    # injection remains available for deterministic authentication tests.
+    owned_verifier = JwtVerifier(config) if jwt_verifier is None else None
+    verifier_owners = 0
+    verifier_lock = RLock()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        resource = database if database is not None else Database(config)
-        app.state.database = resource
+        nonlocal owned_verifier, verifier_owners
+        resource: Database | None = None
         ai: AIResources | None = None
-        feedback_operations = FeedbackOperations(feedback_config)
-        app.state.feedback_operations = feedback_operations
-        tutor_operations = FeedbackOperations(tutor_config)
-        app.state.tutor_operations = tutor_operations
-        support_operations = FeedbackOperations(support_config)
-        app.state.support_operations = support_operations
+        operations: list[FeedbackOperations] = []
+        ingress_jobs: SharedIngressJobs | None = None
+        verifier_acquired = False
         try:
-            ai = AIResources.create(ai_config, ai_transport_factory, clock=clock)
+            with verifier_lock:
+                if owned_verifier is not None:
+                    if owned_verifier.closed and app.state.jwt_verifier is owned_verifier:
+                        owned_verifier = JwtVerifier(config)
+                        app.state.jwt_verifier = owned_verifier
+                    verifier_owners += 1
+                    verifier_acquired = True
+            resource = database if database is not None else Database(config)
+            app.state.database = resource
+            controls = SqlAIControls(resource) if accounting_config.mode == "durable" else None
+            app.state.ai_controls = controls
+            ingress_jobs = SharedIngressJobs() if controls is not None else None
+            app.state.shared_ingress_jobs = ingress_jobs
+            for name, limits, policy in zip(
+                ("feedback", "tutor", "support", "knowledge"),
+                (feedback_config, tutor_config, support_config, knowledge_config),
+                worker_policies,
+                strict=True,
+            ):
+                operation = FeedbackOperations(
+                    limits, shared_admission=controls, admission_policy=policy
+                )
+                operations.append(operation)
+                setattr(app.state, name + "_operations", operation)
+            knowledge = (
+                DatabaseSupportKnowledge(SqlKnowledgeRepository(resource), clock)
+                if config.environment == "production" or accounting_config.mode == "durable"
+                else None
+            )
+            ai = AIResources.create(
+                ai_config,
+                ai_transport_factory,
+                clock=clock,
+                ledger=controls,
+                allowance_policy=accounting_config.policy() if controls is not None else None,
+                embedding_settings=embedding_config,
+                embedding_transport_factory=embedding_transport_factory,
+                knowledge=knowledge,
+            )
+            if retrieval_config.mode != "lexical":
+                if knowledge is None:
+                    raise ValueError("Vector experiments require a published durable corpus")
+                with SqlKnowledgeRepository(resource).read() as store:
+                    index = store.index(retrieval_config.index_sha256 or "")
+                ai.support.knowledge = SemanticSupportKnowledge(
+                    knowledge,
+                    ai.embeddings,
+                    index,
+                    SemanticRetrievalSettings(
+                        mode=retrieval_config.mode,
+                        allow_unreviewed_experiment=retrieval_config.allow_unreviewed_experiment,
+                        lexical_weight=retrieval_config.lexical_weight,
+                        semantic_weight=retrieval_config.semantic_weight,
+                        minimum_cosine=retrieval_config.minimum_cosine,
+                    ),
+                )
             app.state.ai_resources = ai
             app.state.candidate_generation = CandidateGenerationService(
                 ai.question_generator,
@@ -135,26 +266,49 @@ def create_app(
             )
             yield
         finally:
-            operations = (feedback_operations, tutor_operations, support_operations)
             for operation in operations:
                 operation.close()
+            if ingress_jobs is not None:
+                ingress_jobs.close()
             if ai is not None:
-                ai.client.stop_admission()
+                ai.stop_admission()
 
             def dispose() -> None:
+                nonlocal verifier_owners
                 try:
                     if ai is not None:
                         ai.close()
                 finally:
-                    if database is None:
-                        resource.dispose()
+                    try:
+                        with verifier_lock:
+                            if owned_verifier is not None:
+                                if verifier_acquired:
+                                    verifier_owners -= 1
+                                if verifier_owners == 0:
+                                    owned_verifier.close()
+                    finally:
+                        if database is None and resource is not None:
+                            resource.dispose()
 
             # ASGI cancellation does not mean its abandoned sync worker stopped.
             # Keep the DB/AI alive through fresh final authorization and readback.
             with anyio.CancelScope(shield=True):
+                grace_end = time.monotonic() + _SHUTDOWN_GRACE_SECONDS
                 drained = await anyio.to_thread.run_sync(
-                    _drain_operations, operations, _SHUTDOWN_GRACE_SECONDS
+                    _drain_operations, tuple(operations), _SHUTDOWN_GRACE_SECONDS
                 )
+                if drained and ingress_jobs is not None:
+                    drained = await anyio.to_thread.run_sync(
+                        ingress_jobs.wait_for_idle, max(0, grace_end - time.monotonic())
+                    )
+                if drained and ai is not None:
+                    drained = await anyio.to_thread.run_sync(
+                        ai.wait_for_idle, max(0, grace_end - time.monotonic())
+                    )
+                if drained and owned_verifier is not None:
+                    drained = await anyio.to_thread.run_sync(
+                        owned_verifier.wait_for_idle, max(0, grace_end - time.monotonic())
+                    )
                 if drained:
                     await anyio.to_thread.run_sync(dispose)
                 else:
@@ -164,7 +318,13 @@ def create_app(
                     logger.warning("ai_shutdown_drain_deferred")
 
                     def deferred_dispose() -> None:
-                        _drain_operations(operations, None)
+                        _drain_operations(tuple(operations), None)
+                        if ingress_jobs is not None:
+                            ingress_jobs.wait_for_idle(None)
+                        if ai is not None:
+                            ai.wait_for_idle(None)
+                        if owned_verifier is not None:
+                            owned_verifier.wait_for_idle(None)
                         try:
                             dispose()
                         except Exception:
@@ -180,10 +340,37 @@ def create_app(
     app.state.feedback_settings = feedback_config
     app.state.tutor_settings = tutor_config
     app.state.support_settings = support_config
+    app.state.accounting_settings = accounting_config
+    app.state.embedding_settings = embedding_config
+    app.state.retrieval_settings = retrieval_config
     app.state.migration_heads = expected_heads()
     app.state.logger = logger
     app.state.clock = clock
-    app.state.jwt_verifier = jwt_verifier or JwtVerifier(config)
+    app.state.jwt_verifier = jwt_verifier if jwt_verifier is not None else owned_verifier
+
+    def ingress_factory(
+        family: str, limits: FeedbackSettings
+    ) -> Callable[[], tuple[SharedAdmission, AdmissionPolicy]] | None:
+        policy = ingress_policies[family]
+        if policy is None:
+            return None
+
+        def get_shared() -> tuple[SharedAdmission, AdmissionPolicy]:
+            controls = getattr(app.state, "ai_controls", None)
+            if not isinstance(controls, SqlAIControls):
+                raise AIAccountingError("unavailable")
+            return controls, policy
+
+        return get_shared
+
+    def ingress_tracker() -> SharedIngressJobs:
+        jobs = getattr(app.state, "shared_ingress_jobs", None)
+        if not isinstance(jobs, SharedIngressJobs):
+            raise AIAccountingError("unavailable")
+        return jobs
+
+    tracker_factory = ingress_tracker if accounting_config.mode == "durable" else None
+
     register_error_handlers(app)
     app.include_router(router)
     app.include_router(learning_router)
@@ -191,6 +378,8 @@ def create_app(
     app.include_router(feedback_router)
     app.include_router(tutor_router)
     app.include_router(support_router)
+    app.include_router(knowledge_admin_router)
+    app.include_router(knowledge_indexes_router)
     # Request context wraps feedback ingress, CORS and generic limit handling.
     app.add_middleware(
         RequestLimitsMiddleware,
@@ -216,6 +405,8 @@ def create_app(
         FeedbackSecurityMiddleware,
         settings=feedback_config,
         allowed_origins=config.cors_origins,
+        shared_admission_factory=ingress_factory("feedback", feedback_config),
+        shared_admission_tracker_factory=tracker_factory,
     )
     app.add_middleware(
         FeedbackSecurityMiddleware,
@@ -225,6 +416,8 @@ def create_app(
         deadline_key="tutor_deadline",
         error_subject="Lesson tutor",
         error_code_prefix="tutor",
+        shared_admission_factory=ingress_factory("tutor", tutor_config),
+        shared_admission_tracker_factory=tracker_factory,
     )
     app.add_middleware(
         FeedbackSecurityMiddleware,
@@ -234,6 +427,21 @@ def create_app(
         deadline_key="support_deadline",
         error_subject="Customer support",
         error_code_prefix="support",
+        shared_admission_factory=ingress_factory("support", support_config),
+        shared_admission_tracker_factory=tracker_factory,
     )
+    app.add_middleware(
+        FeedbackSecurityMiddleware,
+        settings=knowledge_config,
+        allowed_origins=config.cors_origins,
+        path_pattern=r"/api/v1/admin/knowledge(?:/.*)?\Z",
+        deadline_key="knowledge_deadline",
+        error_subject="Knowledge administration",
+        error_code_prefix="knowledge",
+        shared_admission_factory=ingress_factory("knowledge", knowledge_config),
+        shared_admission_tracker_factory=tracker_factory,
+    )
+    if config.environment == "production":
+        app.add_middleware(ProductionHTTPSMiddleware)
     app.add_middleware(RequestContextMiddleware, logger=logger)
     return app

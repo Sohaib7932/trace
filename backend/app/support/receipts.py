@@ -1,6 +1,7 @@
 """Internal source-version receipts; never an expanded public response contract."""
 
 import hashlib
+from typing import Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -15,6 +16,8 @@ class VersionedSupportAnswer(Value):
     response: SupportResponse = Field(repr=False)
     manifest_sha256: Digest | None = None
     passages: Items[ApprovedSupportPassageVersion] = Field(default=(), max_length=3)
+    retrieval_profile: Literal["lexical", "semantic", "hybrid"] = "lexical"
+    index_sha256: Digest | None = None
 
     @field_validator("response", mode="before")
     @classmethod
@@ -25,8 +28,10 @@ class VersionedSupportAnswer(Value):
 
     @model_validator(mode="after")
     def exact_references(self) -> "VersionedSupportAnswer":
+        if (self.retrieval_profile == "lexical") != (self.index_sha256 is None):
+            raise ValueError("Vector receipts require a pinned index; lexical receipts do not")
         if self.manifest_sha256 is None:
-            if self.passages:
+            if self.passages or self.index_sha256:
                 raise ValueError("Version receipts require a manifest")
             return self
         if self.response.status != "answered" or len(self.passages) != len(
@@ -47,8 +52,11 @@ class VersionedSupportAnswer(Value):
         """Allowlisted public source metadata; no question, answer, identity or raw text."""
         if self.manifest_sha256 is None:
             return None
-        return {
+        receipt: dict[str, object] = {
             "schema_version": "support-answer-receipt-v1",
             "manifest_sha256": self.manifest_sha256,
             "passages": [item.model_dump(mode="json") for item in self.passages],
         }
+        if self.index_sha256 is not None:
+            receipt.update(retrieval_profile=self.retrieval_profile, index_sha256=self.index_sha256)
+        return receipt

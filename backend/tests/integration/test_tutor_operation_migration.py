@@ -12,7 +12,7 @@ from alembic import command
 from app.ai.providers.fake import FakeTutorProvider
 from app.db import models as m
 from app.db.learning import SqlLearningRepository
-from app.db.migrations import migration_config
+from app.db.migrations import expected_heads, migration_config
 from app.db.session import Database
 from app.domain.learning import LearningSession, Prediction, TutorInteraction
 from app.domain.tutoring_operations import HintOperation
@@ -79,7 +79,7 @@ def test_upgrade_preserves_historical_hint_identity_and_next_sequence(settings):
         owner, session_id, old = legacy_guidance(database)
         with database.engine.connect() as connection:
             before = connection.execute(text("SELECT * FROM tutor_interactions")).mappings().all()
-        migrate(database)
+        migrate(database, "0007_tutor_reservations")
         with database.engine.connect() as connection:
             after = connection.execute(text("SELECT * FROM tutor_interactions")).mappings().all()
         assert after == before
@@ -101,15 +101,57 @@ def test_empty_reservation_downgrade_preserves_legacy_guidance_and_reupgrades(se
     try:
         migrate(database, "0006_candidate_lifecycle")
         _, _, original = legacy_guidance(database)
-        migrate(database)
+        migrate(database, "0007_tutor_reservations")
         revision(database, "0006_candidate_lifecycle")
         assert "hint_operations" not in inspect(database.engine).get_table_names()
         with SqlLearningRepository(database).read() as store:
             assert store.hints(original.session_id) == [original]
         assert_integrity(database, "0006_candidate_lifecycle")
-        migrate(database)
+        migrate(database, "0007_tutor_reservations")
         assert "hint_operations" in inspect(database.engine).get_table_names()
         assert_integrity(database, "0007_tutor_reservations")
+    finally:
+        database.dispose()
+
+
+def test_latest_additive_upgrade_preserves_0007_hint_records_and_next_sequence(settings):
+    database = Database(settings)
+    try:
+        migrate(database, "0006_candidate_lifecycle")
+        owner, session_id, original = legacy_guidance(database)
+        migrate(database, "0007_tutor_reservations")
+        service = LearningService(SqlLearningRepository(database), FakeTutorProvider())
+        second = service.hint(owner, session_id, None, str(uuid4()))
+        assert second.sequence == 2
+        tables = (
+            "learners",
+            "learner_credentials",
+            "lesson_versions",
+            "learning_sessions",
+            "predictions",
+            "tutor_interactions",
+            "hint_operations",
+            "learning_events",
+        )
+        with database.engine.connect() as connection:
+            before = {
+                name: connection.execute(text(f"SELECT * FROM {name}")).mappings().all()
+                for name in tables
+            }
+        migrate(database)
+        with database.engine.connect() as connection:
+            after = {
+                name: connection.execute(text(f"SELECT * FROM {name}")).mappings().all()
+                for name in tables
+            }
+        assert after == before
+        assert service.hint(owner, session_id, None, original.idempotency_key) == original
+        assert service.hint(owner, session_id, None, second.idempotency_key) == second
+        third = service.hint(owner, session_id, None, str(uuid4()))
+        assert third.sequence == 3 and service.progress(owner, session_id).hint_request_count == 3
+        heads = expected_heads()
+        assert len(heads) == 1
+        assert_integrity(database, next(iter(heads)))
     finally:
         database.dispose()
 

@@ -280,7 +280,7 @@ class RetrievalAttempt(Row, Base):
 
 class GeneratedCandidate(Base):
     __tablename__ = "generated_candidates"
-    __table_args__ = (CheckConstraint("release_eligible = 0", name="unreleased"),)
+    __table_args__ = (CheckConstraint("NOT release_eligible", name="unreleased"),)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     generation_request_id: Mapped[UUID] = mapped_column(Uuid, unique=True)
     creation_key: Mapped[UUID] = mapped_column(Uuid, unique=True)
@@ -296,7 +296,7 @@ class CandidateLifecycleEvent(Base):
         UniqueConstraint("candidate_id", "revision"),
         UniqueConstraint("candidate_id", "operation_key"),
         CheckConstraint("revision >= 0", name="revision"),
-        CheckConstraint("release_eligible = 0", name="unreleased"),
+        CheckConstraint("NOT release_eligible", name="unreleased"),
         CheckConstraint(
             "state IN ('composed','validated','validation_unavailable','human_reviewed',"
             "'production_approved','rejected')",
@@ -338,6 +338,7 @@ class HintOperation(Base):
             "session_id",
             unique=True,
             sqlite_where=text("status = 'pending'"),
+            postgresql_where=text("status = 'pending'"),
         ),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)

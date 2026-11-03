@@ -1,0 +1,14 @@
+{
+  "source_id": "hints-explanations",
+  "title": "Hints and AI-assisted lesson guidance",
+  "passages": [
+    {
+      "passage_id": "hints-three-fixture-requests",
+      "text": "The existing fixture-hint flow permits up to three requests per core session after prediction. Failed requests still use a request slot. The interface shows requests used separately from hints delivered. Fixture hints are pre-written guidance, not live model output."
+    },
+    {
+      "passage_id": "tutor-guidance-limit",
+      "text": "When conversational tutoring is enabled, signed-in learners can ask engineering questions and request explanations, debugging suggestions or worked educational examples. The tutor uses the owned lesson's permitted current context and a short recent conversation. Optional code and generated examples are not executed; advice is not a saved verification result. The separate guided-explanation mode still selects pre-written lesson guidance. Neither mode changes saved results, awards competency scores or completes a lesson. Questions, optional code and recent conversation may be sent to Gemini; do not include personal information or secrets. Provider failure or a deadline can make the tutor unavailable while saved learning progress remains unchanged."
+    }
+  ]
+}

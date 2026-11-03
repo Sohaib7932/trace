@@ -4,8 +4,11 @@ from alembic.script import ScriptDirectory
 from app.core.settings import BACKEND_ROOT
 
 
-def migration_config() -> Config:
-    config = Config(str(BACKEND_ROOT / "alembic.ini"))
+def migration_config(dialect: str = "sqlite") -> Config:
+    if dialect not in {"sqlite", "postgresql"}:
+        raise ValueError("Unsupported migration dialect")
+    filename = "alembic-postgresql.ini" if dialect == "postgresql" else "alembic.ini"
+    config = Config(str(BACKEND_ROOT / filename))
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     return config
 

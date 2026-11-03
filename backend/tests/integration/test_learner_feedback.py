@@ -659,11 +659,15 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
         assert reply.availability == "not_supported"
         assert resources.client.transport is None and resources.client.usage_snapshot() == ()
         assert app.openapi() == expected
-        assert len(expected["paths"]) == 24
+        assert len(expected["paths"]) == 31
+        assert (
+            sum(not path.startswith("/api/v1/admin/knowledge/") for path in expected["paths"]) == 24
+        )
         assert (
             sum(
                 method in {"get", "post", "put", "patch", "delete", "head", "options"}
-                for path in expected["paths"].values()
+                for name, path in expected["paths"].items()
+                if not name.startswith("/api/v1/admin/knowledge/")
                 for method in path
             )
             == 26

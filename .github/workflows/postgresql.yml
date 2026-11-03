@@ -1,0 +1,51 @@
+name: PostgreSQL compatibility
+on:
+  pull_request:
+  push:
+permissions:
+  contents: read
+jobs:
+  postgresql:
+    name: PostgreSQL ${{ matrix.postgresql.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgresql:
+          - version: '15.19'
+            image: docker.io/library/postgres@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+          - version: '17.11'
+            image: docker.io/library/postgres@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    services:
+      postgres:
+        image: ${{ matrix.postgresql.image }}
+        env:
+          POSTGRES_USER: trace_test
+          POSTGRES_PASSWORD: trace_disposable_test_only
+          POSTGRES_DB: trace_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trace_test -d trace_test"
+          --health-interval 2s --health-timeout 2s --health-retries 20
+          --cpus 1 --memory 512m --memory-swap 512m --pids-limit 128
+          --shm-size 128m --tmpfs /var/lib/postgresql/data:rw,size=256m
+    env:
+      TRACE_TEST_POSTGRES_URL: postgresql+psycopg://trace_test:trace_disposable_test_only@127.0.0.1:5432/trace_test
+      TRACE_TEST_POSTGRES_IMAGE: ${{ matrix.postgresql.image }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install uv==0.12.1
+      - run: uv sync --locked
+      - run: uv run --locked pytest production_tests --no-cov --disable-socket
+      - run: docker build --tag trace-backend:ci .
+        working-directory: .
+      - run: uv run --locked pytest infrastructure_tests --no-cov --disable-socket
+        env:
+          TRACE_TEST_BACKEND_IMAGE: trace-backend:ci

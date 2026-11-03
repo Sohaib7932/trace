@@ -20,11 +20,13 @@ from app.db.accounts import SqlAccountRepository
 from app.db.candidates import SqlCandidateRepository
 from app.db.feedback_release import SqlFeedbackReleaseRepository
 from app.db.health import SqlReadinessProbe
+from app.db.knowledge import SqlKnowledgeRepository
 from app.db.learning import SqlLearningRepository
 from app.db.session import Database
 from app.domain.accounts import AuthenticatedAccount, Principal
 from app.domain.clock import Clock
 from app.domain.learning import LearningError
+from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.learning import LearningRepository
 from app.repositories.verification import NotesVerifier
 from app.schemas.feedback_release import FeedbackReleaseScope
@@ -40,6 +42,8 @@ from app.services.feedback_operations import FeedbackOperations
 from app.services.feedback_release import FeedbackReleaseService
 from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
+from app.services.knowledge import KnowledgeGovernanceService
+from app.services.knowledge_indexing import KnowledgeIndexingService
 from app.services.learner_feedback import LearnerFeedbackService
 from app.services.learning import LearningService
 from app.services.lesson_assistant import LessonAssistantService
@@ -58,6 +62,28 @@ def get_settings(request: Request) -> Settings:
 
 def get_database(request: Request) -> Database:
     return cast(Database, request.app.state.database)
+
+
+def get_knowledge_repository(
+    database: Annotated[Database, Depends(get_database)],
+) -> KnowledgeRepository:
+    return SqlKnowledgeRepository(database)
+
+
+def get_knowledge_service(
+    request: Request,
+    repository: Annotated[KnowledgeRepository, Depends(get_knowledge_repository)],
+) -> KnowledgeGovernanceService:
+    return KnowledgeGovernanceService(repository, cast(Clock, request.app.state.clock))
+
+
+def get_knowledge_operations(request: Request) -> FeedbackOperations:
+    operations = getattr(request.app.state, "knowledge_operations", None)
+    if not isinstance(operations, FeedbackOperations) or operations.closed:
+        raise ApplicationError(
+            "dependency_unavailable", "Knowledge administration is unavailable.", 503
+        )
+    return operations
 
 
 def get_session(database: Annotated[Database, Depends(get_database)]) -> Iterator[Session]:
@@ -200,6 +226,22 @@ def get_ai_client(resources: Annotated[AIResources, Depends(get_ai_resources)]) 
     return resources.client
 
 
+def get_knowledge_indexing_service(
+    request: Request,
+    repository: Annotated[KnowledgeRepository, Depends(get_knowledge_repository)],
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+    governance: Annotated[KnowledgeGovernanceService, Depends(get_knowledge_service)],
+    operations: Annotated[FeedbackOperations, Depends(get_knowledge_operations)],
+) -> KnowledgeIndexingService:
+    return KnowledgeIndexingService(
+        repository,
+        resources.embeddings,
+        governance,
+        clock=cast(Clock, request.app.state.clock),
+        remaining_seconds=operations.remaining_seconds,
+    )
+
+
 def get_tutor_operations(request: Request) -> FeedbackOperations:
     operations = getattr(request.app.state, "tutor_operations", None)
     if not isinstance(operations, FeedbackOperations) or operations.closed:
@@ -226,7 +268,7 @@ def get_lesson_tutoring_service(
             resources.client,
             choices,
             subject,
-            timeout_seconds=operations.settings.provider_timeout_seconds,
+            timeout_seconds=operations.remaining_seconds(),
         ),
         cast(Clock, request.app.state.clock),
     )
@@ -247,6 +289,7 @@ def get_conversation_tutoring_service(
         context_source,
         resources.conversation_tutor,
         timeout_seconds=operations.settings.provider_timeout_seconds,
+        remaining_seconds=operations.remaining_seconds,
     )
 
 
@@ -283,10 +326,13 @@ def get_http_support_service(
 ) -> SupportService:
     return SupportService(
         BoundedSupportAssistant(
-            resources.client, timeout_seconds=operations.settings.provider_timeout_seconds
+            resources.client,
+            timeout_seconds=operations.settings.provider_timeout_seconds,
+            remaining_seconds=operations.remaining_seconds,
         ),
         resources.support.knowledge,
         escalation=resources.support.escalation,
+        remaining_seconds=operations.remaining_seconds,
     )
 
 

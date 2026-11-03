@@ -1,5 +1,7 @@
 """Provider-neutral support adapter; model output can only select public passages."""
 
+from collections.abc import Callable
+
 from pydantic import ValidationError
 
 from app.ai.client import BoundedAIClient
@@ -22,9 +24,16 @@ return unsupported with no identifiers. Return only the supplied JSON schema.
 
 
 class BoundedSupportAssistant:
-    def __init__(self, client: BoundedAIClient, *, timeout_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        client: BoundedAIClient,
+        *,
+        timeout_seconds: float | None = None,
+        remaining_seconds: Callable[[], float] | None = None,
+    ) -> None:
         self.client = client
         self.timeout_seconds = timeout_seconds
+        self.remaining_seconds = remaining_seconds
 
     def select(
         self, question: SupportQuestion, passages: tuple[SupportMatch, ...], *, subject: str
@@ -44,13 +53,19 @@ class BoundedSupportAssistant:
                 for passage in checked_passages
             ],
         }
+        timeout = self.timeout_seconds
+        if self.remaining_seconds is not None:
+            remaining = self.remaining_seconds()
+            if remaining <= 0:
+                return None
+            timeout = min(timeout, remaining) if timeout is not None else remaining
         completion = self.client.complete(
             capability="support",
             instructions=SUPPORT_INSTRUCTIONS,
             data=data,
             output_schema=SupportSelection.model_json_schema(),
             subject=subject,
-            timeout_seconds=self.timeout_seconds,
+            timeout_seconds=timeout,
         )
         if completion.status != "success" or completion.text is None:
             return None

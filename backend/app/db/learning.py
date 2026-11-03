@@ -301,7 +301,7 @@ class SqlLearningRepository:
     @contextmanager
     def read(self) -> Iterator[LearningStore]:
         try:
-            with self.database.session() as session:
+            with self.database.consistent_read() as session:
                 yield SqlLearningStore(session)
         except SQLAlchemyError:
             raise d.LearningError(

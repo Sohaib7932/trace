@@ -2,6 +2,8 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from app.ai.observability import delivery_fields
+
 
 class JsonFormatter(logging.Formatter):
     """Allowlist structured fields; never serialize exception text, bodies or headers."""
@@ -23,6 +25,19 @@ class JsonFormatter(logging.Formatter):
         ):
             if hasattr(record, key):
                 result[key] = getattr(record, key)
+        # New AI metadata is an all-or-nothing, independently validated bundle.
+        # Never allow a direct logger.extra injection to bypass the helper.
+        try:
+            fields = delivery_fields(
+                getattr(record, "ai_family", None),
+                getattr(record, "ai_status", None),
+                getattr(record, "ai_source", None),
+            )
+            outcome = getattr(record, "ai_outcome", None)
+            if type(outcome) is str and outcome == fields["ai_outcome"]:
+                result.update(fields)
+        except ValueError:
+            pass
         return json.dumps(result)
 
 

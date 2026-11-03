@@ -176,9 +176,9 @@ class SqlFeedbackReleaseRepository:
         except (ValueError, TypeError, AttributeError):
             raise _unauthenticated() from None
         try:
-            # Python's SQLite autocommit=False supplies one consistent read
-            # transaction. Closing rolls back; no write gate or commit is used.
-            with self.database.session() as session:
+            # Explicit repeatable-read snapshot on PostgreSQL; SQLite preserves
+            # its existing autocommit=False snapshot. No write lock/provider I/O.
+            with self.database.consistent_read() as session:
                 auth = _authorize(session, principal, now)
                 learning = SqlLearningStore(session)
                 owned = learning.owned_session(principal.learner_id, session_id)

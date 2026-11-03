@@ -5,10 +5,12 @@ from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Request
 
+from app.ai.observability import record_ai_delivery
 from app.api.dependencies import (
     current_account,
     get_account_service,
     get_http_support_service,
+    get_knowledge_service,
     get_support_operations,
     require_write_origin,
 )
@@ -21,6 +23,7 @@ from app.schemas.support import SupportQuestion, SupportResponse
 from app.schemas.support_http import SupportAskCreate
 from app.services.accounts import AccountService
 from app.services.feedback_operations import FeedbackOperations
+from app.services.knowledge import KnowledgeGovernanceService
 from app.services.support import SupportService
 from app.support.receipts import VersionedSupportAnswer
 
@@ -40,6 +43,7 @@ async def ask(
     accounts: Annotated[AccountService, Depends(get_account_service)],
     service: Annotated[SupportService, Depends(get_http_support_service)],
     operations: Annotated[FeedbackOperations, Depends(get_support_operations)],
+    knowledge: Annotated[KnowledgeGovernanceService, Depends(get_knowledge_service)],
 ) -> SupportResponse:
     """Answer from approved public passages, with exact source quotations.
 
@@ -65,6 +69,28 @@ async def ask(
         fresh.require_role("learner")
         if fresh.id != auth.account.id:
             raise LearningError("unauthenticated", "Account authorization changed.")
+        durable = request.app.state.accounting_settings.mode == "durable"
+        if result.response.status == "answered" and (
+            durable or request.app.state.settings.environment == "production"
+        ):
+            try:
+                knowledge.authorize_release(
+                    result,
+                    actor=AuthenticatedAccount(fresh, auth.identity),
+                    request_id=request.state.request_id,
+                    retrieval_profile=result.retrieval_profile,
+                    index_sha256=result.index_sha256,
+                )
+            except LearningError as error:
+                if error.code in {"unauthenticated", "forbidden"}:
+                    raise
+                raise ApplicationError(
+                    "dependency_unavailable", "Support sources are unavailable.", 503
+                ) from None
+            except Exception:
+                raise ApplicationError(
+                    "dependency_unavailable", "Support is unavailable.", 503
+                ) from None
         return result
 
     result = await operations.execute_account(auth.account.id, operation, deadline=deadline)
@@ -74,4 +100,10 @@ async def ask(
             "support_answer_released",
             extra={"request_id": request.state.request_id, "support_provenance": receipt},
         )
+    record_ai_delivery(
+        request.app.state.logger,
+        family="support",
+        status=result.response.status,
+        source=result.response.source,
+    )
     return result.response

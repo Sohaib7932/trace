@@ -55,6 +55,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/knowledge/import-reviewed-corpus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Corpus */
+        post: operations["admin_import_reviewed_knowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/knowledge/indexes/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build Index */
+        post: operations["admin_build_knowledge_index"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/knowledge/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish */
+        post: operations["admin_publish_knowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/knowledge/receipts/{receipt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Receipt */
+        get: operations["admin_get_knowledge_receipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/knowledge/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest */
+        post: operations["admin_ingest_knowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/knowledge/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Revision */
+        get: operations["admin_get_knowledge_revision"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/knowledge/revisions/{revision_id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transition */
+        post: operations["admin_transition_knowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -465,6 +584,37 @@ export interface components {
              */
             user_id: string;
         };
+        /**
+         * ApprovedSupportPassageVersion
+         * @description Identity of exact approved text, independent of an index's stored text.
+         */
+        ApprovedSupportPassageVersion: {
+            /**
+             * Audience
+             * @default public_customer
+             * @constant
+             */
+            audience: "public_customer";
+            chunk_id: components["schemas"]["Digest"];
+            /** Chunk Ordinal */
+            chunk_ordinal: number;
+            /**
+             * Chunker Version
+             * @default authored-passages-v1
+             * @constant
+             */
+            chunker_version: "authored-passages-v1";
+            document_sha256: components["schemas"]["Digest"];
+            /**
+             * Overlap Characters
+             * @default 0
+             */
+            overlap_characters: number;
+            passage_id: components["schemas"]["LocalId"];
+            passage_sha256: components["schemas"]["Digest"];
+            revision: components["schemas"]["Version"];
+            source_id: components["schemas"]["LocalId"];
+        };
         AssistantText: string;
         /** AttemptCreate */
         AttemptCreate: {
@@ -513,6 +663,10 @@ export interface components {
             id: string;
             /** Number */
             number: number;
+        };
+        /** BuildKnowledgeIndex */
+        BuildKnowledgeIndex: {
+            operation_key: components["schemas"]["VersionId"];
         };
         ChatText: string;
         /** @enum {string} */
@@ -612,7 +766,15 @@ export interface components {
             status: "answered" | "declined" | "unavailable";
             text: components["schemas"]["ChatText"];
         };
+        /** CorpusDocument */
+        CorpusDocument: {
+            passages: components["schemas"]["Items_SupportPassage__MinLen_min_length_1_"];
+            source_id: components["schemas"]["LocalId"];
+            /** Title */
+            title: string;
+        };
         Digest: string;
+        DocumentJSON: string;
         /** ErrorDetail */
         ErrorDetail: {
             /** Code */
@@ -719,14 +881,59 @@ export interface components {
              */
             learner_id: string;
         };
+        /** ImportReviewedCorpus */
+        ImportReviewedCorpus: {
+            /**
+             * Adopt Existing Review
+             * @default false
+             */
+            adopt_existing_review: boolean;
+            operation_key: components["schemas"]["VersionId"];
+        };
+        /** ImportedReview */
+        ImportedReview: {
+            document_sha256: components["schemas"]["Digest"];
+            /**
+             * Origin
+             * @default imported_record
+             * @constant
+             */
+            origin: "imported_record";
+            package_revision: components["schemas"]["Version"];
+            package_sha256: components["schemas"]["Digest"];
+            /**
+             * Reviewed At
+             * Format: date-time
+             */
+            reviewed_at: string;
+            reviewer_label: components["schemas"]["LocalId"];
+            /**
+             * Valid Until
+             * Format: date-time
+             */
+            valid_until: string;
+        };
+        /** IngestKnowledge */
+        IngestKnowledge: {
+            document: components["schemas"]["CorpusDocument"];
+            operation_key: components["schemas"]["VersionId"];
+            revision: components["schemas"]["Version"];
+        };
+        Items_ApprovedSupportPassageVersion__MaxLen_max_length_8_: components["schemas"]["ApprovedSupportPassageVersion"][];
+        Items_ApprovedSupportPassageVersion__MinLen_min_length_1_: components["schemas"]["ApprovedSupportPassageVersion"][];
+        Items_Digest__MaxLen_max_length_3_: components["schemas"]["Digest"][];
+        Items_Digest__MinLen_min_length_1_: components["schemas"]["Digest"][];
         Items_EvidenceAlias__MaxLen_max_length_8_: components["schemas"]["EvidenceAlias"][];
+        Items_KnowledgeEvent__MinLen_min_length_1_: components["schemas"]["KnowledgeEvent"][];
         Items_LessonAlias__MaxLen_max_length_5_: components["schemas"]["LessonAlias"][];
         Items_PublicFeedbackSection__MaxLen_max_length_4_: components["schemas"]["PublicFeedbackSection"][];
         Items_PublicFeedbackStatement__MinLen_min_length_1_: components["schemas"]["PublicFeedbackStatement"][];
         Items_PublicLessonCitation__MaxLen_max_length_5_: components["schemas"]["PublicLessonCitation"][];
         Items_PublicVerificationCheck__MaxLen_max_length_5_: components["schemas"]["PublicVerificationCheck"][];
+        Items_SupportPassage__MinLen_min_length_1_: components["schemas"]["SupportPassage"][];
         Items_SupportReference__MaxLen_max_length_3_: components["schemas"]["SupportReference"][];
         Items_TutorHistoryMessage__MaxLen_max_length_6_: components["schemas"]["TutorHistoryMessage"][];
+        Items_VersionId__MinLen_min_length_1_: components["schemas"]["VersionId"][];
         /** JourneyResponse */
         JourneyResponse: {
             /** Checkpoints */
@@ -740,6 +947,179 @@ export interface components {
              * Format: date-time
              */
             server_time: string;
+        };
+        /** @enum {string} */
+        KnowledgeAction: "ingest" | "parse" | "normalize" | "chunk" | "index" | "validate" | "review" | "approve" | "adopt_existing_review" | "publish" | "reject" | "revoke" | "expire";
+        /** KnowledgeEvent */
+        KnowledgeEvent: {
+            action: components["schemas"]["KnowledgeAction"];
+            actor_id: components["schemas"]["VersionId"];
+            /** @default [] */
+            chunks: components["schemas"]["Items_ApprovedSupportPassageVersion__MaxLen_max_length_8_"];
+            command_sha256: components["schemas"]["Digest"];
+            content_sha256: components["schemas"]["Digest"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Historical Reviewed At */
+            historical_reviewed_at?: string | null;
+            historical_reviewer_label?: components["schemas"]["LocalId"] | null;
+            id: components["schemas"]["VersionId"];
+            index_sha256?: components["schemas"]["Digest"] | null;
+            lexical_index?: components["schemas"]["LexicalIndexArtifact"] | null;
+            operation_key: components["schemas"]["VersionId"];
+            previous_event_sha256: components["schemas"]["Digest"] | null;
+            previous_state: components["schemas"]["KnowledgeState"] | null;
+            reason: components["schemas"]["KnowledgeReason"];
+            /** Review Origin */
+            review_origin?: ("manual" | "imported_record") | null;
+            reviewed_document_sha256?: components["schemas"]["Digest"] | null;
+            revision_id: components["schemas"]["VersionId"];
+            sequence: components["schemas"]["Sequence"];
+            state: components["schemas"]["KnowledgeState"];
+            /** Valid Until */
+            valid_until?: string | null;
+        };
+        /** KnowledgeHistory */
+        KnowledgeHistory: {
+            events: components["schemas"]["Items_KnowledgeEvent__MinLen_min_length_1_"];
+            revision: components["schemas"]["KnowledgeRevision"];
+        };
+        /** KnowledgeIndexResult */
+        KnowledgeIndexResult: {
+            index_sha256: components["schemas"]["Digest"];
+            manifest_sha256: components["schemas"]["Digest"];
+            /** Passage Count */
+            passage_count: number;
+            /**
+             * Retrieval Activated
+             * @default false
+             * @constant
+             */
+            retrieval_activated: false;
+            /**
+             * Source
+             * @default ai
+             * @constant
+             */
+            source: "ai";
+            space_sha256: components["schemas"]["Digest"];
+        };
+        /** KnowledgePublication */
+        KnowledgePublication: {
+            actor_id: components["schemas"]["VersionId"];
+            command_sha256: components["schemas"]["Digest"];
+            content_sha256: components["schemas"]["Digest"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            id: components["schemas"]["VersionId"];
+            manifest_sha256: components["schemas"]["Digest"];
+            operation_key: components["schemas"]["VersionId"];
+            previous_manifest_sha256: components["schemas"]["Digest"] | null;
+            reason: components["schemas"]["KnowledgeReason"];
+            sequence: components["schemas"]["Sequence"];
+        };
+        KnowledgeReason: components["schemas"]["Summary"];
+        /** KnowledgeReleaseReceipt */
+        KnowledgeReleaseReceipt: {
+            content_sha256: components["schemas"]["Digest"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            embedding_space_sha256?: components["schemas"]["Digest"] | null;
+            id: components["schemas"]["VersionId"];
+            index_sha256?: components["schemas"]["Digest"] | null;
+            manifest_sha256: components["schemas"]["Digest"];
+            passages: components["schemas"]["Items_ApprovedSupportPassageVersion__MinLen_min_length_1_"];
+            publication_sequence: components["schemas"]["Sequence"];
+            request_id_sha256: components["schemas"]["Digest"];
+            /**
+             * Retrieval Profile
+             * @default lexical
+             * @enum {string}
+             */
+            retrieval_profile: "lexical" | "semantic" | "hybrid";
+            /**
+             * Schema Version
+             * @default knowledge-release-receipt-v1
+             * @constant
+             */
+            schema_version: "knowledge-release-receipt-v1";
+            /** @default [] */
+            selected_vector_sha256: components["schemas"]["Items_Digest__MaxLen_max_length_3_"];
+            /**
+             * Status
+             * @default release_authorized
+             * @constant
+             */
+            status: "release_authorized";
+        };
+        /** KnowledgeRevision */
+        KnowledgeRevision: {
+            actor_id: components["schemas"]["VersionId"];
+            /**
+             * Audience
+             * @default public_customer
+             * @constant
+             */
+            audience: "public_customer";
+            content_sha256: components["schemas"]["Digest"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            creation_key: components["schemas"]["VersionId"];
+            id: components["schemas"]["VersionId"];
+            imported_review?: components["schemas"]["ImportedReview"] | null;
+            normalized_json: components["schemas"]["DocumentJSON"];
+            normalized_sha256: components["schemas"]["Digest"];
+            /**
+             * Normalizer Version
+             * @default identity-text-v1
+             * @constant
+             */
+            normalizer_version: "identity-text-v1";
+            original_json: components["schemas"]["DocumentJSON"];
+            original_sha256: components["schemas"]["Digest"];
+            /**
+             * Parser Version
+             * @default support-document-json-v1
+             * @constant
+             */
+            parser_version: "support-document-json-v1";
+            revision: components["schemas"]["Version"];
+            source_id: components["schemas"]["LocalId"];
+            /**
+             * Source Kind
+             * @default trace_customer_authored
+             * @constant
+             */
+            source_kind: "trace_customer_authored";
+        };
+        /** @enum {string} */
+        KnowledgeState: "ingested" | "parsed" | "normalized" | "chunked" | "indexed" | "validated" | "reviewed" | "approved" | "published" | "rejected" | "revoked" | "expired";
+        /** KnowledgeTransition */
+        KnowledgeTransition: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "parse" | "normalize" | "chunk" | "index" | "validate" | "review" | "approve" | "adopt_existing_review" | "reject" | "revoke" | "expire";
+            /** Expected Sequence */
+            expected_sequence: number;
+            operation_key: components["schemas"]["VersionId"];
+            reason: components["schemas"]["KnowledgeReason"];
+            reviewed_document_sha256?: components["schemas"]["Digest"] | null;
+            /** Valid Until */
+            valid_until?: string | null;
         };
         LessonAlias: string;
         /** LessonAssistantReply */
@@ -783,6 +1163,25 @@ export interface components {
              * Format: uuid
              */
             version_id: string;
+        };
+        /** LexicalIndexArtifact */
+        LexicalIndexArtifact: {
+            /**
+             * Algorithm
+             * @default shared-word-overlap-v1
+             * @constant
+             */
+            algorithm: "shared-word-overlap-v1";
+            chunk_ids: components["schemas"]["Items_Digest__MinLen_min_length_1_"];
+            content_sha256: components["schemas"]["Digest"];
+            document_sha256: components["schemas"]["Digest"];
+            /**
+             * Schema Version
+             * @default knowledge-lexical-index-v1
+             * @constant
+             */
+            schema_version: "knowledge-lexical-index-v1";
+            source_revision_id: components["schemas"]["VersionId"];
         };
         /** LivenessResponse */
         LivenessResponse: {
@@ -946,6 +1345,14 @@ export interface components {
             /** Matched */
             matched: boolean;
         };
+        /** PublishKnowledge */
+        PublishKnowledge: {
+            /** Expected Sequence */
+            expected_sequence: number;
+            operation_key: components["schemas"]["VersionId"];
+            reason: components["schemas"]["KnowledgeReason"];
+            revision_ids: components["schemas"]["Items_VersionId__MinLen_min_length_1_"];
+        };
         /** QuestionOption */
         QuestionOption: {
             /**
@@ -1065,6 +1472,7 @@ export interface components {
         };
         /** @enum {string} */
         SectionName: "demonstrated" | "needs_improvement" | "why" | "next";
+        Sequence: number;
         /** SessionCreate */
         SessionCreate: {
             /** Lesson Id */
@@ -1100,6 +1508,7 @@ export interface components {
              */
             state: "awaiting_prediction" | "ready_for_attempt" | "verification_pending" | "needs_revision" | "completed" | "abandoned";
         };
+        Summary: string;
         /** SupportAskCreate */
         SupportAskCreate: {
             /** Question */
@@ -1113,6 +1522,11 @@ export interface components {
         };
         /** @enum {string} */
         SupportMessage: "Relevant approved documentation is quoted below." | "No relevant approved documentation was found." | "The approved documentation does not establish an answer." | "Customer support is currently unavailable.";
+        /** SupportPassage */
+        SupportPassage: {
+            passage_id: components["schemas"]["LocalId"];
+            text: components["schemas"]["PassageText"];
+        };
         /** SupportReference */
         SupportReference: {
             passage_id: components["schemas"]["LocalId"];
@@ -1200,6 +1614,8 @@ export interface components {
              */
             message: string;
         };
+        Version: string;
+        VersionId: string;
         /** @constant */
         Yes: true;
     };
@@ -1430,6 +1846,793 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_import_reviewed_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportReviewedCorpus"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeHistory"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_build_knowledge_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildKnowledgeIndex"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeIndexResult"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_publish_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishKnowledge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgePublication"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_get_knowledge_receipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeReleaseReceipt"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_ingest_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestKnowledge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeHistory"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_get_knowledge_revision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeHistory"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_transition_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeTransition"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeHistory"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };

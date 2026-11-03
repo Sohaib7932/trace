@@ -1,0 +1,17 @@
+# Disposable integration target only; not a hosted deployment.
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: trace_test
+      POSTGRES_PASSWORD: trace_disposable_test_only
+      POSTGRES_DB: trace_test
+    ports:
+      - "127.0.0.1::5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "trace_test", "-d", "trace_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
