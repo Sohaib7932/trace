@@ -193,6 +193,7 @@ class BoundedAIClient:
         output_schema: dict[str, object] | None = None,
         subject: str = "internal",
         timeout_seconds: float | None = None,
+        on_transport_attempt: Callable[[], None] | None = None,
     ) -> ClientCompletion:
         model = (
             self.settings.generation_model_id
@@ -391,6 +392,9 @@ class BoundedAIClient:
                     raise AITransportError("disabled")
                 provider_started = self.clock() if ledger_attempt is not None else None
                 try:
+                    if on_transport_attempt is not None:
+                        with suppress(Exception):
+                            on_transport_attempt()
                     received = self.transport.complete(bounded)
                 finally:
                     if provider_started is not None:

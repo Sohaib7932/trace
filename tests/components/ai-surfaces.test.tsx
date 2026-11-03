@@ -151,6 +151,39 @@ test("support chat: rate-limited and unavailable states, and secrets are blocked
   expect(screen.getByRole("button", { name: "Send question" })).toBeDisabled();
 });
 
+test("real support clears an unavailable notice after a verified answer and preserves exact citations", async () => {
+  vi.stubEnv("NEXT_PUBLIC_AI_MODE", "real");
+  vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://127.0.0.1:8000");
+  const quote = "Review checkpoints are scheduled at one and seven elapsed days.";
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      status: "unavailable", message: "Customer support is currently unavailable.",
+      references: [], escalation: null, source: "unavailable",
+    })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      status: "answered", message: "Relevant approved documentation is quoted below.",
+      references: [{ source_id: "progress-retrieval", source_name: "Follow-up reviews", passage_id: "retrieval-one-seven-days", quote }],
+      escalation: null, source: "ai",
+    })));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  render(<TraceHelp />);
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(screen.getByRole("button", { name: "How do follow-ups work?" }));
+  expect(await screen.findByRole("region", { name: "Help articles" })).toHaveTextContent("Trace Help is unavailable right now");
+
+  await user.type(screen.getByLabelText("Your question"), "When are reviews due?{Enter}");
+  const dialog = screen.getByRole("dialog", { name: "Trace Help" });
+  const citation = await within(dialog).findByRole("link", { name: "Follow-up reviews" });
+  expect(citation).toHaveAttribute("href", expect.stringMatching(/^#.+-source-retrieval-one-seven-days$/));
+  expect(citation.parentElement).toHaveTextContent(quote);
+  expect(within(dialog).getAllByText(quote).filter((node) => !node.closest(".sr-only"))).toHaveLength(2);
+  expect(screen.queryByRole("region", { name: "Help articles" })).toBeNull();
+  expect(within(dialog).queryByRole("button", { name: "Demo responses" })).toBeNull();
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch.mock.calls[1][0]).toBe("http://127.0.0.1:8000/api/v1/support/ask");
+});
+
 test("support chat: 'Talk to a human' appears when a support email is configured", async () => {
   vi.stubEnv("NEXT_PUBLIC_SUPPORT_EMAIL", "help@example.test");
   vi.resetModules();

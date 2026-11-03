@@ -85,6 +85,7 @@ function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
     try {
       const reply = await support.ask({ question, route }, { onText: (text) => update({ text }) });
       if (reply.status === "unavailable") { setUnavailable(true); update({ state: "done", text: "", reply }); setAnnounce(real ? "Trace Help is unavailable right now. Help articles are listed below." : "Trace Help isn't connected yet. Help articles are listed below."); return; }
+      setUnavailable(false);
       update({ state: "done", text: reply.answer, reply });
       setAnnounce(reply.answer || "No answer came back.");
     } catch (error) {

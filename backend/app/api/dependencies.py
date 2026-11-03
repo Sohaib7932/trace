@@ -13,6 +13,7 @@ from app.ai.providers.fake import FakeTutorProvider
 from app.ai.providers.guided_lesson_assistant import GuidedLessonAssistant
 from app.ai.question_generator import QuestionGenerator
 from app.ai.resources import AIResources
+from app.ai.support_diagnostics import support_logger_observer
 from app.auth.jwt import JwtVerifier
 from app.core.errors import ApplicationError
 from app.core.settings import Settings
@@ -321,18 +322,24 @@ def get_support_service(
 
 
 def get_http_support_service(
+    request: Request,
     resources: Annotated[AIResources, Depends(get_ai_resources)],
     operations: Annotated[FeedbackOperations, Depends(get_support_operations)],
 ) -> SupportService:
+    observer = support_logger_observer(
+        request.app.state.logger, request_id=getattr(request.state, "request_id", None)
+    )
     return SupportService(
         BoundedSupportAssistant(
             resources.client,
             timeout_seconds=operations.settings.provider_timeout_seconds,
             remaining_seconds=operations.remaining_seconds,
+            observer=observer,
         ),
         resources.support.knowledge,
         escalation=resources.support.escalation,
         remaining_seconds=operations.remaining_seconds,
+        observer=observer,
     )
 
 

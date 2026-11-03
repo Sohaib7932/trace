@@ -6,11 +6,13 @@ from pydantic import ValidationError
 
 from app.ai.client import BoundedAIClient
 from app.ai.json_output import strict_json_object
+from app.ai.support_diagnostics import SupportObserver, observe_support
 from app.schemas.support import (
     SupportMatch,
     SupportQuestion,
     SupportSelection,
     SupportSelectionResult,
+    customer_reference,
 )
 
 SUPPORT_INSTRUCTIONS = """You are Trace's customer-support reference selector.
@@ -30,10 +32,12 @@ class BoundedSupportAssistant:
         *,
         timeout_seconds: float | None = None,
         remaining_seconds: Callable[[], float] | None = None,
+        observer: SupportObserver | None = None,
     ) -> None:
         self.client = client
         self.timeout_seconds = timeout_seconds
         self.remaining_seconds = remaining_seconds
+        self.observer = observer
 
     def select(
         self, question: SupportQuestion, passages: tuple[SupportMatch, ...], *, subject: str
@@ -49,7 +53,11 @@ class BoundedSupportAssistant:
         data: dict[str, object] = {
             "question": checked_question.question,
             "reference_passages": [
-                {"passage_id": passage.passage_id, "text": passage.text}
+                {
+                    "passage_id": passage.passage_id,
+                    "title": customer_reference(passage.title),
+                    "text": passage.text,
+                }
                 for passage in checked_passages
             ],
         }
@@ -57,6 +65,7 @@ class BoundedSupportAssistant:
         if self.remaining_seconds is not None:
             remaining = self.remaining_seconds()
             if remaining <= 0:
+                observe_support(self.observer, "provider", "deadline_exhausted", len(passages))
                 return None
             timeout = min(timeout, remaining) if timeout is not None else remaining
         completion = self.client.complete(
@@ -66,6 +75,15 @@ class BoundedSupportAssistant:
             output_schema=SupportSelection.model_json_schema(),
             subject=subject,
             timeout_seconds=timeout,
+            on_transport_attempt=lambda: observe_support(
+                self.observer, "provider", "invoked", len(passages)
+            ),
+        )
+        observe_support(
+            self.observer,
+            "provider",
+            getattr(completion, "error_code", None) or completion.status,
+            len(passages),
         )
         if completion.status != "success" or completion.text is None:
             return None
@@ -74,7 +92,9 @@ class BoundedSupportAssistant:
             selection = SupportSelection.model_validate(raw)
             allowed = {passage.passage_id for passage in checked_passages}
             if not set(selection.passage_ids) <= allowed:
+                observe_support(self.observer, "provider", "invalid_citation", len(passages))
                 return None
             return SupportSelectionResult(selection=selection, source=completion.source)
         except (ValueError, ValidationError, RecursionError, UnicodeError):
+            observe_support(self.observer, "provider", "malformed_output", len(passages))
             return None

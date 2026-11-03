@@ -161,6 +161,76 @@ a nonblank process key takes precedence.
 
 ## Repeatable local acceptance
 
+### Check the active support source separately from the key
+
+A present Gemini key does not prove that support has eligible documents or that
+the running server activated Gemini. From the repository root, inspect the
+approved launcher's configuration without sending a provider request:
+
+```text
+uv run --directory backend --locked --no-sync python -m scripts.platform_status --gemini-profile --confirm-free-tier-project
+```
+
+This command reports **the diagnostic process**, not an existing server. Its
+`configured_knowledge_backend` and `configured_support` describe the launcher
+profile; `knowledge` separately describes the SQL archive. With the default
+development/memory profile, Gemini uses the reviewed bundled package. An empty
+SQL archive is then reported honestly but does not disable that package. In
+production or durable-accounting mode, the application uses the published SQL
+archive and never substitutes the file package.
+
+The running backend emits `support_runtime` on startup. Check its actual AI,
+accounting and retrieval modes, selected knowledge backend, availability and
+source count. A supported request emits bounded `support_pipeline` events for
+knowledge, retrieval, provider execution, source verification and, when required,
+release authorization. Only `provider/invoked` establishes that the transport
+was called. A later `provider/timeout` or `provider/rate_limited` is a failure,
+even if HTTP status is 200. Do not loop requests or restart to evade limits.
+These logs exclude question text, answers, account identities and credentials.
+
+### Explicit SQL archive setup, when that backend is active
+
+Do not disable durable controls to hide an empty archive. An existing authorized
+administrator must use the existing authenticated knowledge APIs. No developer
+or startup process silently receives an admin role. After checking the exact
+current reviewed package and its unexpired approval, the admin first calls:
+
+```http
+POST /api/v1/admin/knowledge/import-reviewed-corpus
+Content-Type: application/json
+
+{"operation_key":"<new UUID>","adopt_existing_review":true}
+```
+
+Use that admin's normal authenticated client, the allowed browser `Origin` and
+`X-Trace-Client: learning-web`. Never paste a bearer token into a shared command
+or report. Import preserves the existing document digests, review owner and
+original expiration. It does not publish or renew approval. Then explicitly
+publish the imported revision IDs:
+
+```http
+POST /api/v1/admin/knowledge/publications
+Content-Type: application/json
+
+{
+  "revision_ids": ["<each revision.id returned by import>"],
+  "expected_sequence": -1,
+  "operation_key": "<different new UUID>",
+  "reason": "Publish the exact approved pilot support corpus for local acceptance."
+}
+```
+
+`expected_sequence: -1` applies only to the first publication. For an existing
+publication, use its actual sequence and review replacement intent first.
+Re-run the diagnostic: the SQL snapshot must be available with valid digests,
+eligible passages and no review issues. A release receipt is created only after
+a real answer passes fresh authorization; zero historical answer receipts does
+not prevent the first answer. Draft, expired, revoked or conflicting sources
+remain unavailable. Semantic retrieval and embeddings remain disabled unless
+their separate evaluation and approval requirements are met.
+
+### Browser walkthrough
+
 1. Check the frontend file is configured for real mode and the actual UI does
    not label the exchange as a demo. Confirm the complete public auth settings.
 2. Run the launcher preflight; verify key presence, approved model, Free Tier
