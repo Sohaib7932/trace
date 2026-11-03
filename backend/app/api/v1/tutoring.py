@@ -1,4 +1,4 @@
-"""Account-only guidance; Gemini selects text and cannot grade or release solutions."""
+"""Owned account-only guidance and optional conversational engineering advice."""
 
 from typing import Annotated
 from uuid import UUID
@@ -8,15 +8,18 @@ from fastapi import APIRouter, Depends, Request
 from app.api.dependencies import (
     current_account,
     current_learner,
+    get_conversation_tutoring_service,
     get_lesson_tutoring_service,
     get_tutor_operations,
     require_write_origin,
 )
 from app.core.errors import ApplicationError
 from app.domain.accounts import Principal
+from app.schemas.conversation_tutor import ConversationTutorReply, TutorConversationCreate
 from app.schemas.errors import ErrorResponse
 from app.schemas.lesson_assistant import LessonAssistantReply
 from app.schemas.lesson_tutoring import TutorQuestionCreate
+from app.services.conversation_tutoring import ConversationTutoringService
 from app.services.feedback_operations import FeedbackOperations
 from app.services.lesson_tutoring import LessonTutoringService
 
@@ -33,25 +36,33 @@ router = APIRouter(
 
 @router.post(
     "/sessions/{session_id}/tutor/ask",
-    response_model=LessonAssistantReply,
+    response_model=LessonAssistantReply | ConversationTutorReply,
     operation_id="ask_lesson_tutor",
 )
 async def ask(
     session_id: UUID,
-    body: TutorQuestionCreate,
+    body: TutorQuestionCreate | TutorConversationCreate,
     request: Request,
     owner: Annotated[Principal, Depends(current_learner)],
     service: Annotated[LessonTutoringService, Depends(get_lesson_tutoring_service)],
+    conversation: Annotated[
+        ConversationTutoringService, Depends(get_conversation_tutoring_service)
+    ],
     operations: Annotated[FeedbackOperations, Depends(get_tutor_operations)],
-) -> LessonAssistantReply:
-    """Read-only question over server-owned public context and approved guidance.
+) -> LessonAssistantReply | ConversationTutorReply:
+    """Read-only engineering advice over freshly authorized owned public context.
 
-    No exchange persistence, live grading, full worked solution or hint-slot change.
-    Gemini only selects an allowed topic; trusted code supplies the returned text.
+    Question-only requests retain the approved-guidance contract. Explicit
+    mode=conversation allows free-form unexecuted advice and bounded untrusted
+    page-session history. Neither mode grades, completes or consumes hint slots.
     """
     deadline = getattr(request.state, "tutor_deadline", None)
     if not isinstance(deadline, float):
         raise ApplicationError("dependency_unavailable", "Tutor is unavailable.", 503)
+    if isinstance(body, TutorConversationCreate):
+        return await operations.execute(
+            owner, lambda: conversation.answer(owner, session_id, body), deadline=deadline
+        )
     return await operations.execute(
         owner, lambda: service.answer(owner, session_id, body.question), deadline=deadline
     )

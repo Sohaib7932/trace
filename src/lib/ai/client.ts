@@ -1,4 +1,4 @@
-import { aiApi, type Verification } from "@/lib/api/client";
+import { aiApi, ApiError, type Schema, type Verification } from "@/lib/api/client";
 import type { Interest, LessonId, LessonStage, SupportAskRequest, SupportReply, TutorReply } from "./contracts";
 import type { StreamOptions } from "./mock/controls";
 import { mockSupportAsk } from "./mock/support";
@@ -42,6 +42,10 @@ export type TutorContext = {
   latestRun?: { id: string; status: string } | null;
   /** Real hint count from the progress summary; the tutor never changes it. */
   hintsUsed?: number;
+  /** Bounded page-session dialogue, never trusted runtime or ownership evidence. */
+  history?: Schema["TutorHistoryMessage"][];
+  code?: string;
+  style?: Schema["TutorConversationCreate"]["style"];
 };
 
 export interface TutorClient {
@@ -51,6 +55,8 @@ export interface TutorClient {
   /** `run` must be a real stored failed verification run; the real backend will load it by id. */
   whyFailed(context: TutorContext, run: Verification, options?: StreamOptions): Promise<TutorReply>;
   worked(context: TutorContext, options?: StreamOptions): Promise<TutorReply>;
+  /** Additive open-ended contract. Legacy guided methods retain their old behavior. */
+  converse?(context: TutorContext, question: string, options?: StreamOptions): Promise<TutorReply>;
 }
 
 export interface SupportClient {
@@ -70,14 +76,30 @@ const notAvailable = (capability: string) => () => Promise.reject<never>(new End
 async function realTutor(context: TutorContext, question: string, options?: StreamOptions): Promise<TutorReply> {
   if (!context.sessionId) throw new EndpointNotAvailableError("Start a signed-in lesson before using the tutor");
   // Do not send client stage, claims, hints, raw submissions or runtime evidence.
-  const reply = await aiApi.tutor(context.sessionId, question);
+  const reply = await aiApi.tutor(context.sessionId, question, options?.signal);
+  options?.onText?.(reply.text);
+  return reply;
+}
+
+async function realConversation(context: TutorContext, question: string, options?: StreamOptions): Promise<TutorReply> {
+  if (!context.sessionId) throw new EndpointNotAvailableError("Start a signed-in lesson before using the tutor");
+  const history = [...(context.history ?? [])].slice(-6);
+  const body: Schema["TutorConversationCreate"] = {
+    mode: "conversation", question,
+    style: context.style ?? "adaptive", code: context.code || null,
+    history,
+  };
+  const bytes = () => new TextEncoder().encode(JSON.stringify(body)).length;
+  while (history.length && bytes() > 10000) history.shift();
+  if (bytes() > 10000) throw new ApiError(422, "Shorten the question or code to fit the tutor context limit.", "context_limit");
+  const reply = await aiApi.conversation(context.sessionId, body, options?.signal);
   options?.onText?.(reply.text);
   return reply;
 }
 
 async function realSupport(input: SupportAskRequest, options?: StreamOptions): Promise<SupportReply> {
   // Client route/conversation/document hints are unnecessary for public-document retrieval.
-  const reply = await aiApi.support(input.question);
+  const reply = await aiApi.support(input.question, options?.signal);
   const answer = reply.status === "answered"
     ? reply.references.map((reference) => reference.quote).join("\n\n")
     : reply.message;
@@ -118,6 +140,7 @@ const realClients: AiClients = {
     mode: "real",
     explainConcept: (context, options) => realTutor(context, "Explain the main request-contract concept for this lesson.", options),
     ask: realTutor,
+    converse: realConversation,
     whyFailed: (context, _run, options) => realTutor(context, "Explain the latest saved verification failure without giving the full fix.", options),
     worked: notAvailable("Full worked solutions are not enabled for the live tutor"),
   } satisfies TutorClient,

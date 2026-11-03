@@ -7,6 +7,7 @@ from app.ai.providers.bounded_evidence_feedback import BoundedEvidenceFeedbackPr
 from app.ai.providers.bounded_question_generator import BoundedQuestionGenerator
 from app.ai.providers.bounded_support import BoundedSupportAssistant
 from app.ai.providers.bounded_tutor import BoundedLessonAssistant, BoundedTutorProvider
+from app.ai.providers.conversation_tutor import BoundedConversationTutor
 from app.core.ai_settings import AIClientSettings
 from app.domain.clock import Clock, utc_now
 from app.repositories.support_knowledge import ApprovedSupportKnowledge
@@ -31,6 +32,7 @@ class AIResources:
         self.evidence_feedback_provider = BoundedEvidenceFeedbackProvider(client)
         self.tutor_provider = BoundedTutorProvider(client)
         self.lesson_assistant = LessonAssistantService(BoundedLessonAssistant(client))
+        self.conversation_tutor = BoundedConversationTutor(client)
         # Draft/missing/expired review keeps the corpus unavailable. No contact invented.
         self.support = SupportService(
             BoundedSupportAssistant(client),

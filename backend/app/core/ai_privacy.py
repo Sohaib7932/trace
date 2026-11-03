@@ -5,7 +5,9 @@ import re
 _SENSITIVE = re.compile(
     r"-----BEGIN .*PRIVATE KEY|\b(?:AIza[\w-]{20,}|sk-[\w-]{20,}|ghp_[\w]{20,})|"
     r"\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}|"
-    r"\b(?:password|api[_ -]?key|access[_ -]?token)\s*[:=]\s*\S{6,}|"
+    r"\b(?:[a-z][a-z0-9_]*_)?(?:password|api[_ -]?key|access[_ -]?token|"
+    r"refresh[_ -]?token|secret(?:[_ -]?key)?|service[_ -]?role(?:[_ -]?key)?)"
+    r"[\"']?\s*[:=]\s*[\"']?\S{6,}|"
     r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
     re.I,
 )
