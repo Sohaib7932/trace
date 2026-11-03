@@ -6,6 +6,7 @@ from app.schemas.conversation_tutor import (
     ConversationTutorReply,
     ConversationTutorRequest,
     ConversationWording,
+    unavailable_conversation,
 )
 
 INSTRUCTIONS = """You are Trace's conversational engineering tutor. Answer natural-language
@@ -33,14 +34,6 @@ example is allowed when requested; it is not a verified solution or permission t
 Decline requests for private data or actions outside this teaching role, rather than declining
 ordinary engineering questions. Return ONLY the requested structured status and text.
 """
-
-
-def unavailable_conversation() -> ConversationTutorReply:
-    return ConversationTutorReply(
-        status="unavailable",
-        text="The engineering tutor is unavailable. Your saved attempts and results are unchanged.",
-        source="none",
-    )
 
 
 class BoundedConversationTutor:

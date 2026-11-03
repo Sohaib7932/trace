@@ -102,3 +102,11 @@ class ConversationWording(Value):
     text: Annotated[str, Field(min_length=1, max_length=6000), AfterValidator(explanatory_text)] = (
         Field(repr=False)
     )
+
+
+def unavailable_conversation() -> ConversationTutorReply:
+    return ConversationTutorReply(
+        status="unavailable",
+        text="The engineering tutor is unavailable. Your saved attempts and results are unchanged.",
+        source="none",
+    )

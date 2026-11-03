@@ -1,10 +1,10 @@
 """Reuse fresh owned lesson authorization; keep dialogue stateless and untrusted."""
 
 import hashlib
+from collections.abc import Callable
 from uuid import UUID
 
 from app.ai.conversation_tutor import ConversationTutorProvider
-from app.ai.providers.conversation_tutor import unavailable_conversation
 from app.domain.accounts import Principal
 from app.domain.learning import LearningError
 from app.schemas.conversation_tutor import (
@@ -13,6 +13,7 @@ from app.schemas.conversation_tutor import (
     ConversationTutorRequest,
     TutorConversationCreate,
     explanatory_text,
+    unavailable_conversation,
 )
 from app.services.catalog import (
     LESSON_ID,
@@ -31,9 +32,11 @@ class ConversationTutoringService:
         provider: ConversationTutorProvider,
         *,
         timeout_seconds: float,
+        remaining_seconds: Callable[[], float] | None = None,
     ) -> None:
         self.context_source, self.provider = context_source, provider
         self.timeout_seconds = timeout_seconds
+        self.remaining_seconds = remaining_seconds
 
     def answer(
         self, owner: Principal, session_id: UUID, body: TutorConversationCreate
@@ -72,9 +75,12 @@ class ConversationTutoringService:
         subject = "conversation:" + hashlib.sha256(str(owner.account.id).encode()).hexdigest()
         # No source read/write transaction survives the capture or provider call.
         try:
-            supplied = self.provider.answer(
-                request, subject=subject, timeout_seconds=self.timeout_seconds
-            )
+            timeout = self.timeout_seconds
+            if self.remaining_seconds is not None:
+                timeout = min(timeout, self.remaining_seconds())
+            if timeout <= 0:
+                raise TimeoutError("Tutor deadline exceeded")
+            supplied = self.provider.answer(request, subject=subject, timeout_seconds=timeout)
             reply = ConversationTutorReply.model_validate(supplied.model_dump(warnings=False))
             if reply.status != "unavailable":
                 explanatory_text(reply.text)

@@ -125,7 +125,10 @@ def test_only_visible_saved_submission_and_check_outcomes_ground_failure_discuss
     assert predict(api.client, session).status_code == 201
     submitted = attempt(api.client, session)
     assert verify(api.client, session, submitted["id"]).json()["status"] == "failed"
-    api.provider.text = '{"status":"answered","text":"Compare the saved check categories with the visible receiving schema."}'
+    api.provider.text = (
+        '{"status":"answered","text":"Compare the saved check categories '
+        'with the visible receiving schema."}'
+    )
     response = ask(api, session, question="What should I investigate about the saved failure?")
     assert response.status_code == 200 and response.json()["status"] == "answered"
     context = json.loads(api.provider.calls[0].data_json)["trusted_context"]
