@@ -1,0 +1,44 @@
+-- REVIEW ARTIFACT ONLY. Never run against the developer SQLite database.
+-- Run privately as the approved PostgreSQL administrator in the NEW trace DB.
+-- Roles intentionally start NOLOGIN. Enable LOGIN/set strong passwords privately
+-- after review, and save different runtime/migrator URLs in Secret Manager.
+-- Do not pass passwords as psql command-line arguments or commit them anywhere.
+\set ON_ERROR_STOP on
+
+BEGIN;
+CREATE ROLE trace_migrator NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE trace_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA trace AUTHORIZATION trace_migrator;
+GRANT USAGE ON SCHEMA trace TO trace_runtime;
+
+-- Run before the approved one-shot migrations. Migrator owns its schema/objects.
+-- Future mutable tables require explicit reviewed UPDATE grants; no DELETE,
+-- TRUNCATE, CREATE, schema ownership, trigger disabling or broad UPDATE grant.
+ALTER DEFAULT PRIVILEGES FOR ROLE trace_migrator IN SCHEMA trace
+  GRANT SELECT, INSERT ON TABLES TO trace_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE trace_migrator IN SCHEMA trace
+  GRANT USAGE, SELECT ON SEQUENCES TO trace_runtime;
+COMMIT;
+
+-- Run this second block only AFTER the exact reviewed migrations have succeeded.
+-- Existing objects need grants too; default privileges do not apply retroactively.
+BEGIN;
+GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA trace TO trace_runtime;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA trace TO trace_runtime;
+GRANT UPDATE ON TABLE
+  trace.write_gate,
+  trace.learner_credentials,
+  trace.account_action_limits,
+  trace.learning_sessions,
+  trace.verification_runs,
+  trace.retrieval_checkpoints,
+  trace.hint_operations
+TO trace_runtime;
+GRANT UPDATE (last_seen_at) ON TABLE trace.auth_subjects TO trace_runtime;
+COMMIT;
+
+-- Verify role/schema ownership and expected grants; do not grant runtime membership
+-- in trace_migrator or cloudsqlsuperuser. Reconciliation/admin commands use a
+-- separately approved operator identity, never the runtime database credential.
+-- For a repeat run or existing database, stop and review; do not drop/recreate roles.

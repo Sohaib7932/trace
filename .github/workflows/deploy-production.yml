@@ -1,0 +1,140 @@
+name: Manual production release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Explicit operation; candidate deployment receives no production traffic
+        type: choice
+        options: [deploy_candidate, migrate, promote, rollback]
+        required: true
+      image:
+        description: Approved OCI image@sha256 digest (deploy_candidate or migrate)
+        type: string
+        required: false
+      revision:
+        description: Existing reviewed revision (promote or rollback)
+        type: string
+        required: false
+      release_commit:
+        description: Full reviewed main commit SHA corresponding to this image/revision
+        type: string
+        required: true
+      release_owner:
+        description: Accountable non-secret team/role label
+        type: string
+        required: true
+      change_approval:
+        description: Reviewed release/security/compatibility evidence record ID
+        type: string
+        required: true
+      budget_approval:
+        description: Approved paid-hosting budget record ID (not a billing credential)
+        type: string
+        required: true
+      backup_reference:
+        description: Verified recoverable backup/restore-drill record (migrate or rollback)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trace-production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Configure required reviewers and main-only deployment branches on this
+    # GitHub environment before enabling it. YAML cannot enforce that setting.
+    environment: production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_ACTION: ${{ inputs.action }}
+      RELEASE_IMAGE: ${{ inputs.image }}
+      RELEASE_REVISION: ${{ inputs.revision }}
+      RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RELEASE_OWNER: ${{ inputs.release_owner }}
+      CHANGE_APPROVAL: ${{ inputs.change_approval }}
+      BUDGET_APPROVAL: ${{ inputs.budget_approval }}
+      BACKUP_REFERENCE: ${{ inputs.backup_reference }}
+      APPROVED_PROJECT: ${{ vars.GCP_PROJECT_ID }}
+      APPROVED_REGION: ${{ vars.GCP_REGION }}
+      APPROVED_IMAGE_PREFIX: ${{ vars.GCP_IMAGE_PREFIX }}
+      RUN_SERVICE: ${{ vars.TRACE_CLOUD_RUN_SERVICE }}
+      MIGRATION_JOB: ${{ vars.TRACE_MIGRATION_JOB }}
+      GCLOUD_VERSION: ${{ vars.GCP_SDK_VERSION }}
+      CLOUDSDK_CORE_DISABLE_PROMPTS: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate approved release inputs without echoing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os, re, subprocess, sys
+          def valid(name, pattern):
+              return re.fullmatch(pattern, os.environ.get(name, '')) is not None
+          checks = [
+              valid('APPROVED_PROJECT', r'[a-z][a-z0-9-]{4,28}[a-z0-9]'),
+              valid('APPROVED_REGION', r'[a-z]+-[a-z]+[0-9]'),
+              valid('RUN_SERVICE', r'[a-z][a-z0-9-]{1,61}'),
+              valid('MIGRATION_JOB', r'[a-z][a-z0-9-]{1,61}'),
+              valid('GCLOUD_VERSION', r'[0-9]+\.[0-9]+\.[0-9]+'),
+              valid('RELEASE_COMMIT', r'[a-f0-9]{40}'),
+              valid('RELEASE_OWNER', r'[a-z0-9_-]{2,63}'),
+              valid('CHANGE_APPROVAL', r'[A-Za-z0-9_./:-]{3,128}'),
+              valid('BUDGET_APPROVAL', r'[A-Za-z0-9_./:-]{3,128}'),
+          ]
+          action = os.environ['RELEASE_ACTION']
+          if action in ('deploy_candidate', 'migrate'):
+              image, prefix = os.environ['RELEASE_IMAGE'], os.environ['APPROVED_IMAGE_PREFIX']
+              checks += [bool(prefix), image.startswith(prefix + '@sha256:'),
+                         valid('RELEASE_IMAGE', r'[a-z0-9.-]+/[A-Za-z0-9_./-]+@sha256:[a-f0-9]{64}')]
+          if action in ('promote', 'rollback'):
+              checks += [valid('RELEASE_REVISION', r'[a-z][a-z0-9-]{1,62}')]
+          if action in ('migrate', 'rollback'):
+              checks += [valid('BACKUP_REFERENCE', r'[A-Za-z0-9_./:-]{3,128}')]
+          if action not in ('deploy_candidate', 'migrate', 'promote', 'rollback') or not all(checks):
+              sys.exit('Release configuration is incomplete or invalid; review privately.')
+          result = subprocess.run(['git', 'merge-base', '--is-ancestor', os.environ['RELEASE_COMMIT'], 'origin/main'],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          if result.returncode:
+              sys.exit('Release commit is not a verified ancestor of origin/main.')
+          PY
+      - name: Federate the protected workflow identity
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ inputs.action == 'migrate' && vars.GCP_MIGRATION_RELEASE_SERVICE_ACCOUNT || vars.GCP_RELEASE_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+        with:
+          version: ${{ vars.GCP_SDK_VERSION }}
+      - name: Execute only the approved manual operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_ACTION" in
+            deploy_candidate)
+              gcloud run services update "$RUN_SERVICE" --project="$APPROVED_PROJECT" --region="$APPROVED_REGION" --image="$RELEASE_IMAGE" --no-traffic --tag="review-${RELEASE_COMMIT:0:12}" --quiet
+              echo 'Candidate created without production traffic. Verify the tagged revision before a separate promotion.'
+              ;;
+            migrate)
+              gcloud run jobs update "$MIGRATION_JOB" --project="$APPROVED_PROJECT" --region="$APPROVED_REGION" --image="$RELEASE_IMAGE" --quiet
+              gcloud run jobs execute "$MIGRATION_JOB" --project="$APPROVED_PROJECT" --region="$APPROVED_REGION" --wait --quiet
+              ;;
+            promote|rollback)
+              gcloud run services update-traffic "$RUN_SERVICE" --project="$APPROVED_PROJECT" --region="$APPROVED_REGION" --to-revisions="$RELEASE_REVISION=100" --quiet
+              echo 'Traffic updated. No database downgrade was performed.'
+              ;;
+          esac

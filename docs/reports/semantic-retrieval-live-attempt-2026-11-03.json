@@ -1,0 +1,55 @@
+{
+  "schema_version": "semantic-retrieval-attempt-report-v1",
+  "attempt_date": "2026-11-03",
+  "status": "unavailable",
+  "error_code": "rate_limited",
+  "elapsed_seconds": 9.58,
+  "result_source": "operator-observed sanitized CLI result",
+  "provider": "gemini",
+  "model_id": "gemini-embedding-001",
+  "dimensions": 768,
+  "sdk_version": "2.34.0",
+  "paid_budget_microusd": 0,
+  "retry_count": 0,
+  "fallback_used": false,
+  "dataset_version": "1.0.0",
+  "label_status": "engineering_reference_pending_independent_review",
+  "corpus_revision": "1.0.0",
+  "corpus_canonical_sha256": "1fa44fda7549fcac866926c07c56c9778deaa8e29955309b1f8bab80c24f5063",
+  "planned_limits": {
+    "rpc_attempts": 2,
+    "items": 113,
+    "approved_document_items": 19,
+    "public_question_items": 94,
+    "reserved_input_estimate": 16000,
+    "per_rpc_concurrency": 1
+  },
+  "observed": {
+    "rpc_attempts": null,
+    "completed_rpcs": null,
+    "submitted_items": null,
+    "provider_input_tokens": null,
+    "provider_weight_revision": null,
+    "usable_persisted_index": false,
+    "completed_semantic_evaluation": false
+  },
+  "metrics": {
+    "recall_at_3": null,
+    "precision_at_3": null,
+    "mrr": null,
+    "supported_answer_rate": null,
+    "unsupported_claim_rate": null,
+    "semantic_abstention_rate": null,
+    "false_abstention_rate": null
+  },
+  "production_strategy": "lexical",
+  "production_semantic_activation": false,
+  "limitations": [
+    "The CLI did not emit per-RPC failure counters; the failed batch is unknown.",
+    "The two-RPC and 113-item values are ceilings, not observations.",
+    "Rate limiting is infrastructure unavailability, not correct semantic abstention.",
+    "Offline mock vectors validate mechanics and do not establish semantic model quality.",
+    "No live retry is authorized; inspect actual project embedding quota privately before a separately approved rerun.",
+    "Independent evaluation-label review remains outstanding."
+  ]
+}
