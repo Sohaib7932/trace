@@ -1,0 +1,31 @@
+name: Infrastructure artifacts
+on:
+  pull_request:
+    paths:
+      - 'infra/gcp/**'
+      - '.github/workflows/infrastructure.yml'
+  push:
+    paths:
+      - 'infra/gcp/**'
+      - '.github/workflows/infrastructure.yml'
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TERRAFORM_IMAGE: hashicorp/terraform@sha256:6bbb82d575aa7bd4f0a2c6e3a0838ab9590426c08a71d7a2783643f01004d356
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check formatting
+        run: docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/infra/gcp,target=/workspace" --workdir /workspace "$TERRAFORM_IMAGE" fmt -check -recursive -diff
+      - name: Initialize providers without a state backend
+        run: docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/infra/gcp,target=/workspace" --workdir /workspace "$TERRAFORM_IMAGE" init -backend=false -input=false -lockfile=readonly
+      - name: Validate provider schemas
+        run: docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/infra/gcp,target=/workspace" --workdir /workspace "$TERRAFORM_IMAGE" validate -no-color
+      - name: Test disabled and explicitly approved runtime profiles with mocked Google
+        run: docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/infra/gcp,target=/workspace" --workdir /workspace "$TERRAFORM_IMAGE" test -no-color -test-directory=tests

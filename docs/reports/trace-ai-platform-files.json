@@ -1,0 +1,734 @@
+{
+  "schema_version": "trace_change_inventory_v1",
+  "baseline_commit": "9a9d2e1af88b0666fde816fdb3214130518dff83",
+  "implementation_commit": "26fedf24596076f314aeb6c3bdc575c64a2d6e77",
+  "scope": "All intended changes across the dependent review branches, including final report/inventory. Private ignored runtime state and four preserved unrelated injected-context logs are excluded.",
+  "file_count": 181,
+  "files": [
+    {
+      "path": ".claude-logs/2026-10-31_10-25-36_01a18c8a-4fc7-70a0-bf35-3113cfa88f29.md",
+      "change": "modified"
+    },
+    {
+      "path": ".dockerignore",
+      "change": "added"
+    },
+    {
+      "path": ".env.local.example",
+      "change": "modified"
+    },
+    {
+      "path": ".gitattributes",
+      "change": "modified"
+    },
+    {
+      "path": ".github/workflows/deploy-production.yml",
+      "change": "added"
+    },
+    {
+      "path": ".github/workflows/infrastructure.yml",
+      "change": "added"
+    },
+    {
+      "path": ".github/workflows/postgresql.yml",
+      "change": "added"
+    },
+    {
+      "path": ".gitignore",
+      "change": "modified"
+    },
+    {
+      "path": "Dockerfile",
+      "change": "added"
+    },
+    {
+      "path": "backend/.env.example",
+      "change": "modified"
+    },
+    {
+      "path": "backend/ai.env.example",
+      "change": "modified"
+    },
+    {
+      "path": "backend/alembic-postgresql.ini",
+      "change": "added"
+    },
+    {
+      "path": "backend/alembic.ini",
+      "change": "modified"
+    },
+    {
+      "path": "backend/alembic/env.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/alembic/postgresql_versions/pg_0007_baseline.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/alembic/shared_versions/0008_knowledge_archive.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/alembic/shared_versions/0009_durable_ai_controls.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/accounting.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/client.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/ai/conversation_tutor.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/embeddings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/observability.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/providers/bounded_support.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/ai/providers/conversation_tutor.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/providers/gemini_embeddings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/ai/resources.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/api/dependencies.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/api/v1/knowledge_admin.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/api/v1/knowledge_indexes.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/api/v1/support.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/api/v1/tutoring.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/auth/jwks_http.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/auth/jwt.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/core/accounting_settings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/core/ai_activation.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/core/ai_privacy.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/core/embedding_settings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/core/feedback_middleware.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/core/https_middleware.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/core/logging.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/core/retrieval_settings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/core/settings.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/core/support_settings.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/core/tutor_settings.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/db/accounting.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/db/accounting_models.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/db/feedback_release.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/db/knowledge.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/db/knowledge_models.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/db/learning.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/db/migrations.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/db/models.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/db/session.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/domain/knowledge.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/evaluation/semantic_retrieval.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/main.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/repositories/knowledge.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/schemas/ai_client.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/schemas/conversation_tutor.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/schemas/embeddings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/services/candidate_validation.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/services/conversation_tutoring.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/services/feedback_operations.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/services/knowledge.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/services/knowledge_indexing.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/services/lesson_tutoring.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/services/support.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/support/archive.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/contracts.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/database.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/drafts/hints-explanations-conversation-review.md",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/drafts/hints-explanations-conversation-v1.json",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/embedding_index.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/receipts.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/app/support/semantic.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/app/support/vector_json.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/infrastructure_tests/test_docker_network_profile.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/infrastructure_tests/test_postgresql_readiness.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/infrastructure_tests/test_production_tls.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/openapi.json",
+      "change": "modified"
+    },
+    {
+      "path": "backend/production_tests/conftest.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/production_tests/test_ai_client_accounting.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/production_tests/test_ai_controls.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/production_tests/test_knowledge_archive.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/production_tests/test_legacy_auth_transfer.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/production_tests/test_postgresql.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/production_tests/test_shared_admission_http.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/pyproject.toml",
+      "change": "modified"
+    },
+    {
+      "path": "backend/scripts/ai_setup_check.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/scripts/evaluate_semantic_retrieval.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/scripts/migrate_production.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/scripts/platform_status.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/scripts/reconcile_ai_controls.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/scripts/run_gemini.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/scripts/run_production.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/fixtures/live_ai_e2e_server.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/integration/test_ai_client_accounting.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_ai_controls.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_ai_controls_fail_closed.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_ai_lifecycle.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/integration/test_api.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/integration/test_conversation_tutor_http.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_evidence_feedback_lifecycle.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/integration/test_jwks_shutdown.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_admin_http.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_archive.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_archive_faults.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_archive_migration.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_index_http.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_index_service.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_knowledge_receipt_binding.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_learner_feedback.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/integration/test_learning_failures.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/integration/test_platform_startup_cleanup.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_platform_status.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_shared_admission_http.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_support_archive_delivery.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_support_release_authorization.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/integration/test_tutor_operation_migration.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/knowledge_guard_fixtures.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_ai_accounting_contracts.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_ai_activation.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_ai_observability.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_archive_source_guards.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_conversation_tutor.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_embedding_accounting.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_embeddings.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_infrastructure_profile.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_jwks_transport.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_jwt.py",
+      "change": "modified"
+    },
+    {
+      "path": "backend/tests/unit/test_jwt_security_regressions.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_knowledge_schema_guards.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_operation_budgets.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_platform_resources.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_postgresql_configuration.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_reconcile_ai_controls.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_semantic_retrieval.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/tests/unit/test_shared_operation_admission.py",
+      "change": "added"
+    },
+    {
+      "path": "backend/uv.lock",
+      "change": "modified"
+    },
+    {
+      "path": "deploy/compose.postgresql-test.yml",
+      "change": "added"
+    },
+    {
+      "path": "deploy/production.env.example",
+      "change": "added"
+    },
+    {
+      "path": "docs/api/gemini-openapi.json",
+      "change": "modified"
+    },
+    {
+      "path": "docs/architecture/adr-postgresql-shared-ai-controls.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/architecture/adr-production-hosting.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/architecture/adr-semantic-retrieval.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/architecture/support-knowledge-lifecycle-v1.md",
+      "change": "modified"
+    },
+    {
+      "path": "docs/deployment/authentication-acceptance.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/deployment/production-backend.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/frontend/open-ended-tutor-contract.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/frontend/phase-3-8-handoff.md",
+      "change": "modified"
+    },
+    {
+      "path": "docs/frontend/sohaib-gemini-setup.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/frontend/trace-platform-handoff.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/frontend-browser-acceptance-2026-11-03.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/postgresql-17-compatibility-2026-11-03.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/production-authentication-security.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/production-hosting-artifact-validation-2026-11-03.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/semantic-retrieval-live-attempt-2026-11-03.json",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/trace-ai-platform-completion.md",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/trace-ai-platform-files.json",
+      "change": "added"
+    },
+    {
+      "path": "docs/reports/trace-platform-lexical-evaluation.json",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/.terraform.lock.hcl",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/README.md",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/bootstrap-roles.sql.example",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/main.tf",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/monitoring.tf",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/outputs.tf",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/registry.tf",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/release-identity.tf",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/tests/live_gemini.tftest.hcl",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/variables.tf",
+      "change": "added"
+    },
+    {
+      "path": "infra/gcp/versions.tf",
+      "change": "added"
+    },
+    {
+      "path": "scripts/run-gemini-backend.ps1",
+      "change": "modified"
+    },
+    {
+      "path": "scripts/tests/test_production_release_workflow.py",
+      "change": "added"
+    },
+    {
+      "path": "src/components/learning/tutor/tutor-panel.tsx",
+      "change": "modified"
+    },
+    {
+      "path": "src/lib/ai/client.ts",
+      "change": "modified"
+    },
+    {
+      "path": "src/lib/api/client.ts",
+      "change": "modified"
+    },
+    {
+      "path": "src/lib/api/schema.d.ts",
+      "change": "modified"
+    },
+    {
+      "path": "src/lib/supabase/use-auth.ts",
+      "change": "modified"
+    },
+    {
+      "path": "tests/ai-e2e/live-ai.spec.ts",
+      "change": "modified"
+    },
+    {
+      "path": "tests/components/conversation-tutor.test.tsx",
+      "change": "added"
+    },
+    {
+      "path": "tests/e2e/lesson-refinement.spec.ts",
+      "change": "modified"
+    }
+  ],
+  "excluded_untracked_log_count": 4
+}

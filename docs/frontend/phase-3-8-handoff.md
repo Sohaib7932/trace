@@ -8,8 +8,12 @@ their original response. New learner conversation requests contain bounded,
 untrusted dialogue rather than client-selected evidence or document scope.
 
 The current contracts are `backend/openapi.json`,
-`docs/api/gemini-openapi.json` and `src/lib/api/schema.d.ts`: 24 paths and 26
-operations. The historical `docs/api/openapi.json` and original frontend
+`docs/api/gemini-openapi.json` and `src/lib/api/schema.d.ts`: 31 paths and 33
+operations, including seven protected knowledge-administration operations.
+The 24 existing learner/health paths remain. See the
+[current complete team handoff](trace-platform-handoff.md) for onboarding,
+conversation, durable governance, quota semantics and deployment prerequisites.
+The historical `docs/api/openapi.json` and original frontend
 integration handoff are intentionally preserved historical exports.
 
 ## Existing protected calls

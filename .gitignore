@@ -59,3 +59,13 @@ backend/*.sqlite*
 # Browser test output
 /playwright-report/
 /test-results/
+
+# Reviewed deployment artifacts are tracked; local state, values and OIDC files are private.
+/infra/gcp/.terraform/
+/infra/gcp/*.tfstate
+/infra/gcp/*.tfstate.*
+/infra/gcp/*.tfvars
+/infra/gcp/*.tfvars.json
+/infra/gcp/*.tfplan
+/infra/gcp/crash.log
+gha-creds-*.json
