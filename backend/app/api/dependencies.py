@@ -34,6 +34,7 @@ from app.services.candidate_generation import CandidateGenerationService
 from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.catalog import CatalogService
+from app.services.conversation_tutoring import ConversationTutoringService
 from app.services.evidence_feedback import EvidenceFeedbackService
 from app.services.feedback_operations import FeedbackOperations
 from app.services.feedback_release import FeedbackReleaseService
@@ -235,6 +236,18 @@ def get_question_generator(
     resources: Annotated[AIResources, Depends(get_ai_resources)],
 ) -> QuestionGenerator:
     return resources.question_generator
+
+
+def get_conversation_tutoring_service(
+    context_source: Annotated[LessonTutoringService, Depends(get_lesson_tutoring_service)],
+    resources: Annotated[AIResources, Depends(get_ai_resources)],
+    operations: Annotated[FeedbackOperations, Depends(get_tutor_operations)],
+) -> ConversationTutoringService:
+    return ConversationTutoringService(
+        context_source,
+        resources.conversation_tutor,
+        timeout_seconds=operations.settings.provider_timeout_seconds,
+    )
 
 
 def get_candidate_generation_service(request: Request) -> CandidateGenerationService:

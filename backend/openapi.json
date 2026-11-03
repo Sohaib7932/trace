@@ -166,6 +166,11 @@
         "title": "AttemptResponse",
         "type": "object"
       },
+      "ChatText": {
+        "maxLength": 6000,
+        "minLength": 1,
+        "type": "string"
+      },
       "CheckCode": {
         "enum": [
           "http_status",
@@ -300,6 +305,65 @@
         "additionalProperties": false,
         "properties": {},
         "title": "Contract",
+        "type": "object"
+      },
+      "ConversationTutorReply": {
+        "additionalProperties": false,
+        "properties": {
+          "can_complete_lesson": {
+            "$ref": "#/components/schemas/No",
+            "default": false
+          },
+          "execution_status": {
+            "const": "not_executed",
+            "default": "not_executed",
+            "title": "Execution Status",
+            "type": "string"
+          },
+          "history_scope": {
+            "const": "client_page_session",
+            "default": "client_page_session",
+            "title": "History Scope",
+            "type": "string"
+          },
+          "interpretation_only": {
+            "$ref": "#/components/schemas/Yes",
+            "default": true
+          },
+          "mode": {
+            "const": "conversation",
+            "default": "conversation",
+            "title": "Mode",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "ai",
+              "test_fixture",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "declined",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "text": {
+            "$ref": "#/components/schemas/ChatText"
+          }
+        },
+        "required": [
+          "status",
+          "text",
+          "source"
+        ],
+        "title": "ConversationTutorReply",
         "type": "object"
       },
       "Digest": {
@@ -626,6 +690,12 @@
       "Items_SupportReference__MaxLen_max_length_3_": {
         "items": {
           "$ref": "#/components/schemas/SupportReference"
+        },
+        "type": "array"
+      },
+      "Items_TutorHistoryMessage__MaxLen_max_length_6_": {
+        "items": {
+          "$ref": "#/components/schemas/TutorHistoryMessage"
         },
         "type": "array"
       },
@@ -1747,6 +1817,72 @@
         "title": "TransferAttemptCreate",
         "type": "object"
       },
+      "TutorConversationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "$ref": "#/components/schemas/Items_TutorHistoryMessage__MaxLen_max_length_6_",
+            "default": [],
+            "maxLength": 6
+          },
+          "mode": {
+            "const": "conversation",
+            "title": "Mode",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/TutorStyle",
+            "default": "adaptive"
+          }
+        },
+        "required": [
+          "mode",
+          "question"
+        ],
+        "title": "TutorConversationCreate",
+        "type": "object"
+      },
+      "TutorHistoryMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1600,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "TutorHistoryMessage",
+        "type": "object"
+      },
       "TutorQuestionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1762,6 +1898,15 @@
         ],
         "title": "TutorQuestionCreate",
         "type": "object"
+      },
+      "TutorStyle": {
+        "enum": [
+          "adaptive",
+          "socratic",
+          "direct",
+          "worked_example"
+        ],
+        "type": "string"
       },
       "UTCInstant": {
         "format": "date-time",
@@ -4182,7 +4327,7 @@
     },
     "/api/v1/sessions/{session_id}/tutor/ask": {
       "post": {
-        "description": "Read-only question over server-owned public context and approved guidance.\n\nNo exchange persistence, live grading, full worked solution or hint-slot change.\nGemini only selects an allowed topic; trusted code supplies the returned text.",
+        "description": "Read-only engineering advice over freshly authorized owned public context.\n\nQuestion-only requests retain the approved-guidance contract. Explicit\nmode=conversation allows free-form unexecuted advice and bounded untrusted\npage-session history. Neither mode grades, completes or consumes hint slots.",
         "operationId": "ask_lesson_tutor",
         "parameters": [
           {
@@ -4200,7 +4345,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TutorQuestionCreate"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TutorQuestionCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TutorConversationCreate"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -4211,7 +4364,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LessonAssistantReply"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/LessonAssistantReply"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ConversationTutorReply"
+                    }
+                  ],
+                  "title": "Response Ask Lesson Tutor"
                 }
               }
             },

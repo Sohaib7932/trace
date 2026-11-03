@@ -68,13 +68,15 @@ async function accessToken(refresh = false): Promise<string | undefined> {
   return result.data.session?.access_token;
 }
 
-async function send(path: string, body: object | undefined, key: string | undefined, token: string | undefined): Promise<Response> {
+type RequestOptions = { signal?: AbortSignal; refreshOn401?: boolean };
+
+async function send(path: string, body: object | undefined, key: string | undefined, token: string | undefined, options: RequestOptions = {}): Promise<Response> {
   try {
     return await fetch(`${baseUrl()}/api/v1${path}`, {
       method: body === undefined ? "GET" : "POST",
       credentials: "include",
       cache: "no-store",
-      signal: AbortSignal.timeout(35_000),
+      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(35_000)]) : AbortSignal.timeout(35_000),
       headers: {
         "Content-Type": "application/json",
         "X-Trace-Client": "learning-web",
@@ -84,19 +86,20 @@ async function send(path: string, body: object | undefined, key: string | undefi
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (error) {
+    if (options.signal?.aborted) throw new ApiError(0, "Request stopped.", "request_cancelled");
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";
     throw new ApiError(0, timedOut ? "Request timed out." : "Network request failed.", timedOut ? "client_timeout" : "network");
   }
 }
 
-async function request<T>(path: string, body?: object, key?: string): Promise<T> {
+async function request<T>(path: string, body?: object, key?: string, options: RequestOptions = {}): Promise<T> {
   const token = await accessToken();
-  let response = await send(path, body, key, token);
+  let response = await send(path, body, key, token, options);
   // backend: an invalid Bearer never falls back to the guest cookie. Refresh through the SDK once
   // and repeat the same request (same idempotency key); never drop the header to act as a guest.
-  if (response.status === 401 && token) {
+  if (response.status === 401 && token && options.refreshOn401 !== false) {
     const fresh = await accessToken(true);
-    if (fresh && fresh !== token) response = await send(path, body, key, fresh);
+    if (fresh && fresh !== token) response = await send(path, body, key, fresh, options);
   }
   if (!response.ok) {
     const failure = await response.json().catch(() => null) as Schema["ErrorResponse"] | null;
@@ -147,8 +150,11 @@ export const accountApi = {
 
 /** Real protected AI APIs. Context and source selection stay on the backend. */
 export const aiApi = {
-  tutor: (sessionId: string, question: string) => request<Schema["LessonAssistantReply"]>(
-    `/sessions/${encodeURIComponent(sessionId)}/tutor/ask`, { question },
+  tutor: (sessionId: string, question: string, signal?: AbortSignal) => request<Schema["LessonAssistantReply"]>(
+    `/sessions/${encodeURIComponent(sessionId)}/tutor/ask`, { question }, undefined, { signal, refreshOn401: false },
   ),
-  support: (question: string) => request<Schema["SupportResponse"]>("/support/ask", { question }),
+  conversation: (sessionId: string, body: Schema["TutorConversationCreate"], signal?: AbortSignal) => request<Schema["ConversationTutorReply"]>(
+    `/sessions/${encodeURIComponent(sessionId)}/tutor/ask`, body, undefined, { signal, refreshOn401: false },
+  ),
+  support: (question: string, signal?: AbortSignal) => request<Schema["SupportResponse"]>("/support/ask", { question }, undefined, { signal, refreshOn401: false }),
 };

@@ -5,10 +5,11 @@ import { Lightbulb, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createAiClients, isUnavailable, type TutorContext } from "@/lib/ai/client";
 import type { LessonId, LessonStage, TutorReply } from "@/lib/ai/contracts";
-import { ApiError, type Progress } from "@/lib/api/client";
+import { ApiError, type Progress, type Schema } from "@/lib/api/client";
 import { DemoLabel } from "@/components/ai/demo-label";
 import { looksSecret, useDialog } from "@/components/ai/use-dialog";
 import { HINT_SLOTS } from "../evidence";
+import { useAuth } from "@/lib/supabase/use-auth";
 
 export const TUTOR_MAX_CHARS = 400;
 const DOCK_QUERY = "(min-width: 1280px)";
@@ -78,6 +79,13 @@ function useMedia(query: string) {
  * fixture endpoint (owned by the workspace), and tutor replies live only in this panel.
  */
 export function TutorPanel({ lessonId, lessonTitle, progress, hint }: { lessonId: LessonId; lessonTitle: string; progress: Progress | undefined; hint: HintControl }) {
+  const auth = useAuth();
+  // UI scope only; the backend still independently authenticates and owns every call.
+  const accountScope = auth.status === "signed-in" ? auth.userId ?? auth.email ?? auth.status : auth.status;
+  return <OwnedTutorPanel key={`${accountScope}:${progress?.session.id ?? "no-owned-session"}`} lessonId={lessonId} lessonTitle={lessonTitle} progress={progress} hint={hint} />;
+}
+
+function OwnedTutorPanel({ lessonId, lessonTitle, progress, hint }: { lessonId: LessonId; lessonTitle: string; progress: Progress | undefined; hint: HintControl }) {
   const docked = useMedia(DOCK_QUERY);
   const [open, setOpen] = useState(false);
   const collapsed = useSyncExternalStore(collapse.subscribe, collapse.get, () => false);
@@ -156,18 +164,23 @@ type TutorSession = ReturnType<typeof useTutorSession>;
 function useTutorSession() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [announce, setAnnounce] = useState("");
-  const run = useCallback((label: string, call: (onText: (t: string) => void) => Promise<TutorReply>, question?: string) => {
+  const pending = useRef<AbortController | null>(null);
+  useEffect(() => () => pending.current?.abort(), []);
+  const run = useCallback((label: string, call: (onText: (t: string) => void, signal: AbortSignal) => Promise<TutorReply>, question?: string) => {
     const go = () => {
+      pending.current?.abort();
+      const controller = new AbortController();
+      pending.current = controller;
       const id = crypto.randomUUID();
-      setEntries((all) => [...all, ...(question ? [{ id: `${id}-q`, kind: "question" as const, text: question }] : []), { id, kind: "reply", label, state: "streaming", text: "", retry: go }]);
+      setEntries((all) => [...all.slice(-18), ...(question ? [{ id: `${id}-q`, kind: "question" as const, text: question }] : []), { id, kind: "reply", label, state: "streaming", text: "", retry: go }]);
       const update = (patch: Partial<Extract<Entry, { kind: "reply" }>>) => setEntries((all) => all.map((e) => (e.id === id && e.kind === "reply" ? { ...e, ...patch } : e)));
-      call((text) => update({ text }))
+      call((text) => update({ text }), controller.signal)
         .then((reply) => { update({ state: "done", text: reply.text, reply }); setAnnounce(reply.status === "answered" && reply.text ? `${label}: ${reply.text}` : "The tutor did not return an explanation."); })
         .catch((error: unknown) => { update({ state: "error", error }); setAnnounce(tutorError(error).title); });
     };
     go();
   }, []);
-  return { entries, announce, run };
+  return { entries, announce, run, cancel: () => pending.current?.abort(), clear: () => { pending.current?.abort(); setEntries([]); setAnnounce("Conversation cleared."); } };
 }
 
 function TutorDrawer({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
@@ -190,6 +203,8 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
   const tutor = useMemo(() => createAiClients().tutor, []);
   const { entries, announce } = session;
   const [draft, setDraft] = useState("");
+  const [code, setCode] = useState("");
+  const [style, setStyle] = useState<Schema["TutorConversationCreate"]["style"]>("adaptive");
   const [confirmWorked, setConfirmWorked] = useState(false);
   const ids = useId();
   const listEnd = useRef<HTMLDivElement>(null);
@@ -200,6 +215,13 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
     lessonId, stage: stageOf(progress), sessionId: progress?.session.id ?? null,
     lessonTitle, step, latestRun: lastRun ? { id: lastRun.id, status: lastRun.status } : null,
     hintsUsed: progress?.summary.hint_request_count ?? 0,
+    code: code || undefined,
+    style,
+    history: entries.flatMap((entry): Schema["TutorHistoryMessage"][] => {
+      if (entry.kind === "question") return [{ role: "user", text: Array.from(entry.text).slice(-1600).join("") }];
+      return entry.state === "done" && entry.reply?.status === "answered" && entry.text
+        ? [{ role: "assistant", text: Array.from(entry.text).slice(-1600).join("") }] : [];
+    }).slice(-6),
   };
   const failedRun = latestFailedRun(progress);
   const busy = entries.some((e) => e.kind === "reply" && e.state === "streaming");
@@ -207,7 +229,7 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
   const delivered = progress?.summary.hints_delivered ?? 0;
   const aiLabel = tutor.mode === "mock" ? "AI explanation (demo)" : "AI explanation";
 
-  function run(label: string, call: (onText: (t: string) => void) => Promise<TutorReply>, question?: string) {
+  function run(label: string, call: (onText: (t: string) => void, signal: AbortSignal) => Promise<TutorReply>, question?: string) {
     session.run(label, call, question);
     requestAnimationFrame(() => listEnd.current?.scrollIntoView?.({ block: "nearest" }));
   }
@@ -225,19 +247,19 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
         </div>
         <p data-tutor-context="" className="mt-2 rounded-lg bg-surface-muted px-2.5 py-1.5 text-[0.8125rem] leading-snug"><span className="text-secondary">Lesson:</span> {lessonTitle}. <span className="text-secondary">Step:</span> {step}</p>
         <p className="mt-1.5 text-[0.8125rem] leading-snug text-secondary">Explains and guides. Only the server&apos;s checks decide whether a change works.</p>
-        {tutor.mode === "real" && <p className="mt-1.5 text-[0.75rem] leading-snug text-secondary">When enabled, your question is sent to Gemini to select approved Trace guidance; Google&apos;s service terms apply. Don&apos;t include personal details or secrets.</p>}
+        {tutor.mode === "real" && <p className="mt-1.5 text-[0.75rem] leading-snug text-secondary">Your question, optional code and recent conversation are sent to Gemini for unexecuted advice. Google&apos;s service terms apply. Don&apos;t include personal details or secrets.</p>}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-busy={busy}>
         <p role="status" aria-live="polite" className="sr-only">{announce}</p>
         <div className="grid gap-2">
-          <button type="button" disabled={busy} onClick={() => run("Concept", (onText) => tutor.explainConcept(context, { onText }))} className="tutor-action">Explain this concept</button>
+          <button type="button" disabled={busy} onClick={() => run("Concept", (onText, signal) => tutor.explainConcept(context, { onText, signal }))} className="tutor-action">Explain this concept</button>
           {/* Real endpoint: POST /sessions/{id}/hints, fixture guidance (provider "fake"). */}
           <button type="button" disabled={!hint.available || hint.pending || used >= HINT_SLOTS} onClick={hint.request} className="tutor-action">
             {hint.pending ? "Getting a hint…" : "Give me a hint"} <span className="ml-auto text-[0.75rem] font-normal text-secondary">{used} of {HINT_SLOTS} used</span>
           </button>
           {!hint.available && <p className="text-[0.75rem] text-secondary">Lock your prediction first to use hints.</p>}
-          {failedRun && <button type="button" disabled={busy} onClick={() => run("Why did this fail?", (onText) => tutor.whyFailed(context, failedRun, { onText }), "Why did this fail?")} className="tutor-action">Why did this fail?</button>}
+          {failedRun && <button type="button" disabled={busy} onClick={() => run("Why did this fail?", (onText, signal) => tutor.converse ? tutor.converse(context, "Explain possible causes of the latest saved failure, separating observations from unproven causes.", { onText, signal }) : tutor.whyFailed(context, failedRun, { onText, signal }), "Why did this fail?")} className="tutor-action">Why did this fail?</button>}
         </div>
 
         {(progress?.hints.length ?? 0) > 0 && (
@@ -257,12 +279,12 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
         </ol>
         <div ref={listEnd} />
 
-        {workedUnlocked(progress) && tutor.mode === "mock" && (
+        {(tutor.converse ? Boolean(progress?.session.id) : workedUnlocked(progress) && tutor.mode === "mock") && (
           <div className="mt-4 rounded-xl border border-dashed border-border-strong p-3 text-[0.875rem]">
             {confirmWorked ? <>
-              <p className="font-medium">This shows the full fix. Your attempts and hints stay as they are. Show it?</p>
+              <p className="font-medium">{tutor.converse ? "This requests an AI worked example. It has not been executed and does not change your results. Show it?" : "This shows the full fix. Your attempts and hints stay as they are. Show it?"}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" className="tutor-action w-auto" onClick={() => { setConfirmWorked(false); run("Worked explanation", (onText) => tutor.worked(context, { onText })); }}>Show it</button>
+                <button type="button" className="tutor-action w-auto" onClick={() => { setConfirmWorked(false); run("Worked explanation", (onText, signal) => tutor.converse ? tutor.converse({ ...context, style: "worked_example" }, "Give a worked educational example and distinguish it from executed verification.", { onText, signal }) : tutor.worked(context, { onText, signal })); }}>Show it</button>
                 <button type="button" className="min-h-10 px-2 underline underline-offset-4" onClick={() => setConfirmWorked(false)}>Not yet</button>
               </div>
             </> : <button type="button" disabled={busy} className="min-h-10 font-medium underline underline-offset-4" onClick={() => setConfirmWorked(true)}>Show worked explanation</button>}
@@ -273,24 +295,39 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
       <form className="border-t border-border px-4 pt-3 pb-4" onSubmit={(event) => {
         event.preventDefault();
         const question = draft.trim();
-        if (!question || busy || looksSecret(question) || question.length > TUTOR_MAX_CHARS) return;
+        if (!question || busy || looksSecret(question) || looksSecret(code) || code.length > 6000 || question.length > TUTOR_MAX_CHARS) return;
         setDraft("");
-        run("Answer", (onText) => tutor.ask(context, question, { onText }), question);
+        run("Answer", (onText, signal) => tutor.converse ? tutor.converse(context, question, { onText, signal }) : tutor.ask(context, question, { onText, signal }), question);
       }}>
+        {tutor.converse && <>
+          <label className="mb-2 flex items-center justify-between gap-2 text-[0.8125rem]">Explanation style
+            <select aria-label="Explanation style" value={style} onChange={(event) => setStyle(event.target.value as Schema["TutorConversationCreate"]["style"])} className="rounded-lg border border-border bg-surface px-2 py-1">
+              <option value="adaptive">Follow my question</option><option value="socratic">Guiding questions</option><option value="direct">Direct explanation</option>
+            </select>
+          </label>
+          <details className="mb-2 text-[0.8125rem]"><summary className="cursor-pointer">Discuss code (optional)</summary>
+            <label htmlFor={`${ids}-code`}>Code to discuss</label>
+            <textarea id={`${ids}-code`} value={code} onChange={(event) => setCode(event.target.value)} rows={4} aria-invalid={code.length > 6000 || looksSecret(code) || undefined} className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 font-mono text-[0.75rem]" />
+            <p className="text-secondary">{code.length}/6000 · Sent as untrusted context; never executed.</p>
+          </details>
+        </>}
         <label htmlFor={`${ids}-q`} className="text-[0.8125rem] font-medium">Ask about this lesson</label>
         <div className="mt-1.5 flex items-end gap-2">
           <textarea id={`${ids}-q`} rows={2} value={draft} onChange={(e) => setDraft(e.target.value)} aria-describedby={`${ids}-count ${ids}-privacy`} aria-invalid={draft.length > TUTOR_MAX_CHARS || looksSecret(draft) || undefined} placeholder="e.g. What does extra=forbid do?" className="max-h-28 min-h-11 flex-1 resize-none rounded-xl border border-border-strong bg-surface px-3 py-2 text-[0.875rem]" />
-          <button type="submit" disabled={!draft.trim() || busy || draft.length > TUTOR_MAX_CHARS || looksSecret(draft)} className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-4 text-[0.875rem] font-medium text-white disabled:opacity-40">Ask</button>
+          <button type="submit" disabled={!draft.trim() || busy || draft.length > TUTOR_MAX_CHARS || code.length > 6000 || looksSecret(draft) || looksSecret(code)} className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-4 text-[0.875rem] font-medium text-white disabled:opacity-40">Ask</button>
         </div>
         <p id={`${ids}-count`} className={`mt-1 text-[0.75rem] ${draft.length > TUTOR_MAX_CHARS ? "font-medium text-error" : "text-secondary"}`}>{draft.length}/{TUTOR_MAX_CHARS}</p>
         {looksSecret(draft) && <p role="alert" className="text-[0.8125rem] text-error">That looks like a password or secret key. Remove it before asking.</p>}
         <p id={`${ids}-privacy`} className="mt-1 text-[0.75rem] leading-snug text-secondary">Answers explain; they never change your attempts or results. Don&apos;t include personal details.</p>
+        {busy && <button type="button" onClick={session.cancel} className="mt-1 min-h-9 text-[0.8125rem] underline">Stop response</button>}
+        {tutor.converse && entries.length > 0 && <button type="button" onClick={session.clear} className="mt-1 min-h-9 text-[0.8125rem] underline">Clear conversation</button>}
       </form>
     </div>
   );
 }
 
 function tutorError(error: unknown): { title: string; detail?: string; signIn?: boolean; retry: boolean } {
+  if (error instanceof ApiError && error.code === "request_cancelled") return { title: "Tutor request stopped.", detail: "Your progress is unchanged. Provider cleanup may still be finishing.", retry: true };
   if (isUnavailable(error)) return { title: "The tutor isn't connected yet.", detail: "Fixture hints and the lesson evidence still work.", retry: false };
   if (error instanceof ApiError && error.status === 401) return { title: "Sign in to ask the tutor.", detail: "Your saved work is preserved. Sign in again to continue.", signIn: true, retry: false };
   if (error instanceof ApiError && error.status === 429) return { title: "That's a lot of questions in a short time.", detail: "Wait a minute, then try again.", retry: true };

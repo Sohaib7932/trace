@@ -7,7 +7,7 @@ export type AuthState =
   | { status: "loading" }
   | { status: "unconfigured" }
   | { status: "guest" }
-  | { status: "signed-in"; email: string | null };
+  | { status: "signed-in"; email: string | null; userId?: string };
 
 /**
  * Sign-in state for UI decisions only (labels, which links to show). Authorization is
@@ -24,7 +24,7 @@ export function useAuth(): AuthState {
       return () => cancelAnimationFrame(id);
     }
     const { data } = auth.auth.onAuthStateChange((_event, session) => {
-      setState(session ? { status: "signed-in", email: session.user?.email ?? null } : { status: "guest" });
+      setState(session ? { status: "signed-in", email: session.user?.email ?? null, userId: session.user?.id } : { status: "guest" });
     });
     return () => data.subscription.unsubscribe();
   }, []);

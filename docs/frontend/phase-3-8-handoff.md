@@ -1,8 +1,11 @@
 # Phase 3.8 frontend handoff
 
-Sohaib owns frontend integration. This phase preserves the existing public
-request/response schemas and adapters. No new endpoint, source-management API,
-credential field or client-selected document scope is introduced.
+Sohaib owns frontend integration. The subsequent AI-platform implementation adds
+an explicit conversational mode to the existing tutor endpoint; see
+[the conversational contract](open-ended-tutor-contract.md) and
+[private Gemini setup](sohaib-gemini-setup.md). Question-only requests retain
+their original response. New learner conversation requests contain bounded,
+untrusted dialogue rather than client-selected evidence or document scope.
 
 The current contracts are `backend/openapi.json`,
 `docs/api/gemini-openapi.json` and `src/lib/api/schema.d.ts`: 24 paths and 26
@@ -45,12 +48,16 @@ pinned sessions or changed saved work can produce 409.
 }
 ```
 
-The example is an authored allowed choice, not a promise that Gemini chooses it
+This question-only compatibility example is an authored allowed choice, not a promise that Gemini chooses it
 for every question. Existing concept guidance remains available. New guiding
 questions are filtered server-side by the owned pinned Notes/Tasks lesson and
 current stage. They cannot unlock later stages. Actual run-status observations
-remain separate from conceptual questions. No free-form diagnosis, competence
-score, generated code or automatic completion is activated.
+remain separate from conceptual questions. This compatibility mode remains
+finite. The explicit `mode: "conversation"` contract allows free-form
+explanations, unexecuted code examples and follow-up questions, with no grading,
+competence score or completion authority. The real panel's Ask, failure
+discussion and explicit worked-example actions use that additive contract;
+the concept button and legacy client methods retain their guided behavior.
 
 `declined` means no approved choice answered the question. `unavailable` means
 the provider/selection could not be used and has `source: "none"`. Do not replace

@@ -18,6 +18,7 @@ from app.schemas.lesson_assistant import (
     LessonAssistantRequest,
     LessonStage,
     SupportedLesson,
+    VisibleEvidence,
 )
 from app.services.catalog import (
     LESSON_ID,
@@ -80,7 +81,12 @@ class LessonTutoringService:
         self.repository, self.assistant_factory, self.clock = repository, assistant_factory, clock
 
     def _capture(
-        self, owner: Principal, session_id: UUID, question: str
+        self,
+        owner: Principal,
+        session_id: UUID,
+        question: str,
+        *,
+        include_visible_context: bool = False,
     ) -> tuple[str, LessonAssistantRequest, dict[str, str]]:
         # Reuse C1's database-authoritative account/role/ownership/expiry checks.
         with self.repository.read(owner, session_id, self.clock()) as read:
@@ -152,11 +158,38 @@ class LessonTutoringService:
                 "hints": [(str(item.id), item.status) for item in read.learning.hints(session_id)],
             }
             signature = hashlib.sha256(json.dumps(facts, sort_keys=True).encode()).hexdigest()
+            visible_attempt = None
+            evidence: tuple[VisibleEvidence, ...] = ()
+            if include_visible_context:
+                selected = max(attempts, key=lambda item: item.number, default=None)
+                if selected is not None:
+                    visible_attempt = (
+                        f"Saved submission: {selected.change_type}; selected field/shape: "
+                        f"{selected.field_name}. A submission alone does not establish correctness."
+                    )
+                if latest is not None and latest.status in {"passed", "failed"}:
+                    # Reuse the existing learner-visible evidence categories, never
+                    # serialize expected/observed payloads or private evaluator data.
+                    checks = read.learning.checks(latest.id)
+                    if len(checks) == 5 and len({item.code for item in checks}) == 5:
+                        evidence = tuple(
+                            VisibleEvidence.model_validate(
+                                {
+                                    "category": item.code,
+                                    "feedback": "The saved check matched its trusted expectation."
+                                    if item.matched
+                                    else "The saved check did not match its trusted expectation.",
+                                }
+                            )
+                            for item in sorted(checks, key=lambda item: item.code)
+                        )
             request = build_lesson_assistant_request(
                 lesson_id=lesson_id,
                 stage=stage,
                 public_content=lesson.public_content,
                 question=question,
+                visible_attempt=visible_attempt,
+                evidence=evidence,
             )
             return signature, request, choices
 

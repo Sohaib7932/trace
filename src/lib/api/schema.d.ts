@@ -382,10 +382,11 @@ export interface paths {
         put?: never;
         /**
          * Ask
-         * @description Read-only question over server-owned public context and approved guidance.
+         * @description Read-only engineering advice over freshly authorized owned public context.
          *
-         *     No exchange persistence, live grading, full worked solution or hint-slot change.
-         *     Gemini only selects an allowed topic; trusted code supplies the returned text.
+         *     Question-only requests retain the approved-guidance contract. Explicit
+         *     mode=conversation allows free-form unexecuted advice and bounded untrusted
+         *     page-session history. Neither mode grades, completes or consumes hint slots.
          */
         post: operations["ask_lesson_tutor"];
         delete?: never;
@@ -513,6 +514,7 @@ export interface components {
             /** Number */
             number: number;
         };
+        ChatText: string;
         /** @enum {string} */
         CheckCode: "http_status" | "api_response" | "validation" | "row_count" | "stored_values";
         /** CheckResponse */
@@ -574,6 +576,42 @@ export interface components {
         };
         /** Contract */
         Contract: Record<string, never>;
+        /** ConversationTutorReply */
+        ConversationTutorReply: {
+            /** @default false */
+            can_complete_lesson: components["schemas"]["No"];
+            /**
+             * Execution Status
+             * @default not_executed
+             * @constant
+             */
+            execution_status: "not_executed";
+            /**
+             * History Scope
+             * @default client_page_session
+             * @constant
+             */
+            history_scope: "client_page_session";
+            /** @default true */
+            interpretation_only: components["schemas"]["Yes"];
+            /**
+             * Mode
+             * @default conversation
+             * @constant
+             */
+            mode: "conversation";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "test_fixture" | "none";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "answered" | "declined" | "unavailable";
+            text: components["schemas"]["ChatText"];
+        };
         Digest: string;
         /** ErrorDetail */
         ErrorDetail: {
@@ -688,6 +726,7 @@ export interface components {
         Items_PublicLessonCitation__MaxLen_max_length_5_: components["schemas"]["PublicLessonCitation"][];
         Items_PublicVerificationCheck__MaxLen_max_length_5_: components["schemas"]["PublicVerificationCheck"][];
         Items_SupportReference__MaxLen_max_length_3_: components["schemas"]["SupportReference"][];
+        Items_TutorHistoryMessage__MaxLen_max_length_6_: components["schemas"]["TutorHistoryMessage"][];
         /** JourneyResponse */
         JourneyResponse: {
             /** Checkpoints */
@@ -1115,11 +1154,38 @@ export interface components {
              */
             field_name: "flat" | "nested";
         };
+        /** TutorConversationCreate */
+        TutorConversationCreate: {
+            code?: components["schemas"]["ChatText"] | null;
+            /** @default [] */
+            history: components["schemas"]["Items_TutorHistoryMessage__MaxLen_max_length_6_"];
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "conversation";
+            /** Question */
+            question: string;
+            /** @default adaptive */
+            style: components["schemas"]["TutorStyle"];
+        };
+        /** TutorHistoryMessage */
+        TutorHistoryMessage: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Text */
+            text: string;
+        };
         /** TutorQuestionCreate */
         TutorQuestionCreate: {
             /** Question */
             question: string;
         };
+        /** @enum {string} */
+        TutorStyle: "adaptive" | "socratic" | "direct" | "worked_example";
         /** Format: date-time */
         UTCInstant: string;
         /** ValidationIssue */
@@ -2952,7 +3018,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TutorQuestionCreate"];
+                "application/json": components["schemas"]["TutorQuestionCreate"] | components["schemas"]["TutorConversationCreate"];
             };
         };
         responses: {
@@ -2962,7 +3028,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LessonAssistantReply"];
+                    "application/json": components["schemas"]["LessonAssistantReply"] | components["schemas"]["ConversationTutorReply"];
                 };
             };
             /** @description Unauthorized */
