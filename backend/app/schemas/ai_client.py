@@ -23,6 +23,7 @@ type ClientErrorCode = Literal[
     "token_limit",
     "invalid_response",
     "transport_error",
+    "accounting_unavailable",
 ]
 
 

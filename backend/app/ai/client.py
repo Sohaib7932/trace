@@ -9,11 +9,20 @@ import math
 import time
 from collections.abc import Callable
 from contextlib import suppress
+from hashlib import sha256
 from threading import Condition, RLock
 from typing import Literal, Protocol
+from uuid import uuid4
 
 from pydantic import TypeAdapter, ValidationError
 
+from app.ai.accounting import (
+    AIAccountingError,
+    AIUsageLedger,
+    AllowancePolicy,
+    ProviderAttempt,
+    ProviderUsage,
+)
 from app.ai.diagnostics import ProviderDiagnostics, ProviderOutcome
 from app.core.ai_settings import GEMINI_PROFILE, AIClientSettings
 from app.schemas.ai_client import (
@@ -61,9 +70,19 @@ class BoundedAIClient:
         transport: AITransport | None = None,
         *,
         clock: Callable[[], float] = time.monotonic,
+        ledger: AIUsageLedger | None = None,
+        allowance_policy: AllowancePolicy | None = None,
     ) -> None:
         self.settings = AIClientSettings.model_validate(settings.model_dump(warnings=False))
         self.transport, self.clock = transport, clock
+        if (ledger is None) != (allowance_policy is None):
+            raise ValueError("Durable AI accounting requires both a ledger and allowance policy")
+        self.ledger = ledger
+        self.allowance_policy = (
+            AllowancePolicy.model_validate(allowance_policy.model_dump())
+            if allowance_policy is not None
+            else None
+        )
         self._lock = RLock()
         self._idle = Condition(self._lock)
         self._windows: dict[tuple[str, Capability], tuple[int, int]] = {}
@@ -320,10 +339,46 @@ class BoundedAIClient:
             error: ClientErrorCode | None = None
             response: TransportCompletion | None = None
             accounted = reserve
+            ledger_attempt = None
+            provider_duration_ms = None
             try:
                 remaining = call_timeout - (self.clock() - started)
                 if remaining <= 0:
                     raise AITransportError("timeout")
+                if self.closed:
+                    raise AITransportError("disabled")
+                if (
+                    self.settings.mode == "gemini_free"
+                    and self.ledger is not None
+                    and self.allowance_policy is not None
+                ):
+                    identifier = uuid4()  # Never reuse a caller's HTTP request/correlation ID.
+                    try:
+                        reservation = self.ledger.reserve(
+                            self.allowance_policy,
+                            ProviderAttempt.model_validate(
+                                dict(
+                                    id=identifier,
+                                    capability=capability,
+                                    model_id=model,
+                                    subject_hash=sha256(subject.encode("utf-8")).hexdigest(),
+                                    estimated_input_bytes=size,
+                                    item_count=1,
+                                )
+                            ),
+                        )
+                    except AIAccountingError:
+                        raise
+                    except Exception:
+                        raise AIAccountingError("unavailable") from None
+                    if reservation.attempt_id != identifier:
+                        raise AIAccountingError("conflict")
+                    if not reservation.newly_reserved:
+                        raise AIAccountingError("duplicate")
+                    ledger_attempt = identifier
+                    remaining = call_timeout - (self.clock() - started)
+                    if remaining <= 0:
+                        raise AITransportError("timeout")
                 bounded = request.model_copy(
                     update={
                         "response_timeout_seconds": min(
@@ -334,7 +389,14 @@ class BoundedAIClient:
                 )
                 if self.closed:
                     raise AITransportError("disabled")
-                received = self.transport.complete(bounded)
+                provider_started = self.clock() if ledger_attempt is not None else None
+                try:
+                    received = self.transport.complete(bounded)
+                finally:
+                    if provider_started is not None:
+                        elapsed = self.clock() - provider_started
+                        if math.isfinite(elapsed) and 0 <= elapsed <= 1_000_000:
+                            provider_duration_ms = int(elapsed * 1000)
                 response = TransportCompletion.model_validate(received.model_dump(warnings=False))
                 text = response.text
                 if response.cost_microusd is not None:
@@ -369,11 +431,48 @@ class BoundedAIClient:
                 response = exc.completion
                 if response is not None and response.cost_microusd is not None:
                     accounted = response.cost_microusd
+            except AIAccountingError as exc:
+                error = (
+                    "budget_exhausted"
+                    if exc.code == "depleted"
+                    else "rate_limited"
+                    if exc.code == "saturated"
+                    else "accounting_unavailable"
+                )
             except (ValidationError, ValueError, TypeError, UnicodeError, AttributeError):
                 error = "invalid_response"
             except Exception:
                 error = "transport_error"
             finally:
+                if ledger_attempt is not None and self.ledger is not None:
+                    try:
+                        self.ledger.finish(
+                            ledger_attempt,
+                            ProviderUsage(
+                                status=(
+                                    response.status
+                                    if response is not None and error is None
+                                    else "timeout"
+                                    if error == "timeout"
+                                    else "error"
+                                ),
+                                error_code=error,
+                                input_tokens=response.input_tokens
+                                if response is not None
+                                else None,
+                                output_tokens=response.output_tokens
+                                if response is not None
+                                else None,
+                                provider_duration_ms=provider_duration_ms,
+                                accounted_cost_microusd=response.cost_microusd
+                                if response is not None
+                                else None,
+                            ),
+                        )
+                    except Exception:
+                        # Keep reservation/lease consumed, discard even valid AI
+                        # output and never retry a provider after accounting loss.
+                        error = "accounting_unavailable"
                 with self._lock:
                     self._spent += accounted - reserve
                     usage[3] += accounted
@@ -399,6 +498,12 @@ class BoundedAIClient:
                         self._close_transport()
             # Work reserved before shutdown may finish, but its text cannot escape
             # a closed application resource and no further retry may start.
+            if (
+                ledger_attempt is not None
+                and error is None
+                and self.clock() - started >= call_timeout
+            ):
+                error = "timeout"
             if self.closed:
                 return result("disabled")
             if error is None:

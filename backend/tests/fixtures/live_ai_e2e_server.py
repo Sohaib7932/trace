@@ -50,6 +50,14 @@ class BrowserFixtureTransport:
             text = json.dumps(
                 {"status": "answered", "passage_ids": [data["reference_passages"][0]["passage_id"]]}
             )
+        elif json.loads(request.data_json).get("operation") == "engineering_conversation":
+            text = json.dumps(
+                {
+                    "status": "answered",
+                    "text": "A request schema describes accepted data. Compare the declared field "
+                    "types with the submitted JSON before editing. What mismatch do you observe?",
+                }
+            )
         else:
             text = '{"guidance_id":"extra-fields"}'
         return TransportCompletion(text=text, input_tokens=100, output_tokens=30, cost_microusd=0)

@@ -48,24 +48,35 @@ test("notes: keyboard-only in-code edit, then a real failed and passed run", asy
   await page.goto("/learn/fastapi-payload-mismatch");
   await predict(page, "The request will be rejected");
   const chip = page.getByRole("button", { name: "Change field name, currently body" });
+  // Prediction can render before its journey refresh settles. focus() does not
+  // wait for enabled controls; assert readiness before sending global keyboard input.
+  await expect(chip).toBeEnabled();
   await chip.focus();
+  await expect(chip).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("listbox", { name: "Field name" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(chip).toBeFocused();
   // Original first: a real failed run.
-  await page.getByRole("button", { name: "Check my change", exact: true }).focus();
+  const check = page.getByRole("button", { name: "Check my change", exact: true });
+  await expect(check).toBeEnabled();
+  await check.focus();
+  await expect(check).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("region", { name: "Verification evidence, attempt 1" }).getByText("422", { exact: true })).toBeVisible();
   await expectNoCodeScroll(page);
   // Then the edit, by keyboard only.
-  await page.getByRole("button", { name: "Change field name, currently body" }).focus();
+  await expect(chip).toBeEnabled();
+  await chip.focus();
+  await expect(chip).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Change field name, currently content" })).toBeFocused();
   await page.getByLabel(/What changed and why/).fill("The schema expects content.");
-  await page.getByRole("button", { name: "Check my change", exact: true }).focus();
+  await expect(check).toBeEnabled();
+  await check.focus();
+  await expect(check).toBeFocused();
   await page.keyboard.press("Enter");
   const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
   await expect(passed.getByText("201", { exact: true })).toBeVisible();

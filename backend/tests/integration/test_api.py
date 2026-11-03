@@ -49,6 +49,13 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
         "/api/v1/account/me",
         "/api/v1/account/me/learner",
         "/api/v1/account/claim-anonymous",
+        "/api/v1/admin/knowledge/revisions",
+        "/api/v1/admin/knowledge/revisions/{revision_id}",
+        "/api/v1/admin/knowledge/revisions/{revision_id}/transitions",
+        "/api/v1/admin/knowledge/import-reviewed-corpus",
+        "/api/v1/admin/knowledge/publications",
+        "/api/v1/admin/knowledge/receipts/{receipt_id}",
+        "/api/v1/admin/knowledge/indexes/build",
     }
     assert schema["paths"]["/api/v1/health/ready"]["get"]["responses"]["503"]
 

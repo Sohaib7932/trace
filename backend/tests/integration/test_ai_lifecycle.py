@@ -209,7 +209,17 @@ def test_mock_mode_from_environment_still_requires_explicit_factory(
 def test_public_api_schema_matches_export_and_existing_fixture_hints_are_unchanged(learner):
     baseline = json.loads((Path(__file__).resolve().parents[2] / "openapi.json").read_text())
     assert learner.app.openapi() == baseline
-    assert len(baseline["paths"]) == 24
+    legacy_paths = {path for path in baseline["paths"] if not path.startswith("/api/v1/admin/")}
+    assert len(legacy_paths) == 24
+    assert set(baseline["paths"]) - legacy_paths == {
+        "/api/v1/admin/knowledge/revisions",
+        "/api/v1/admin/knowledge/revisions/{revision_id}",
+        "/api/v1/admin/knowledge/revisions/{revision_id}/transitions",
+        "/api/v1/admin/knowledge/import-reviewed-corpus",
+        "/api/v1/admin/knowledge/publications",
+        "/api/v1/admin/knowledge/receipts/{receipt_id}",
+        "/api/v1/admin/knowledge/indexes/build",
+    }
     assert "/api/v1/sessions/{session_id}/feedback" in baseline["paths"]
     session = start(learner)
     assert predict(learner, session).status_code == 201

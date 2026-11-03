@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -19,9 +19,15 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
-    environment: Literal["development", "test"] = "development"
     database_url: SecretStr = SecretStr("sqlite+pysqlite:///./trace.db")
     database_timeout_seconds: float = Field(default=3, gt=0, le=30)
+    database_schema: str = Field(default="public", pattern=r"^[a-z][a-z0-9_]{0,47}$")
+    database_pool_size: int = Field(default=4, ge=1, le=32)
+    database_max_overflow: int = Field(default=0, ge=0, le=16)
+    database_pool_timeout_seconds: float = Field(default=3, gt=0, le=30)
+    database_pool_recycle_seconds: int = Field(default=300, ge=30, le=3600)
+    database_statement_timeout_seconds: float = Field(default=5, gt=0, le=30)
+    database_lock_timeout_seconds: float = Field(default=3, gt=0, le=30)
     cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     request_timeout_seconds: float = Field(default=30, gt=0, le=120)
@@ -37,6 +43,43 @@ class Settings(BaseSettings):
     supabase_audience: str = "authenticated"
     auth_allow_insecure_loopback: bool = False
     auth_jwks_cache_seconds: int = Field(default=300, ge=1, le=600)
+    # Last field so errors can name the environment after checking its profile.
+    environment: Literal["development", "test", "production"] = "development"
+
+    @field_validator("environment")
+    @classmethod
+    def production_security(
+        cls, value: Literal["development", "test", "production"], info: ValidationInfo
+    ) -> Literal["development", "test", "production"]:
+        if value != "production" or "database_url" not in info.data:
+            return value
+        values = info.data
+        url = make_url(values["database_url"].get_secret_value())
+        if (
+            url.drivername != "postgresql+psycopg"
+            or not url.host
+            or url.query.get("sslmode") != "verify-full"
+            or values.get("database_schema") in {"public", "pg_catalog", "information_schema"}
+            or str(values.get("database_schema", "")).startswith("pg_")
+            or not values.get("cookie_secure")
+            or values.get("allow_insecure_local_cookies")
+            or values.get("auth_allow_insecure_loopback")
+            or values.get("log_level") == "DEBUG"
+            or not all(
+                values.get(key) for key in ("supabase_url", "supabase_issuer", "supabase_jwks_url")
+            )
+            or not values.get("cors_origins")
+            or any(urlsplit(origin).scheme != "https" for origin in values.get("cors_origins", ()))
+            or any(
+                urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
+                for origin in values.get("cors_origins", ())
+            )
+        ):
+            raise ValueError(
+                "Production requires private-schema TLS PostgreSQL, HTTPS auth/origins "
+                "and secure settings."
+            )
+        return value
 
     @model_validator(mode="after")
     def validate_auth_config(self) -> "Settings":
@@ -87,9 +130,15 @@ class Settings(BaseSettings):
             url = make_url(value.get_secret_value())
         except ArgumentError:
             raise ValueError("Use a valid SQLAlchemy database URL.") from None
-        if url.drivername != "sqlite+pysqlite":
-            raise ValueError("Module 1 supports sqlite+pysqlite only; PostgreSQL is planned.")
-        if url.database and url.database != ":memory:":
+        if url.drivername not in {"sqlite+pysqlite", "postgresql+psycopg"}:
+            raise ValueError("Use sqlite+pysqlite or postgresql+psycopg.")
+        if url.drivername == "postgresql+psycopg" and (
+            not url.host or not url.database or url.query.get("options") is not None
+        ):
+            raise ValueError(
+                "PostgreSQL requires a host/database and settings-controlled connection options."
+            )
+        if url.drivername == "sqlite+pysqlite" and url.database and url.database != ":memory:":
             path = Path(url.database)
             if not path.is_absolute():
                 path = BACKEND_ROOT / path

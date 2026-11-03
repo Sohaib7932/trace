@@ -1,6 +1,5 @@
 """Supabase public-key verification. Untrusted headers only select a configured JWKS key."""
 
-import json
 from datetime import UTC, datetime
 from threading import Lock
 from typing import Any, Protocol
@@ -10,6 +9,7 @@ import httpx2
 import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
+from app.auth.jwks_http import HttpJwksSource as HttpJwksSource
 from app.core.settings import Settings
 from app.domain.accounts import VerifiedIdentity
 from app.domain.clock import Clock, utc_now
@@ -18,28 +18,6 @@ from app.domain.learning import LearningError
 
 class JwksSource(Protocol):
     def fetch(self) -> dict[str, Any]: ...
-
-
-class HttpJwksSource:
-    def __init__(self, url: str) -> None:
-        self.url = url
-
-    def fetch(self) -> dict[str, Any]:
-        # No redirects, token-derived URLs, auth headers, or provider private keys.
-        with (
-            httpx2.Client(timeout=3, follow_redirects=False, trust_env=False) as client,
-            client.stream("GET", self.url) as response,
-        ):
-            response.raise_for_status()
-            body = bytearray()
-            for chunk in response.iter_bytes():
-                body.extend(chunk)
-                if len(body) > 65536:
-                    raise ValueError("JWKS response too large")
-        value: Any = json.loads(body)
-        if not isinstance(value, dict):
-            raise ValueError("Invalid JWKS")
-        return value
 
 
 class JwtVerifier:
@@ -52,9 +30,33 @@ class JwtVerifier:
         self._expires = 0.0
         self._last_refresh = float("-inf")
         self._lock = Lock()
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def wait_for_idle(self, timeout: float | None = None) -> bool:
+        wait = getattr(self.source, "wait_for_idle", None)
+        return bool(wait(timeout)) if callable(wait) else True
+
+    def close(self) -> None:
+        self._closed = True
+        cleanup = getattr(self.source, "close", None)
+        try:
+            if callable(cleanup):
+                cleanup()
+        except Exception:
+            raise RuntimeError("Authentication cleanup failed") from None
+        finally:
+            with self._lock:
+                self._keys.clear()
+                self._expires = 0
 
     def _key(self, kid: str) -> jwt.PyJWK:
         with self._lock:
+            if self._closed:
+                raise LearningError("dependency_unavailable", "Authentication is unavailable.")
             now = self.clock().timestamp()
             expired = now >= self._expires
             if expired and now - self._last_refresh < 5:
@@ -79,7 +81,10 @@ class JwtVerifier:
                             or name in keys
                             or raw.get("use", "sig") != "sig"
                             or raw.get("key_ops", ["verify"]) != ["verify"]
-                            or any(field in raw for field in ("d", "p", "q", "k"))
+                            or any(
+                                field in raw
+                                for field in ("d", "p", "q", "dp", "dq", "qi", "oth", "k")
+                            )
                         ):
                             raise ValueError("Invalid public key")
                         key = jwt.PyJWK.from_dict(raw)
@@ -112,6 +117,8 @@ class JwtVerifier:
             return selected
 
     def verify(self, token: str) -> VerifiedIdentity:
+        if self._closed:
+            raise LearningError("dependency_unavailable", "Authentication is unavailable.")
         if not self.settings.supabase_issuer:
             raise LearningError(
                 "dependency_unavailable", "Account authentication is not configured."
@@ -160,6 +167,8 @@ class JwtVerifier:
                 or str(UUID(claims["sub"])) != claims["sub"]
             ):
                 raise ValueError("Invalid access claims")
+            if self._closed:
+                raise LearningError("dependency_unavailable", "Authentication is unavailable.")
             return VerifiedIdentity(
                 claims["iss"], claims["sub"], datetime.fromtimestamp(claims["exp"], UTC)
             )

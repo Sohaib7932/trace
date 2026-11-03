@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 
+from app.ai.observability import record_ai_delivery
 from app.api.dependencies import (
     current_account,
     current_learner,
@@ -60,9 +61,14 @@ async def ask(
     if not isinstance(deadline, float):
         raise ApplicationError("dependency_unavailable", "Tutor is unavailable.", 503)
     if isinstance(body, TutorConversationCreate):
-        return await operations.execute(
+        reply: LessonAssistantReply | ConversationTutorReply = await operations.execute(
             owner, lambda: conversation.answer(owner, session_id, body), deadline=deadline
         )
-    return await operations.execute(
-        owner, lambda: service.answer(owner, session_id, body.question), deadline=deadline
+    else:
+        reply = await operations.execute(
+            owner, lambda: service.answer(owner, session_id, body.question), deadline=deadline
+        )
+    record_ai_delivery(
+        request.app.state.logger, family="tutor", status=reply.status, source=reply.source
     )
+    return reply

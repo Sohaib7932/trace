@@ -198,17 +198,30 @@ def test_unconfigured_fails_closed(settings):
 
 @pytest.mark.parametrize("body", [b'{"keys": []}', b"[]", b"invalid", b"x" * 65537])
 def test_http_source_bounds_response_and_checks_structure(body):
-    response = MagicMock()
-    response.iter_bytes.return_value = [body]
-    client = MagicMock()
-    client.__enter__.return_value.stream.return_value.__enter__.return_value = response
-    with patch("app.auth.jwt.httpx2.Client", return_value=client) as factory:
+    calls = []
+
+    async def handle(request):
+        calls.append(request)
+        assert str(request.url) == "https://auth.example.test/keys"
+        assert request.method == "GET" and request.extensions["timeout"]["read"] == 3
+        assert request.headers["accept-encoding"] == "identity"
+        assert "authorization" not in request.headers
+        return httpx2.Response(200, content=body)
+
+    source = HttpJwksSource(
+        "https://auth.example.test/keys", http_transport=httpx2.MockTransport(handle)
+    )
+    try:
         if body == b'{"keys": []}':
-            assert HttpJwksSource("https://auth.example.test/keys").fetch() == {"keys": []}
+            assert source.fetch() == {"keys": []}
         else:
             with pytest.raises(ValueError):
-                HttpJwksSource("https://auth.example.test/keys").fetch()
-        factory.assert_called_once_with(timeout=3, follow_redirects=False, trust_env=False)
+                source.fetch()
+        assert len(calls) == 1
+        assert source._client is not None
+        assert not source._client.trust_env and not source._client.follow_redirects
+    finally:
+        source.close()
 
 
 def test_transport_outage_is_safe(fixture):

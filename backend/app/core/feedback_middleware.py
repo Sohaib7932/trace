@@ -1,18 +1,31 @@
 """Feedback-only ingress limits, response deadlines, no-store and safe errors."""
 
 import asyncio
+import hashlib
 import json
 import re
 import time
 from collections import deque
 from collections.abc import Callable
+from functools import partial
 from threading import RLock
 from uuid import uuid4
 
+import anyio
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.core.errors import error_response
+from app.ai.accounting import AdmissionPolicy
+from app.core.errors import ApplicationError, error_response
 from app.core.feedback_settings import FeedbackSettings
+from app.services.feedback_operations import (
+    INGRESS_SHARED_LEASE,
+    SharedAdmissionFactory,
+    SharedIngressJobs,
+    SharedIngressJobsFactory,
+    SharedLeaseOwnership,
+    acquire_shared_lease_async,
+    wait_for_shared_job,
+)
 
 _PATH = re.compile(r"/api/v1/sessions/[^/]+/feedback/?\Z")
 _ERRORS: dict[int, tuple[str, str]] = {
@@ -42,6 +55,8 @@ class FeedbackSecurityMiddleware:
         deadline_key: str = "feedback_deadline",
         error_subject: str = "Feedback",
         error_code_prefix: str = "feedback",
+        shared_admission_factory: SharedAdmissionFactory | None = None,
+        shared_admission_tracker_factory: SharedIngressJobsFactory | None = None,
     ) -> None:
         self.app, self.settings, self.allowed_origins = app, settings, allowed_origins
         self.clock = clock
@@ -49,9 +64,16 @@ class FeedbackSecurityMiddleware:
         self._deadline_key = deadline_key
         self._error_subject = error_subject
         self._error_code_prefix = error_code_prefix
+        self.shared_admission_factory = shared_admission_factory
+        self.shared_admission_tracker_factory = shared_admission_tracker_factory
+        self._accounting_unavailable = False
         self._lock = RLock()
         self._requests: deque[float] = deque()
         self._active = 0
+
+    def _accounting_failed(self) -> None:
+        with self._lock:
+            self._accounting_unavailable = True
 
     def _admit(self) -> bool:
         with self._lock:
@@ -121,11 +143,56 @@ class FeedbackSecurityMiddleware:
             response = error_response(request_id, code, text, status)
             await response(scope, receive, protected_send)
 
+        if self._accounting_unavailable:
+            await failure(503)
+            return
         if not self._admit():
             await failure(429)
             return
+        shared_lease: SharedLeaseOwnership | None = None
+        shared_tracker: SharedIngressJobs | None = None
+        lease_released = False
+        ingress_token = None
+
+        async def release_ingress(*, strict: bool) -> None:
+            nonlocal lease_released
+            if shared_lease is not None and not lease_released:
+                lease_released = True
+                if shared_tracker is not None:
+                    await wait_for_shared_job(shared_tracker.release(shared_lease, strict=strict))
+                else:
+                    with anyio.CancelScope(shield=True):
+                        await anyio.to_thread.run_sync(partial(shared_lease.release, strict=strict))
+
         try:
             async with asyncio.timeout(self.settings.request_timeout_seconds):
+                if self.shared_admission_factory is not None:
+                    try:
+                        configured = self.shared_admission_factory()
+                        if configured is not None:
+                            shared_admission, policy = configured
+                            if self.shared_admission_tracker_factory is not None:
+                                shared_tracker = self.shared_admission_tracker_factory()
+                            policy = AdmissionPolicy.model_validate(policy.model_dump())
+                            # Ingress has no authenticated principal yet. A constant
+                            # nonpersonal identity gives a shared route-family cap.
+                            subject_hash = hashlib.sha256(
+                                b"trace-unidentified-ingress-v1"
+                            ).hexdigest()
+                            shared_lease = await acquire_shared_lease_async(
+                                shared_admission,
+                                policy,
+                                subject_hash,
+                                self._accounting_failed,
+                                tracker=shared_tracker,
+                            )
+                            ingress_token = INGRESS_SHARED_LEASE.set(shared_lease)
+                    except ApplicationError:
+                        raise
+                    except Exception:
+                        raise ApplicationError(
+                            "dependency_unavailable", "AI admission is unavailable.", 503
+                        ) from None
                 body = bytearray()
                 while True:
                     message = await receive()
@@ -164,6 +231,10 @@ class FeedbackSecurityMiddleware:
                 if self.clock() >= state[self._deadline_key]:
                     await failure(504)
                     return
+                await release_ingress(strict=True)
+                if self.clock() >= state[self._deadline_key]:
+                    await failure(504)
+                    return
                 status = start["status"]
                 if status >= 400:
                     busy = False
@@ -179,6 +250,10 @@ class FeedbackSecurityMiddleware:
                     await protected_send(
                         {"type": "http.response.body", "body": bytes(chunks), "more_body": False}
                     )
+        except ApplicationError as error:
+            if response_started:
+                raise
+            await failure(error.status_code, error.status_code == 429)
         except TimeoutError:
             if response_started:
                 raise
@@ -188,5 +263,10 @@ class FeedbackSecurityMiddleware:
                 raise
             await failure(500)
         finally:
-            with self._lock:
-                self._active -= 1
+            if ingress_token is not None:
+                INGRESS_SHARED_LEASE.reset(ingress_token)
+            try:
+                await release_ingress(strict=False)
+            finally:
+                with self._lock:
+                    self._active -= 1

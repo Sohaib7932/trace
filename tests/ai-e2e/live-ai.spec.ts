@@ -68,3 +68,37 @@ test("provider timeout remains unavailable and guest support remains protected",
   await expect(help.getByRole("region", { name: "Help articles" })).toBeVisible();
   await expect(help.getByText("Sources", { exact: true })).toHaveCount(0);
 });
+
+test("conversational tutor sends natural questions and bounded follow-up history without claiming execution", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await signUp(page, request);
+  await page.goto("/learn/fastapi-payload-mismatch");
+  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
+  await expect(page.getByLabel("The request will be rejected", { exact: true })).toBeVisible();
+  if (await page.locator(".tutor-bar").isVisible()) await page.locator(".tutor-bar button").click();
+  const drawer = page.getByRole("dialog", { name: "Lesson tutor", exact: true });
+  const panel = await drawer.isVisible() ? drawer : page.getByRole("complementary", { name: "Lesson tutor", exact: true });
+  await panel.getByLabel("Explanation style").selectOption("direct");
+  await panel.getByLabel("Ask about this lesson").fill("How is an API schema different from a database schema?");
+  const firstResponse = page.waitForResponse((r) => r.url().endsWith("/tutor/ask") && r.request().method() === "POST");
+  await panel.getByRole("button", { name: "Ask", exact: true }).click();
+  const first = await firstResponse;
+  expect(first.status()).toBe(200);
+  expect(first.request().postDataJSON()).toMatchObject({ mode: "conversation", style: "direct", code: null, history: [] });
+  expect(await first.json()).toMatchObject({ source: "test_fixture", execution_status: "not_executed", history_scope: "client_page_session" });
+  await expect(panel.locator(".tutor-reply")).toContainText("Test fixture guidance");
+  await panel.getByLabel("Ask about this lesson").fill("Can you explain that comparison in another way?");
+  const followupResponse = page.waitForResponse((r) => r.url().endsWith("/tutor/ask") && r.request().method() === "POST");
+  await panel.getByRole("button", { name: "Ask", exact: true }).click();
+  const followup = await followupResponse;
+  expect(followup.status()).toBe(200);
+  const body = followup.request().postDataJSON();
+  expect(body.history).toHaveLength(2);
+  expect(body.history.map((entry: { role: string }) => entry.role)).toEqual(["user", "assistant"]);
+  expect(body.code).toBeNull();
+  expect(Object.keys(body).sort()).toEqual(["code", "history", "mode", "question", "style"]);
+  await expect(panel.getByRole("button", { name: "Clear conversation" })).toBeVisible();
+  await panel.getByRole("button", { name: "Clear conversation" }).click();
+  await expect(panel.locator(".tutor-reply")).toHaveCount(0);
+  // This is the real HTTP adapter with explicit fixture provenance, never a Gemini live test.
+});

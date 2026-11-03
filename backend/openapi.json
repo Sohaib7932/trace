@@ -75,6 +75,66 @@
         "title": "AccountResponse",
         "type": "object"
       },
+      "ApprovedSupportPassageVersion": {
+        "additionalProperties": false,
+        "description": "Identity of exact approved text, independent of an index's stored text.",
+        "properties": {
+          "audience": {
+            "const": "public_customer",
+            "default": "public_customer",
+            "title": "Audience",
+            "type": "string"
+          },
+          "chunk_id": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "chunk_ordinal": {
+            "maximum": 7.0,
+            "minimum": 0.0,
+            "title": "Chunk Ordinal",
+            "type": "integer"
+          },
+          "chunker_version": {
+            "const": "authored-passages-v1",
+            "default": "authored-passages-v1",
+            "title": "Chunker Version",
+            "type": "string"
+          },
+          "document_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "overlap_characters": {
+            "default": 0,
+            "maximum": 0.0,
+            "minimum": 0.0,
+            "title": "Overlap Characters",
+            "type": "integer"
+          },
+          "passage_id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "passage_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "source_id": {
+            "$ref": "#/components/schemas/LocalId"
+          }
+        },
+        "required": [
+          "source_id",
+          "revision",
+          "document_sha256",
+          "passage_id",
+          "passage_sha256",
+          "chunk_id",
+          "chunk_ordinal"
+        ],
+        "title": "ApprovedSupportPassageVersion",
+        "type": "object"
+      },
       "AssistantText": {
         "maxLength": 2400,
         "minLength": 1,
@@ -164,6 +224,19 @@
           "created_at"
         ],
         "title": "AttemptResponse",
+        "type": "object"
+      },
+      "BuildKnowledgeIndex": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          }
+        },
+        "required": [
+          "operation_key"
+        ],
+        "title": "BuildKnowledgeIndex",
         "type": "object"
       },
       "ChatText": {
@@ -366,10 +439,41 @@
         "title": "ConversationTutorReply",
         "type": "object"
       },
+      "CorpusDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "passages": {
+            "$ref": "#/components/schemas/Items_SupportPassage__MinLen_min_length_1_",
+            "maxLength": 8,
+            "minLength": 1
+          },
+          "source_id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "title",
+          "passages"
+        ],
+        "title": "CorpusDocument",
+        "type": "object"
+      },
       "Digest": {
         "maxLength": 64,
         "minLength": 64,
         "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "DocumentJSON": {
+        "maxLength": 16384,
+        "minLength": 2,
         "type": "string"
       },
       "ErrorDetail": {
@@ -651,9 +755,121 @@
         "title": "IdentityResponse",
         "type": "object"
       },
+      "ImportReviewedCorpus": {
+        "additionalProperties": false,
+        "properties": {
+          "adopt_existing_review": {
+            "default": false,
+            "title": "Adopt Existing Review",
+            "type": "boolean"
+          },
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          }
+        },
+        "required": [
+          "operation_key"
+        ],
+        "title": "ImportReviewedCorpus",
+        "type": "object"
+      },
+      "ImportedReview": {
+        "additionalProperties": false,
+        "properties": {
+          "document_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "origin": {
+            "const": "imported_record",
+            "default": "imported_record",
+            "title": "Origin",
+            "type": "string"
+          },
+          "package_revision": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "package_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "title": "Reviewed At",
+            "type": "string"
+          },
+          "reviewer_label": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer_label",
+          "reviewed_at",
+          "valid_until",
+          "package_revision",
+          "package_sha256",
+          "document_sha256"
+        ],
+        "title": "ImportedReview",
+        "type": "object"
+      },
+      "IngestKnowledge": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/CorpusDocument"
+          },
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Version"
+          }
+        },
+        "required": [
+          "document",
+          "revision",
+          "operation_key"
+        ],
+        "title": "IngestKnowledge",
+        "type": "object"
+      },
+      "Items_ApprovedSupportPassageVersion__MaxLen_max_length_8_": {
+        "items": {
+          "$ref": "#/components/schemas/ApprovedSupportPassageVersion"
+        },
+        "type": "array"
+      },
+      "Items_ApprovedSupportPassageVersion__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/ApprovedSupportPassageVersion"
+        },
+        "type": "array"
+      },
+      "Items_Digest__MaxLen_max_length_3_": {
+        "items": {
+          "$ref": "#/components/schemas/Digest"
+        },
+        "type": "array"
+      },
+      "Items_Digest__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/Digest"
+        },
+        "type": "array"
+      },
       "Items_EvidenceAlias__MaxLen_max_length_8_": {
         "items": {
           "$ref": "#/components/schemas/EvidenceAlias"
+        },
+        "type": "array"
+      },
+      "Items_KnowledgeEvent__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/KnowledgeEvent"
         },
         "type": "array"
       },
@@ -687,6 +903,12 @@
         },
         "type": "array"
       },
+      "Items_SupportPassage__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/SupportPassage"
+        },
+        "type": "array"
+      },
       "Items_SupportReference__MaxLen_max_length_3_": {
         "items": {
           "$ref": "#/components/schemas/SupportReference"
@@ -696,6 +918,12 @@
       "Items_TutorHistoryMessage__MaxLen_max_length_6_": {
         "items": {
           "$ref": "#/components/schemas/TutorHistoryMessage"
+        },
+        "type": "array"
+      },
+      "Items_VersionId__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/VersionId"
         },
         "type": "array"
       },
@@ -741,6 +969,562 @@
           "last_completed_at"
         ],
         "title": "JourneyResponse",
+        "type": "object"
+      },
+      "KnowledgeAction": {
+        "enum": [
+          "ingest",
+          "parse",
+          "normalize",
+          "chunk",
+          "index",
+          "validate",
+          "review",
+          "approve",
+          "adopt_existing_review",
+          "publish",
+          "reject",
+          "revoke",
+          "expire"
+        ],
+        "type": "string"
+      },
+      "KnowledgeEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/KnowledgeAction"
+          },
+          "actor_id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "chunks": {
+            "$ref": "#/components/schemas/Items_ApprovedSupportPassageVersion__MaxLen_max_length_8_",
+            "default": [],
+            "maxLength": 8
+          },
+          "command_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "content_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "historical_reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historical Reviewed At"
+          },
+          "historical_reviewer_label": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "index_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lexical_index": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LexicalIndexArtifact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "previous_event_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KnowledgeState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/KnowledgeReason"
+          },
+          "review_origin": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "imported_record"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Origin"
+          },
+          "reviewed_document_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision_id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/Sequence"
+          },
+          "state": {
+            "$ref": "#/components/schemas/KnowledgeState"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "content_sha256",
+          "id",
+          "revision_id",
+          "sequence",
+          "operation_key",
+          "command_sha256",
+          "previous_event_sha256",
+          "previous_state",
+          "state",
+          "action",
+          "actor_id",
+          "created_at",
+          "reason"
+        ],
+        "title": "KnowledgeEvent",
+        "type": "object"
+      },
+      "KnowledgeHistory": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "$ref": "#/components/schemas/Items_KnowledgeEvent__MinLen_min_length_1_",
+            "maxLength": 512,
+            "minLength": 1
+          },
+          "revision": {
+            "$ref": "#/components/schemas/KnowledgeRevision"
+          }
+        },
+        "required": [
+          "revision",
+          "events"
+        ],
+        "title": "KnowledgeHistory",
+        "type": "object"
+      },
+      "KnowledgeIndexResult": {
+        "additionalProperties": false,
+        "properties": {
+          "index_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "manifest_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "passage_count": {
+            "maximum": 256.0,
+            "minimum": 1.0,
+            "title": "Passage Count",
+            "type": "integer"
+          },
+          "retrieval_activated": {
+            "const": false,
+            "default": false,
+            "title": "Retrieval Activated",
+            "type": "boolean"
+          },
+          "source": {
+            "const": "ai",
+            "default": "ai",
+            "title": "Source",
+            "type": "string"
+          },
+          "space_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          }
+        },
+        "required": [
+          "index_sha256",
+          "manifest_sha256",
+          "space_sha256",
+          "passage_count"
+        ],
+        "title": "KnowledgeIndexResult",
+        "type": "object"
+      },
+      "KnowledgePublication": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "command_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "content_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "manifest_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "previous_manifest_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/KnowledgeReason"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/Sequence"
+          }
+        },
+        "required": [
+          "content_sha256",
+          "id",
+          "sequence",
+          "operation_key",
+          "command_sha256",
+          "previous_manifest_sha256",
+          "manifest_sha256",
+          "actor_id",
+          "created_at",
+          "reason"
+        ],
+        "title": "KnowledgePublication",
+        "type": "object"
+      },
+      "KnowledgeReason": {
+        "$ref": "#/components/schemas/Summary"
+      },
+      "KnowledgeReleaseReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "content_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "embedding_space_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "index_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "passages": {
+            "$ref": "#/components/schemas/Items_ApprovedSupportPassageVersion__MinLen_min_length_1_",
+            "maxLength": 3,
+            "minLength": 1
+          },
+          "publication_sequence": {
+            "$ref": "#/components/schemas/Sequence"
+          },
+          "request_id_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "retrieval_profile": {
+            "default": "lexical",
+            "enum": [
+              "lexical",
+              "semantic",
+              "hybrid"
+            ],
+            "title": "Retrieval Profile",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "knowledge-release-receipt-v1",
+            "default": "knowledge-release-receipt-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "selected_vector_sha256": {
+            "$ref": "#/components/schemas/Items_Digest__MaxLen_max_length_3_",
+            "default": [],
+            "maxLength": 3
+          },
+          "status": {
+            "const": "release_authorized",
+            "default": "release_authorized",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content_sha256",
+          "id",
+          "created_at",
+          "request_id_sha256",
+          "manifest_sha256",
+          "publication_sequence",
+          "passages"
+        ],
+        "title": "KnowledgeReleaseReceipt",
+        "type": "object"
+      },
+      "KnowledgeRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "audience": {
+            "const": "public_customer",
+            "default": "public_customer",
+            "title": "Audience",
+            "type": "string"
+          },
+          "content_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "creation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "imported_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportedReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "normalized_json": {
+            "$ref": "#/components/schemas/DocumentJSON"
+          },
+          "normalized_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "normalizer_version": {
+            "const": "identity-text-v1",
+            "default": "identity-text-v1",
+            "title": "Normalizer Version",
+            "type": "string"
+          },
+          "original_json": {
+            "$ref": "#/components/schemas/DocumentJSON"
+          },
+          "original_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "parser_version": {
+            "const": "support-document-json-v1",
+            "default": "support-document-json-v1",
+            "title": "Parser Version",
+            "type": "string"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "source_id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "source_kind": {
+            "const": "trace_customer_authored",
+            "default": "trace_customer_authored",
+            "title": "Source Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content_sha256",
+          "id",
+          "source_id",
+          "revision",
+          "creation_key",
+          "actor_id",
+          "created_at",
+          "original_json",
+          "original_sha256",
+          "normalized_json",
+          "normalized_sha256"
+        ],
+        "title": "KnowledgeRevision",
+        "type": "object"
+      },
+      "KnowledgeState": {
+        "enum": [
+          "ingested",
+          "parsed",
+          "normalized",
+          "chunked",
+          "indexed",
+          "validated",
+          "reviewed",
+          "approved",
+          "published",
+          "rejected",
+          "revoked",
+          "expired"
+        ],
+        "type": "string"
+      },
+      "KnowledgeTransition": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "parse",
+              "normalize",
+              "chunk",
+              "index",
+              "validate",
+              "review",
+              "approve",
+              "adopt_existing_review",
+              "reject",
+              "revoke",
+              "expire"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_sequence": {
+            "minimum": 0.0,
+            "title": "Expected Sequence",
+            "type": "integer"
+          },
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/KnowledgeReason"
+          },
+          "reviewed_document_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "action",
+          "expected_sequence",
+          "operation_key",
+          "reason"
+        ],
+        "title": "KnowledgeTransition",
         "type": "object"
       },
       "LessonAlias": {
@@ -846,6 +1630,45 @@
           "schema_code"
         ],
         "title": "LessonResponse",
+        "type": "object"
+      },
+      "LexicalIndexArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "shared-word-overlap-v1",
+            "default": "shared-word-overlap-v1",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "chunk_ids": {
+            "$ref": "#/components/schemas/Items_Digest__MinLen_min_length_1_",
+            "maxLength": 8,
+            "minLength": 1
+          },
+          "content_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "document_sha256": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "schema_version": {
+            "const": "knowledge-lexical-index-v1",
+            "default": "knowledge-lexical-index-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "$ref": "#/components/schemas/VersionId"
+          }
+        },
+        "required": [
+          "content_sha256",
+          "source_revision_id",
+          "document_sha256",
+          "chunk_ids"
+        ],
+        "title": "LexicalIndexArtifact",
         "type": "object"
       },
       "LivenessResponse": {
@@ -1319,6 +2142,35 @@
         "title": "PublicVerificationCheck",
         "type": "object"
       },
+      "PublishKnowledge": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_sequence": {
+            "minimum": -1.0,
+            "title": "Expected Sequence",
+            "type": "integer"
+          },
+          "operation_key": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/KnowledgeReason"
+          },
+          "revision_ids": {
+            "$ref": "#/components/schemas/Items_VersionId__MinLen_min_length_1_",
+            "maxLength": 32,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "revision_ids",
+          "expected_sequence",
+          "operation_key",
+          "reason"
+        ],
+        "title": "PublishKnowledge",
+        "type": "object"
+      },
       "QuestionOption": {
         "additionalProperties": false,
         "properties": {
@@ -1584,6 +2436,10 @@
         ],
         "type": "string"
       },
+      "Sequence": {
+        "minimum": 0.0,
+        "type": "integer"
+      },
       "SessionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1661,6 +2517,11 @@
         "title": "SessionResponse",
         "type": "object"
       },
+      "Summary": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+      },
       "SupportAskCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1705,6 +2566,23 @@
           "Customer support is currently unavailable."
         ],
         "type": "string"
+      },
+      "SupportPassage": {
+        "additionalProperties": false,
+        "properties": {
+          "passage_id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "text": {
+            "$ref": "#/components/schemas/PassageText"
+          }
+        },
+        "required": [
+          "passage_id",
+          "text"
+        ],
+        "title": "SupportPassage",
+        "type": "object"
       },
       "SupportReference": {
         "additionalProperties": false,
@@ -1944,6 +2822,17 @@
         ],
         "title": "ValidationIssue",
         "type": "object"
+      },
+      "Version": {
+        "maxLength": 32,
+        "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+        "type": "string"
+      },
+      "VersionId": {
+        "maxLength": 36,
+        "minLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "type": "string"
       },
       "Yes": {
         "const": true,
@@ -2240,6 +3129,968 @@
         "summary": "Learner",
         "tags": [
           "account"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/import-reviewed-corpus": {
+      "post": {
+        "operationId": "admin_import_reviewed_knowledge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportReviewedCorpus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeHistory"
+                  },
+                  "title": "Response Admin Import Reviewed Knowledge",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Corpus",
+        "tags": [
+          "knowledge administration"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/indexes/build": {
+      "post": {
+        "operationId": "admin_build_knowledge_index",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildKnowledgeIndex"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeIndexResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Build Index",
+        "tags": [
+          "knowledge administration"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/publications": {
+      "post": {
+        "operationId": "admin_publish_knowledge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishKnowledge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgePublication"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Publish",
+        "tags": [
+          "knowledge administration"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/receipts/{receipt_id}": {
+      "get": {
+        "operationId": "admin_get_knowledge_receipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeReleaseReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Receipt",
+        "tags": [
+          "knowledge administration"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/revisions": {
+      "post": {
+        "operationId": "admin_ingest_knowledge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestKnowledge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ingest",
+        "tags": [
+          "knowledge administration"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/revisions/{revision_id}": {
+      "get": {
+        "operationId": "admin_get_knowledge_revision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Revision Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Revision",
+        "tags": [
+          "knowledge administration"
+        ]
+      }
+    },
+    "/api/v1/admin/knowledge/revisions/{revision_id}/transitions": {
+      "post": {
+        "operationId": "admin_transition_knowledge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Revision Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeTransition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Transition",
+        "tags": [
+          "knowledge administration"
         ]
       }
     },

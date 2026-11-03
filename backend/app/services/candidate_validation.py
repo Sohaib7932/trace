@@ -104,8 +104,10 @@ def _integrity(candidate: object) -> ComposedLessonCandidate:
         else (value.get("content_sha256") if isinstance(value, dict) else None)
     )
     try:
-        TypeAdapter(Digest).validate_python(supplied, strict=True)
-        TypeAdapter(Digest).validate_python(data.get("canonical_digest"), strict=True)
+        TypeAdapter[str](Digest.__value__).validate_python(supplied, strict=True)
+        TypeAdapter[str](Digest.__value__).validate_python(
+            data.get("canonical_digest"), strict=True
+        )
     except ValueError as exc:
         raise _Rejected(Code.CANDIDATE_DIGEST_INVALID) from exc
     try:
