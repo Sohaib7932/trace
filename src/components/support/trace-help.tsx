@@ -118,7 +118,7 @@ function HelpPanel({ route, onClose }: { route: string; onClose: () => void }) {
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[0.8125rem] text-secondary">Questions about accounts, lessons and progress.</p>
-            <DemoLabel />
+            <DemoLabel mode={support.mode} />
           </div>
           {support.mode === "real" && <p className="mt-2 text-[0.75rem] text-secondary">When enabled, Gemini selects passages from approved public help. Don&apos;t include personal details.</p>}
         </header>
@@ -220,7 +220,7 @@ function Unavailable() {
   return (
     <section aria-label="Help articles" className="mt-4 rounded-xl border border-border bg-surface p-3 text-[0.875rem]">
       <p className="font-semibold">{real ? "Trace Help is unavailable right now" : "Trace Help isn't connected yet"}</p>
-      <p className="mt-1 text-secondary">{real ? "An answer could not be verified. Try again later, or use these help shortcuts:" : "The answering service is still being set up. These pages cover the most common questions:"}</p>
+      <p className="mt-1 text-secondary">{real ? "The AI service didn't return an answer from the approved help pages (it may be switched off, slow or busy). Try again later, or use these help shortcuts:" : "The answering service is still being set up. These pages cover the most common questions:"}</p>
       <ul className="mt-2 grid gap-1">
         {faq.map((article) => <li key={article.id}><Link href={article.link} className="inline-flex min-h-9 items-center underline underline-offset-4">{article.title}</Link></li>)}
       </ul>

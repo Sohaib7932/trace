@@ -118,7 +118,7 @@ function Path() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 font-mono text-[0.75rem] tracking-[0.04em] text-secondary uppercase"><Icon aria-hidden="true" className="size-3.5" strokeWidth={1.8} />{step.kind}</span>
                     <span className={`rounded-full px-2.5 py-0.5 text-[0.75rem] font-medium ${status === "completed" ? "bg-success-soft text-success" : status === "locked" ? "bg-surface-muted text-secondary" : "bg-primary-soft text-primary-ink"}`}>{status === "completed" ? "Completed" : status === "locked" ? "Locked" : status === "needs_revision" ? "Needs revision" : status === "in_progress" ? "In progress" : "Available"}</span>
-                    {step.real ? <span className="rounded-full border border-border px-2.5 py-0.5 text-[0.75rem] text-secondary">Real lesson · server-verified</span> : <DemoLabel text="Demo exercise" />}
+                    {step.real ? <span className="rounded-full border border-border px-2.5 py-0.5 text-[0.75rem] text-secondary">Real lesson · server-verified</span> : <DemoLabel text="Demo exercise" mode="mock" />}
                   </div>
                   <h3 id={`${step.id}-title`} className="mt-3 text-[1.125rem] font-semibold tracking-[-0.01em]">{step.title}</h3>
                   <p className="mt-1.5 max-w-[62ch] text-[0.9375rem] leading-relaxed text-secondary">{step.summary}</p>
