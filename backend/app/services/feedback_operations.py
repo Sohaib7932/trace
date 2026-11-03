@@ -12,7 +12,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import partial
-from threading import RLock
+from threading import Condition, RLock
 from typing import TypeVar
 from uuid import UUID
 
@@ -56,6 +56,7 @@ class FeedbackOperations:
         self.settings = FeedbackSettings.model_validate(settings.model_dump(warnings=False))
         self.clock = clock
         self._lock = RLock()
+        self._idle = Condition(self._lock)
         self._subjects: dict[Subject, _SubjectState] = {}
         self._workers = self._providers = 0
         self._closed = False
@@ -76,6 +77,13 @@ class FeedbackOperations:
                 return
             self._closed = True
         self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def wait_for_idle(self, timeout: float | None = None) -> bool:
+        """Drain real leases, including work abandoned by an HTTP cancellation."""
+        with self._idle:
+            return self._idle.wait_for(
+                lambda: self._workers == 0 and self._providers == 0, timeout=timeout
+            )
 
     @staticmethod
     def _subject(principal: Principal) -> Subject:
@@ -148,6 +156,7 @@ class FeedbackOperations:
             with self._lock:
                 state.workers -= 1
                 self._workers -= 1
+                self._idle.notify_all()
 
     async def execute(
         self, principal: Principal, operation: Callable[[], T], *, deadline: float | None = None
@@ -213,6 +222,7 @@ class FeedbackOperations:
                 with self._lock:
                     state.providers -= 1
                     self._providers -= 1
+                    self._idle.notify_all()
 
             future.add_done_callback(finished)
         try:

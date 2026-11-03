@@ -10,6 +10,11 @@ from app.schemas.generation import TransportIdentifier
 type Limit = Annotated[StrictInt, Field(ge=1)]
 type Money = Annotated[StrictInt, Field(ge=0, le=1_000_000_000)]
 
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+GEMINI_PROFILE = "gemini-free-text-v1"
+GEMINI_MAX_OUTPUT_TOKENS = 4096
+GEMINI_MAX_RESPONSE_SECONDS = 20.0
+
 
 class AIClientSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -35,6 +40,7 @@ class AIClientSettings(BaseSettings):
     max_cost_per_attempt_microusd: Money = 0
     free_tier_project_confirmed: bool = False
     max_live_requests_per_process: Annotated[Limit, Field(le=100)] = 20
+    max_in_flight: Annotated[Limit, Field(le=16)] = 4
 
     @field_validator(
         "max_request_bytes",
@@ -47,6 +53,7 @@ class AIClientSettings(BaseSettings):
         "spend_limit_microusd",
         "max_cost_per_attempt_microusd",
         "max_live_requests_per_process",
+        "max_in_flight",
         mode="before",
     )
     @classmethod
@@ -87,8 +94,8 @@ class AIClientSettings(BaseSettings):
             raise ValueError("Response timeout cannot exceed the total call deadline")
         if self.mode == "gemini_free" and (
             self.provider_id != "gemini"
-            or self.generation_model_id != "gemini-3.5-flash-lite"
-            or self.conversational_model_id != "gemini-3.5-flash-lite"
+            or self.generation_model_id != GEMINI_MODEL
+            or self.conversational_model_id != GEMINI_MODEL
             or self.credential_env_var != "GEMINI_API_KEY"
             or not self.free_tier_project_confirmed
             or self.spend_limit_microusd != 0
@@ -98,4 +105,10 @@ class AIClientSettings(BaseSettings):
             raise ValueError(
                 "Gemini requires the approved model, confirmed free project and zero paid budget"
             )
+        if self.mode == "gemini_free" and (
+            self.max_output_tokens > GEMINI_MAX_OUTPUT_TOKENS
+            or self.response_timeout_seconds > GEMINI_MAX_RESPONSE_SECONDS
+            or self.max_in_flight > 4
+        ):
+            raise ValueError("Limits exceed the approved Gemini text capability profile")
         return self
