@@ -33,8 +33,8 @@ def postgres_image():
     return selected
 
 
-def docker(*args, check=True):
-    result = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=60)
+def docker(*args, check=True, timeout=60):
+    result = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=timeout)
     if check and result.returncode:
         raise RuntimeError(
             "Disposable infrastructure command failed; inspect the named test container"
@@ -54,6 +54,39 @@ def container_private_ipv4(name):
     address = ipaddress.ip_address(endpoint["IPAddress"])
     assert address.version == 4 and address.is_private and not address.is_loopback
     return str(address)
+
+
+def wait_for_postgres_tcp(name):
+    # Initialization briefly serves only a Unix socket before restarting. Never
+    # treat that temporary server as readiness for the published TCP/TLS port.
+    deadline = time.monotonic() + 40
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Disposable PostgreSQL TLS did not become ready")
+        result = docker(
+            "exec",
+            name,
+            "pg_isready",
+            "-h",
+            "127.0.0.1",
+            "-p",
+            "5432",
+            "-U",
+            "trace_test",
+            "-d",
+            "trace_test",
+            "-t",
+            "1",
+            check=False,
+            timeout=remaining,
+        )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Disposable PostgreSQL TLS did not become ready")
+        if result.returncode == 0:
+            return
+        time.sleep(min(0.2, remaining))
 
 
 def stop_owned(name, label):
@@ -157,13 +190,7 @@ def tls_postgres(tmp_path_factory):
         command,
     )
     try:
-        deadline = time.monotonic() + 40
-        while docker(
-            "exec", name, "pg_isready", "-U", "trace_test", "-d", "trace_test", check=False
-        ).returncode:
-            if time.monotonic() >= deadline:
-                raise RuntimeError("Disposable PostgreSQL TLS did not become ready")
-            time.sleep(0.2)
+        wait_for_postgres_tcp(name)
         raw = docker("inspect", "--format", "{{json .NetworkSettings.Ports}}", name).stdout
         port = int(json.loads(raw)["5432/tcp"][0]["HostPort"])
         yield dict(name=name, label=label, directory=directory, port=port)

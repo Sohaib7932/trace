@@ -4,3 +4,13 @@
 
 # The support manifest pins these exact UTF-8 bytes on every checkout platform.
 docs/support-drafts/*.md text eol=lf
+
+# Preserve the frozen historical migration byte manifest on every platform.
+# These checkout styles are intentional; committed migration blobs stay unchanged.
+backend/alembic/versions/0001_foundation.py text eol=lf
+backend/alembic/versions/0002_learning_learning_engine.py text eol=crlf
+backend/alembic/versions/0003_constraint_names.py text eol=crlf
+backend/alembic/versions/0004_transfer_retrieval.py text eol=crlf
+backend/alembic/versions/0005_account_identity.py text eol=lf
+backend/alembic/versions/0006_candidate_lifecycle.py text eol=lf
+backend/alembic/versions/0007_tutor_reservations.py text eol=lf
