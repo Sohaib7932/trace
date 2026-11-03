@@ -11,3 +11,6 @@ export const navLinks = [
 ] as const;
 
 export const primaryCta = { href: "/learn", label: "Try Trace" } as const;
+
+/** Primary action on the learning pages (lessons, today, account). */
+export const createCta = { href: "/learn/new", label: "Create a lesson" } as const;

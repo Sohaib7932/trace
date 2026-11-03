@@ -659,15 +659,22 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
         assert reply.availability == "not_supported"
         assert resources.client.transport is None and resources.client.usage_snapshot() == ()
         assert app.openapi() == expected
-        assert len(expected["paths"]) == 31
+        # Learner-requested lessons (additive feature) are counted separately.
+        custom = {p for p in expected["paths"] if p.startswith("/api/v1/custom-lessons")}
+        assert len(custom) == 7
+        assert len(expected["paths"]) - len(custom) == 31
         assert (
-            sum(not path.startswith("/api/v1/admin/knowledge/") for path in expected["paths"]) == 24
+            sum(
+                not path.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
+                for path in expected["paths"]
+            )
+            == 24
         )
         assert (
             sum(
                 method in {"get", "post", "put", "patch", "delete", "head", "options"}
                 for name, path in expected["paths"].items()
-                if not name.startswith("/api/v1/admin/knowledge/")
+                if not name.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
                 for method in path
             )
             == 26

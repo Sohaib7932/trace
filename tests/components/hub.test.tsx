@@ -84,7 +84,7 @@ test("hub: a guest sees the lesson library and sign-in prompts, and no learner r
   expect(screen.getByRole("link", { name: "Sign in to start The nested payload" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Try the demo" })).toHaveAttribute("href", "/#demo");
   expect(screen.queryByText(/lessons completed/)).toBeNull();
-  expect(screen.getByText("Custom lessons you create will appear here.")).toBeVisible();
+  expect(screen.getByText("You haven't created a lesson yet.")).toBeVisible();
   for (const call of [fixture.identity, fixture.journey, fixture.lesson, fixture.me]) expect(call).not.toHaveBeenCalled();
 });
 test("hub: a new signed-in learner sees both real lessons, the transfer locked with its reason, and no fake lessons", async () => {
@@ -98,6 +98,21 @@ test("hub: a new signed-in learner sees both real lessons, the transfer locked w
   expect(within(cards[1]).queryByRole("link")).toBeNull();
   expect(screen.getByRole("heading", { name: "More lessons are being written" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Start lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+});
+test("hub: a new signed-in learner gets a Start here guide and an empty My lessons with one way in", async () => {
+  fixture.auth = { status: "signed-in", email: "learner@example.test" };
+  wrap(<LessonsHub />);
+  expect(await screen.findByRole("heading", { name: "Start here" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+  expect(screen.getByRole("heading", { name: "My lessons" })).toBeVisible();
+  expect(screen.getAllByRole("link", { name: /^Create a lesson/ })).toHaveLength(1);
+});
+test("hub: Start here disappears once the learner has started", async () => {
+  fixture.auth = { status: "signed-in", email: "learner@example.test" };
+  fixture.journey.mockResolvedValue(journeyWith({ sessions: [session("a", "needs_revision")], attempt_count: 1 }));
+  wrap(<LessonsHub />);
+  expect(await screen.findByRole("heading", { name: "Continue where you left off" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Start here" })).toBeNull();
 });
 test("hub: a returning learner sees where they left off and the unlocked transfer", async () => {
   fixture.auth = { status: "signed-in", email: "learner@example.test" };

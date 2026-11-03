@@ -217,13 +217,65 @@ for generated exercises the same deterministic runtime (private ASGI app + fresh
 Are only human-approved candidates assignable? How does the frontend tell a generated
 exercise from a seeded lesson in the journey (a `phase.kind`)?
 
-## P3: AI lesson creation (custom lessons). PROPOSED, needs backend agreement
+## P3: AI lesson creation (custom lessons). IMPLEMENTED on `feat/custom-lesson-creation`
 
-A separate, future feature from the tutor. Today `/learn` shows "Trace lessons" (the real
-catalog), an empty "Your lessons" section ("Custom lessons you create will appear here.")
-and a "Create a custom lesson" card whose submit button is **disabled** with "Coming soon:
-custom lessons are being built." The frontend generates nothing, shows no invented lessons
-and calls no endpoint. Proposed types: `CustomLessonRequest`, `CustomLessonStatus`,
+**Status 4 November 2026:** built end to end on branch `feat/custom-lesson-creation` (backend
+endpoints, migration `0010_custom_lessons`, frontend composer, tracker and viewer). Contract:
+`backend/openapi.json` and section 12 of `docs/frontend-api-integration.md`. Needs review by
+the AI-backend owner before merging (it reuses the shared Gemini transport, settings class
+and usage ledger through a separate bounded client; the tutor and Trace Help are unchanged).
+
+| Earlier question | Answer in the implementation |
+|---|---|
+| 1. Create | `POST /api/v1/custom-lessons/requests`, 202, Idempotency-Key, account learner only |
+| 2. Status | `GET .../requests/{id}`: queued, generating, ready, failed, cancelled, rejected; no estimate field (the UI shows a rough range) |
+| 3. Plan review | Not implemented: no outline step. Open question below |
+| 4. Cancel / retry | Cancel while queued/generating; retry = a new request |
+| 5. List | `GET /api/v1/custom-lessons` |
+| 6. Get a lesson | `GET /api/v1/custom-lessons/{id}` (no answer keys) + server-side answers endpoint |
+| 7. Languages | `GET .../languages`; every generated lesson is `answer_key` or `practice_only`, never `server_verified` |
+| 8. Verification mode | Per challenge: `answer_key` (options) or `practice_only` (explain) |
+| 9. Errors | Typed codes, see section 12 |
+| 10. Report a problem | No endpoint; the viewer uses `NEXT_PUBLIC_SUPPORT_EMAIL` when set |
+| 11. Privacy | Prompt fields are stored with the request (needed to generate); no raw prompts/model output stored or logged; sent to Gemini under the free-tier terms. Retention: open question |
+
+### Still open (for the AI-backend owner)
+
+- Who reviews generated lessons, and should any review happen before learners see them?
+- How long are requests, lessons and answers kept? Deletion today is per lesson only.
+- Should the per-process call ceiling and daily limit move to the durable accounting tables?
+- Plan review (outline approval) and a tutor for custom lessons: the tutor endpoint needs a
+  Trace learning session, so the custom-lesson viewer has no tutor panel yet.
+- Should "explain" answers ever be graded (by AI or rubric), or stay practice only?
+
+### Original questions (kept for history)
+
+1. **Create:** path, request body (the frontend sends only `{"prompt": "..."}`, the learner's
+   own message; language, level and length are for the backend to infer, see
+   `CustomLessonRequest`), Idempotency-Key rules, auth (account only?), and the response
+   (job id + status?). Should the response echo the language/level it understood, so the
+   tracker can show it?
+2. **Status:** path, the exact status values (the UI is designed for queued, outlining,
+   awaiting approval, generating, needs review, ready, failed, rejected, cancelled), a polling
+   interval or `Retry-After`, and whether an estimated wait is available.
+3. **Plan review:** does generation return an outline the learner approves (edit titles,
+   remove lessons, change level)? Path and body for "approve" and for edits.
+4. **Cancel and retry:** are they allowed, and in which states?
+5. **List:** `GET` for the learner's lessons with status, language, level and
+   `verification_mode`, for "My lessons".
+6. **Get a ready lesson:** does it reuse `GET /lessons/{lesson_id}` and the existing
+   session/attempt/verify endpoints, or a new viewer contract? Which challenge types exist?
+7. **Supported languages:** an endpoint, or is the frontend table the source? Which
+   language + framework pairs can be `server_verified` today (we assume only Python + FastAPI
+   request lessons, and say so as "Expected" in the composer)?
+8. **Verification mode per lesson:** confirm the values `server_verified`, `answer_key`,
+   `practice_only` and that the UI may say "Checked on a real server" only for
+   `server_verified`.
+9. **Errors:** codes for rate limit (with retry hint), daily quota reached, content-policy
+   rejection (with a safe rewrite hint), provider unavailable, not signed in.
+10. **Reporting a problem** with a generated lesson: an endpoint, or a support email?
+11. **Privacy:** is the prompt or pasted code stored, for how long, and is it sent to Gemini
+    under free-tier data-use terms? Proposed types: `CustomLessonRequest`, `CustomLessonStatus`,
 `CustomLessonSummary`, `GeneratedLesson`, `GeneratedChallenge` in `src/lib/ai/contracts.ts`.
 The UI reads lessons through `src/lib/learning/lesson-source.ts` (`catalogSource`,
 `generatedSource`); only `generatedSource` changes when this ships.

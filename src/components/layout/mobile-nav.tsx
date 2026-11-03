@@ -2,7 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { navLinks } from "./nav-links";
+import { createCta, navLinks } from "./nav-links";
 
 /**
  * Phone menu: opens with a short fade and slide (CSS, reduced-motion safe), traps
@@ -90,6 +90,15 @@ export function MobileNav() {
               </a>
             </li>
           ))}
+          <li>
+            <a
+              href={createCta.href}
+              onClick={() => setOpen(false)}
+              className="flex min-h-12 items-center rounded-xl px-4 text-[1rem] font-medium tracking-[-0.01em] text-foreground transition-colors duration-[180ms] hover:bg-surface-muted"
+            >
+              {createCta.label}
+            </a>
+          </li>
         </ul>
       </div>
     </div>

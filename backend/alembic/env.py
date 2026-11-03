@@ -5,6 +5,7 @@ from alembic import context
 from app.core.settings import Settings
 from app.db import (
     accounting_models,  # noqa: F401 -- durable AI controls
+    custom_lesson_models,  # noqa: F401 -- learner-requested lessons (additive)
     knowledge_models,  # noqa: F401 -- register additive archive metadata
     models,  # noqa: F401 -- register mapped product tables for migration metadata
 )

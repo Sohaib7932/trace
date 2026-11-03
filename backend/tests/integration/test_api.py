@@ -24,7 +24,18 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
     response = client.get("/api/v1/health/live")
     assert response.status_code == 200 and response.json() == {"status": "alive"}
     schema = client.get("/openapi.json").json()
-    assert set(schema["paths"]) == {
+    # Learner-requested lessons (additive feature) are checked separately below.
+    custom_lessons = {path for path in schema["paths"] if path.startswith("/api/v1/custom-lessons")}
+    assert custom_lessons == {
+        "/api/v1/custom-lessons",
+        "/api/v1/custom-lessons/languages",
+        "/api/v1/custom-lessons/requests",
+        "/api/v1/custom-lessons/requests/{request_id}",
+        "/api/v1/custom-lessons/requests/{request_id}/cancel",
+        "/api/v1/custom-lessons/{lesson_id}",
+        "/api/v1/custom-lessons/{lesson_id}/challenges/{challenge_id}/answers",
+    }
+    assert set(schema["paths"]) - custom_lessons == {
         "/api/v1/health/live",
         "/api/v1/health/ready",
         "/api/v1/learners/anonymous",

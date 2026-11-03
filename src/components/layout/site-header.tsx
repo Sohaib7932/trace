@@ -6,7 +6,10 @@ import { MobileNav } from "./mobile-nav";
 import { NavScroll } from "./nav-scroll";
 import { navLinks, primaryCta } from "./nav-links";
 
-export function SiteHeader() {
+type Cta = { href: string; label: string };
+
+/** `cta` is the one primary action for this page; `null` hides it (the page has its own). */
+export function SiteHeader({ cta = primaryCta }: { cta?: Cta | null } = {}) {
   return (
     <header id="site-header" className="site-header enter-down sticky top-0 z-40 px-3 pt-3 sm:px-4 sm:pt-[18px]">
       <nav
@@ -34,9 +37,11 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-1">
           <AccountLink />
-          <ButtonLink href={primaryCta.href} size="sm">
-            {primaryCta.label}
-          </ButtonLink>
+          {cta && (
+            <ButtonLink href={cta.href} size="sm">
+              {cta.label}
+            </ButtonLink>
+          )}
           <MobileNav />
         </div>
       </nav>

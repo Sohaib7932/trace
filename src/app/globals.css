@@ -2320,3 +2320,334 @@
     color: var(--primary-ink);
   }
 }
+
+/* Lesson composer, "Start here" and "How it works" (learning app: calm surfaces, no ambient gradients) */
+@layer components {
+  /* Chat-style composer: one large message box with a warm, static glow when focused */
+  .chat-composer {
+    position: relative;
+    border: 1px solid var(--border-strong);
+    border-radius: 24px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.05), 0 24px 60px -36px rgba(21, 25, 35, 0.35);
+    transition: border-color var(--dur-state) var(--ease-ui), box-shadow var(--dur-state) var(--ease-ui);
+  }
+  .chat-wrap { position: relative; isolation: isolate; }
+  .chat-wrap::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -18px -24px;
+    border-radius: 40px;
+    background: radial-gradient(60% 70% at 30% 40%, rgba(255, 129, 57, 0.22), transparent 70%),
+      radial-gradient(50% 60% at 80% 70%, rgba(232, 116, 59, 0.16), transparent 70%);
+    filter: blur(18px);
+    opacity: 0.55;
+    transition: opacity var(--dur-state) var(--ease-ui);
+    pointer-events: none;
+  }
+  .chat-wrap[data-focused] .chat-composer { border-color: var(--foreground); box-shadow: 0 0 0 4px var(--primary-soft), 0 24px 60px -36px rgba(21, 25, 35, 0.35); }
+  .chat-wrap[data-focused]::before { opacity: 1; }
+  .chat-input {
+    display: block;
+    width: 100%;
+    min-height: 168px;
+    max-height: 50vh;
+    resize: none;
+    field-sizing: content;
+    border: 0;
+    border-radius: 24px 24px 0 0;
+    background: transparent;
+    padding: 22px 24px 8px;
+    color: var(--foreground);
+    font-size: 1.125rem;
+    line-height: 1.6;
+  }
+  .chat-input:focus { outline: none; }
+  .chat-input::placeholder { color: var(--text-secondary); opacity: 1; }
+  .chat-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px 12px 24px;
+  }
+  .chat-send {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--foreground);
+    color: #fff;
+    transition: transform var(--dur-micro) var(--ease-ui), background-color var(--dur-micro) var(--ease-ui);
+  }
+  .chat-send:hover:not(:disabled) { transform: translateY(-1px); background: #2a3040; }
+  .chat-send:disabled { cursor: not-allowed; background: var(--surface-muted); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  @media (max-width: 639px) {
+    .chat-input { min-height: 148px; padding: 18px 18px 6px; font-size: 1.0625rem; }
+    .chat-toolbar { padding: 8px 10px 10px 18px; }
+  }
+  .composer-chip {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    padding: 0 14px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.04);
+    transition: border-color var(--dur-micro) var(--ease-ui), background-color var(--dur-micro) var(--ease-ui), transform var(--dur-micro) var(--ease-ui);
+  }
+  .composer-chip:hover { border-color: var(--border-strong); background: var(--surface-muted); transform: translateY(-1px); }
+  .live-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+  @media (prefers-reduced-motion: no-preference) {
+    .live-dot { animation: live-pulse 2.4s var(--ease-ui) infinite; }
+  }
+  @keyframes live-pulse { 50% { box-shadow: 0 0 0 6px transparent; } }
+  .next-steps { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); padding: 20px; }
+  .composer-preview {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff 0%, #fffaf6 100%);
+    padding: 20px;
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.04), 0 18px 40px -28px rgba(21, 25, 35, 0.25);
+  }
+  /* "What you'll get": a thin trace line through the items (follow the signal) */
+  .composer-trace { position: relative; padding-left: 22px; }
+  .composer-trace::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 5px;
+    width: 1px;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--border-strong) 100%);
+  }
+  .composer-trace > li { position: relative; }
+  .composer-trace > li::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: -21px;
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid var(--primary);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .create-card {
+    border: 1px solid #f3d3bd;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #fff 0%, #fff6ef 100%);
+  }
+  .start-step { position: relative; border-radius: 14px; background: var(--surface); padding: 16px 16px 8px 52px; }
+  .start-num {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--foreground);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .how-dialog {
+    position: fixed;
+    z-index: 59;
+    inset: 0;
+    width: min(560px, calc(100vw - 24px));
+    height: fit-content;
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    overflow-y: auto;
+    border-radius: 20px;
+    background: var(--surface);
+    padding: 28px 24px 24px;
+    box-shadow: var(--shadow-window);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .how-dialog { animation: enter 240ms var(--ease-ui) both; }
+  }
+}
+
+/* Custom lessons: composer fine-tune, generation tracker, lesson viewer, My lessons */
+@layer components {
+  .chat-send[data-ready]:not(:disabled) {
+    background: linear-gradient(180deg, #ff934f 0%, #ff7a2e 100%);
+    color: var(--foreground);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 20px -8px rgba(255, 122, 46, 0.6);
+  }
+  .chat-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .chat-spinner { animation: spin 0.8s linear infinite; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .fine-tune { border-top: 1px solid var(--border); padding-top: 4px; }
+  .fine-tune > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 500;
+  }
+  .fine-tune > summary::-webkit-details-marker { display: none; }
+  .fine-input {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 10px 12px;
+    font-size: 0.9375rem;
+  }
+  .fine-input:focus { outline: none; border-color: var(--foreground); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .fine-pill {
+    display: inline-flex;
+    min-height: 44px;
+    cursor: pointer;
+    align-items: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 11px;
+    background: var(--surface);
+    padding: 0 14px;
+    font-size: 0.875rem;
+    transition: background-color var(--dur-micro) var(--ease-ui), border-color var(--dur-micro) var(--ease-ui);
+  }
+  .fine-pill:hover { background: var(--surface-muted); }
+  .fine-pill[data-checked] { border-color: var(--foreground); background: var(--foreground); color: #fff; font-weight: 500; }
+  .fine-pill:has(input:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 2px; }
+
+  .tracker-card {
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    padding: clamp(20px, 4vw, 36px);
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.04), 0 24px 60px -40px rgba(21, 25, 35, 0.35);
+  }
+  /* The trace line: nodes joined by a line that fills as the request moves on */
+  .trace-steps { display: grid; gap: 18px; position: relative; }
+  @media (min-width: 640px) { .trace-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; } }
+  .trace-step { position: relative; display: flex; align-items: flex-start; gap: 12px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); }
+  @media (min-width: 640px) { .trace-step { flex-direction: column; } }
+  .trace-node {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: #fff;
+  }
+  .trace-step::after {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 30px;
+    width: 2px;
+    height: calc(100% - 12px);
+    background: var(--border);
+  }
+  .trace-step:last-child::after { display: none; }
+  @media (min-width: 640px) {
+    .trace-step::after { left: 32px; top: 13px; width: calc(100% - 26px); height: 2px; }
+  }
+  .trace-step[data-state="done"] { color: var(--foreground); }
+  .trace-step[data-state="done"] .trace-node { border-color: var(--success); background: var(--success); }
+  .trace-step[data-state="done"]::after { background: var(--success); }
+  .trace-step[data-state="active"] { color: var(--foreground); }
+  .trace-step[data-state="active"] .trace-node { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
+  .trace-step[data-state="active"] .trace-node::before { content: ""; width: 10px; height: 10px; border-radius: 999px; background: var(--primary); }
+  .trace-step[data-state="active"]::after { background: linear-gradient(90deg, var(--primary), var(--border)); }
+  .trace-step[data-state="stopped"] { color: var(--error); }
+  .trace-step[data-state="stopped"] .trace-node { border-color: var(--error); background: var(--error); }
+  @media (prefers-reduced-motion: no-preference) {
+    .trace-step[data-state="active"] .trace-node { animation: trace-pulse 1.6s var(--ease-ui) infinite; }
+    .trace-step[data-state="active"]::after {
+      background: linear-gradient(90deg, var(--border) 0%, var(--primary) 50%, var(--border) 100%);
+      background-size: 200% 100%;
+      animation: trace-flow 1.6s linear infinite;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) and (max-width: 639px) {
+    .trace-step[data-state="active"]::after { background: linear-gradient(180deg, var(--border) 0%, var(--primary) 50%, var(--border) 100%); background-size: 100% 200%; }
+  }
+  @keyframes trace-pulse { 50% { box-shadow: 0 0 0 8px rgba(255, 129, 57, 0.08); } }
+  @keyframes trace-flow { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+  .challenge-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: clamp(18px, 3vw, 28px);
+    transition: border-color var(--dur-state) var(--ease-ui);
+  }
+  .challenge-card[data-result="correct"] { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+  .challenge-card[data-result="incorrect"] { border-color: color-mix(in srgb, var(--error) 35%, var(--border)); }
+  .answer-option {
+    display: flex;
+    min-height: 48px;
+    cursor: pointer;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 10px 14px;
+    transition: background-color var(--dur-micro) var(--ease-ui), border-color var(--dur-micro) var(--ease-ui);
+  }
+  .answer-option:hover { background: var(--surface-muted); }
+  .answer-option[data-checked] { border-color: var(--foreground); box-shadow: inset 0 0 0 1px var(--foreground); }
+  .answer-option:has(input:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 2px; }
+  .answer-letter {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--surface-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .answer-option[data-checked] .answer-letter { background: var(--foreground); color: #fff; }
+  .answer-result { border-left: 3px solid var(--border-strong); padding: 4px 0 4px 14px; }
+  .challenge-card[data-result="correct"] .answer-result { border-left-color: var(--success); }
+  .challenge-card[data-result="incorrect"] .answer-result { border-left-color: var(--error); }
+
+  .my-lesson-card {
+    display: block;
+    height: 100%;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 16px 18px;
+    transition: border-color var(--dur-micro) var(--ease-ui), transform var(--dur-micro) var(--ease-ui);
+  }
+  .my-lesson-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+}

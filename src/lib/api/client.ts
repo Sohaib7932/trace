@@ -68,12 +68,12 @@ async function accessToken(refresh = false): Promise<string | undefined> {
   return result.data.session?.access_token;
 }
 
-type RequestOptions = { signal?: AbortSignal; refreshOn401?: boolean };
+type RequestOptions = { signal?: AbortSignal; refreshOn401?: boolean; method?: "DELETE" };
 
 async function send(path: string, body: object | undefined, key: string | undefined, token: string | undefined, options: RequestOptions = {}): Promise<Response> {
   try {
     return await fetch(`${baseUrl()}/api/v1${path}`, {
-      method: body === undefined ? "GET" : "POST",
+      method: options.method ?? (body === undefined ? "GET" : "POST"),
       credentials: "include",
       cache: "no-store",
       signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(35_000)]) : AbortSignal.timeout(35_000),
@@ -157,4 +157,32 @@ export const aiApi = {
     `/sessions/${encodeURIComponent(sessionId)}/tutor/ask`, body, undefined, { signal, refreshOn401: false },
   ),
   support: (question: string, signal?: AbortSignal) => request<Schema["SupportResponse"]>("/support/ask", { question }, undefined, { signal, refreshOn401: false }),
+};
+
+// ---------- Learner-requested (custom) lessons ----------
+// Answer keys never reach the browser: answers are checked by POST .../answers on the server.
+export type CustomLessonRequestCreate = Schema["CustomLessonRequestCreate"];
+export type CustomLessonRequest = Schema["CustomLessonRequestView"];
+export type CustomLessonSummary = Schema["CustomLessonSummary"];
+export type CustomLesson = Schema["CustomLessonView"];
+export type CustomChallenge = Schema["ChallengeView"];
+export type CustomAnswerResult = Schema["AnswerResult"];
+export type CustomLessonLanguages = Schema["LanguageList"];
+
+const lessonPath = (id: string) => `/custom-lessons/${encodeURIComponent(id)}`;
+
+export const customLessonsApi = {
+  languages: () => request<CustomLessonLanguages>("/custom-lessons/languages"),
+  /** AI work: never replayed automatically after a 401. The key makes a manual retry safe. */
+  create: (body: CustomLessonRequestCreate, key: string) =>
+    request<CustomLessonRequest>("/custom-lessons/requests", body, key, { refreshOn401: false }),
+  status: (id: string, signal?: AbortSignal) =>
+    request<CustomLessonRequest>(`/custom-lessons/requests/${encodeURIComponent(id)}`, undefined, undefined, { signal }),
+  cancel: (id: string) =>
+    request<CustomLessonRequest>(`/custom-lessons/requests/${encodeURIComponent(id)}/cancel`, {}, undefined, { refreshOn401: false }),
+  list: () => request<Schema["CustomLessonList"]>("/custom-lessons"),
+  get: (id: string) => request<CustomLesson>(lessonPath(id)),
+  remove: (id: string) => request<void>(lessonPath(id), undefined, undefined, { method: "DELETE" }),
+  answer: (lessonId: string, challengeId: string, body: Schema["AnswerCreate"], key: string) =>
+    request<CustomAnswerResult>(`${lessonPath(lessonId)}/challenges/${encodeURIComponent(challengeId)}/answers`, body, key, { refreshOn401: false }),
 };

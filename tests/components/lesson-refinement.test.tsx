@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Progress } from "@/lib/api/client";
 import { TutorPanel, stepLabel } from "@/components/learning/tutor/tutor-panel";
-import { CreateCustomLesson, YourLessons } from "@/components/learning/hub/custom-lessons";
+import { MyLessons } from "@/components/learning/hub/custom-lessons";
 import { generatedSource, catalogSource } from "@/lib/learning/lesson-source";
 import { lessons } from "@/content/lessons";
 import { attemptBody, editRows } from "@/lib/learning/edits";
@@ -93,35 +93,20 @@ test("the docked tutor collapses to a rail and back; focus follows and chat hist
 });
 
 // ---------- Library ----------
-test("the catalog lists only real Trace lessons; generated lessons are unavailable and empty", () => {
+test("the catalog lists only real Trace lessons; created lessons come from the real API", () => {
   expect(catalogSource.list()).toBe(lessons);
-  expect(generatedSource.status).toBe("unavailable");
-  expect(generatedSource.list()).toEqual([]);
+  expect(generatedSource.status).toBe("available");
+  expect(generatedSource.endpoint).toBe("/api/v1/custom-lessons");
 });
 
-test("Your lessons shows an honest empty state", () => {
-  render(<YourLessons />);
-  expect(screen.getByRole("heading", { name: "Your lessons" })).toBeVisible();
-  expect(screen.getByText("Custom lessons you create will appear here.")).toBeVisible();
-});
-
-test("the custom lesson form is disabled, says why, and makes no network request", async () => {
-  const fetchSpy = vi.fn();
-  vi.stubGlobal("fetch", fetchSpy);
-  const user = userEvent.setup();
-  render(<CreateCustomLesson />);
-  const topic = screen.getByLabelText("What do you want to learn?");
-  expect(topic).toHaveAttribute("placeholder", "I want to learn FastAPI authentication from beginner to intermediate with practical exercises");
-  await user.type(topic, "FastAPI dependencies");
-  expect(screen.getByLabelText("Starting level")).toHaveValue("beginner");
-  expect(screen.getByLabelText("Target level")).toHaveValue("intermediate");
-  expect(screen.getByLabelText("Prefer practical exercises")).toBeChecked();
-  const submit = screen.getByRole("button", { name: "Create lesson" });
-  expect(submit).toBeDisabled();
-  expect(submit).toHaveAccessibleDescription("Coming soon: custom lessons are being built.");
-  await user.click(submit);
-  await user.keyboard("{Enter}");
-  expect(screen.getByRole("complementary", { name: "Preview of the format" })).toHaveTextContent(/Coding challenges/);
+test("My lessons shows an honest empty state with one way in", () => {
+  const fetchSpy = vi.fn(); vi.stubGlobal("fetch", fetchSpy);
+  render(<MyLessons />);
+  expect(screen.getByRole("heading", { name: "My lessons" })).toBeVisible();
+  expect(screen.getByText("You haven't created a lesson yet.")).toBeVisible();
+  expect(screen.getByRole("link", { name: /^Create a lesson/ })).toHaveAttribute("href", "/learn/new");
+  expect(screen.getByRole("link", { name: "FastAPI request checks" }).getAttribute("href")).toMatch(/^\/learn\/new\?prompt=/);
+  expect(screen.queryByText(/Coming soon/i)).toBeNull();
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
