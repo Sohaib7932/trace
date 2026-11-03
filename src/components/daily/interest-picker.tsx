@@ -13,7 +13,9 @@ import { ErrorNotice } from "@/components/learning/error-notice";
  * client; the real client throws "endpoint not available yet" until the API exists.
  */
 export function InterestPicker({ onDone, compact = false }: { onDone?: (ids: string[]) => void; compact?: boolean }) {
-  const daily = useMemo(() => createAiClients().daily, []);
+  // No interests endpoint exists yet, so this design preview always uses the labelled browser-only
+  // demo client, even when the tutor and Trace Help run in real mode.
+  const daily = useMemo(() => createAiClients("mock").daily, []);
   const [catalog, setCatalog] = useState<Interest[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -41,7 +43,7 @@ export function InterestPicker({ onDone, compact = false }: { onDone?: (ids: str
     <section aria-labelledby="interests-title" className={compact ? "" : "hub-card p-5 sm:p-6"}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 id="interests-title" className={compact ? "text-[1.0625rem] font-semibold" : "type-h3"}>Your interests</h2>
-        <DemoLabel text="Demo-only" />
+        <DemoLabel text="Demo-only" mode={daily.mode} />
       </div>
       <p className="mt-2 max-w-[62ch] text-[0.9375rem] leading-relaxed text-secondary">Pick 1 to {MAX_INTERESTS} topics. Exercises will use them as the setting (a workout log, an order form), still in Python and FastAPI. Saved only in this browser for now.</p>
       {error ? <ErrorNotice error={error} className="mt-4" /> : !catalog ? <p role="status" className="mt-4 text-secondary">Loading interests…</p> : (
