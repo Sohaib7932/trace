@@ -22,6 +22,7 @@ from app.schemas.support_http import SupportAskCreate
 from app.services.accounts import AccountService
 from app.services.feedback_operations import FeedbackOperations
 from app.services.support import SupportService
+from app.support.receipts import VersionedSupportAnswer
 
 router = APIRouter(
     prefix="/api/v1/support",
@@ -51,10 +52,10 @@ async def ask(
     if not isinstance(deadline, float):
         raise ApplicationError("dependency_unavailable", "Support is unavailable.", 503)
 
-    def operation() -> SupportResponse:
+    def operation() -> VersionedSupportAnswer:
         if clock() >= auth.identity.expires_at:
             raise LearningError("unauthenticated", "Account authorization expired.")
-        result = service.answer(
+        result = service.answer_with_provenance(
             SupportQuestion(question=body.question),
             subject="support:" + hashlib.sha256(str(auth.account.id).encode()).hexdigest(),
         )
@@ -66,4 +67,11 @@ async def ask(
             raise LearningError("unauthenticated", "Account authorization changed.")
         return result
 
-    return await operations.execute_account(auth.account.id, operation, deadline=deadline)
+    result = await operations.execute_account(auth.account.id, operation, deadline=deadline)
+    receipt = result.safe_receipt()
+    if receipt is not None:
+        request.app.state.logger.info(
+            "support_answer_released",
+            extra={"request_id": request.state.request_id, "support_provenance": receipt},
+        )
+    return result.response

@@ -12,7 +12,15 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "event": record.msg,
         }
-        for key in ("request_id", "method", "route", "status_code", "duration_ms", "error_type"):
+        for key in (
+            "request_id",
+            "method",
+            "route",
+            "status_code",
+            "duration_ms",
+            "error_type",
+            "support_provenance",
+        ):
             if hasattr(record, key):
                 result[key] = getattr(record, key)
         return json.dumps(result)
