@@ -6,6 +6,7 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, Request
 
 from app.ai.observability import record_ai_delivery
+from app.ai.support_diagnostics import observe_support, support_logger_observer
 from app.api.dependencies import (
     current_account,
     get_account_service,
@@ -55,6 +56,9 @@ async def ask(
     deadline = getattr(request.state, "support_deadline", None)
     if not isinstance(deadline, float):
         raise ApplicationError("dependency_unavailable", "Support is unavailable.", 503)
+    observer = support_logger_observer(
+        request.app.state.logger, request_id=getattr(request.state, "request_id", None)
+    )
 
     def operation() -> VersionedSupportAnswer:
         if clock() >= auth.identity.expires_at:
@@ -83,14 +87,20 @@ async def ask(
                 )
             except LearningError as error:
                 if error.code in {"unauthenticated", "forbidden"}:
+                    observe_support(
+                        observer, "release", "unauthorized", len(result.response.references)
+                    )
                     raise
+                observe_support(observer, "release", "unavailable", len(result.response.references))
                 raise ApplicationError(
                     "dependency_unavailable", "Support sources are unavailable.", 503
                 ) from None
             except Exception:
+                observe_support(observer, "release", "failed", len(result.response.references))
                 raise ApplicationError(
                     "dependency_unavailable", "Support is unavailable.", 503
                 ) from None
+            observe_support(observer, "release", "authorized", len(result.response.references))
         return result
 
     result = await operations.execute_account(auth.account.id, operation, deadline=deadline)

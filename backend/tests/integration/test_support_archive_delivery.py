@@ -1,5 +1,8 @@
 """Request-bound retrieval and durable release integration with synthetic providers."""
 
+import io
+import json
+import logging
 from uuid import uuid4
 
 import pytest
@@ -11,6 +14,7 @@ from app.api.dependencies import get_http_support_service
 from app.auth.jwt import JwtVerifier
 from app.core.accounting_settings import AccountingSettings
 from app.core.embedding_settings import EmbeddingSettings
+from app.core.logging import JsonFormatter
 from app.db import knowledge_models as k
 from app.main import create_app
 from app.schemas.support import SupportQuestion, SupportSelection, SupportSelectionResult
@@ -120,6 +124,10 @@ def test_http_durable_mode_persists_release_or_withholds_every_quote(
     app.dependency_overrides[get_http_support_service] = lambda: SupportService(
         SelectingAssistant(), archive.knowledge
     )
+    diagnostics = io.StringIO()
+    handler = logging.StreamHandler(diagnostics)
+    handler.setFormatter(JsonFormatter())
+    app.state.logger.addHandler(handler)
     if fail_receipt:
 
         def unavailable(*args, **kwargs):
@@ -147,3 +155,13 @@ def test_http_durable_mode_persists_release_or_withholds_every_quote(
     else:
         assert response.status_code == 200 and response.json()["status"] == "answered"
         assert count == 1
+    release = [
+        event
+        for line in diagnostics.getvalue().splitlines()
+        if (event := json.loads(line)).get("support_stage") == "release"
+    ]
+    assert [event["support_reason"] for event in release] == [
+        "failed" if fail_receipt else "authorized"
+    ]
+    assert all(event["request_id"] == response.headers["X-Request-ID"] for event in release)
+    assert "synthetic-private" not in diagnostics.getvalue()

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.ai.accounting import AdmissionPolicy, AIAccountingError, SharedAdmission
 from app.ai.resources import AIResources, AITransportFactory, EmbeddingTransportFactory
+from app.ai.support_diagnostics import record_support_runtime
 from app.api.v1.accounts import router as account_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.knowledge_admin import router as knowledge_admin_router
@@ -256,6 +257,40 @@ def create_app(
                     ),
                 )
             app.state.ai_resources = ai
+            available: bool | None = None
+            source_count: int | None = None
+            try:
+                active_knowledge = ai.support.knowledge
+                snapshot_loader = getattr(
+                    active_knowledge.knowledge
+                    if isinstance(active_knowledge, SemanticSupportKnowledge)
+                    else active_knowledge,
+                    "snapshot",
+                    None,
+                )
+                if callable(snapshot_loader):
+                    snapshot = snapshot_loader()
+                    available = snapshot.available
+                    source_count = len(snapshot.sources)
+                else:
+                    available, source_count = active_knowledge.available, 0
+            except Exception:
+                pass  # Knowledge availability does not change readiness or bypass review.
+            record_support_runtime(
+                app.state.logger,
+                ai_mode=ai_config.mode,
+                accounting_mode=accounting_config.mode,
+                retrieval_mode=retrieval_config.mode,
+                knowledge_backend="semantic_archive"
+                if retrieval_config.mode != "lexical"
+                else "sql_archive"
+                if knowledge is not None
+                else "reviewed_file"
+                if ai_config.mode == "gemini_free"
+                else "empty_allowlist",
+                available=available,
+                source_count=source_count,
+            )
             app.state.candidate_generation = CandidateGenerationService(
                 ai.question_generator,
                 CandidateLifecycleService(

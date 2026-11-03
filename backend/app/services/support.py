@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from app.ai.support_assistant import SupportAssistant
+from app.ai.support_diagnostics import SupportObserver, observe_support
 from app.repositories.support_knowledge import ApprovedSupportKnowledge, SupportKnowledge
 from app.schemas.support import (
     SupportEscalation,
@@ -25,9 +26,11 @@ class SupportService:
         *,
         escalation: SupportEscalation | None = None,
         remaining_seconds: Callable[[], float] | None = None,
+        observer: SupportObserver | None = None,
     ) -> None:
         self.assistant = assistant
         self.remaining_seconds = remaining_seconds
+        self.observer = observer
         self.knowledge = knowledge if knowledge is not None else ApprovedSupportKnowledge()
         self.escalation = (
             SupportEscalation.model_validate(escalation.model_dump(warnings=False))
@@ -57,6 +60,7 @@ class SupportService:
             if isinstance(self.knowledge, SemanticSupportKnowledge):
                 remaining = self.remaining_seconds() if self.remaining_seconds else None
                 if remaining is not None and remaining <= 0:
+                    observe_support(self.observer, "retrieval", "deadline_exhausted")
                     return finish(unavailable)
                 outcome = self.knowledge.retrieve_with_snapshot(
                     checked, timeout_seconds=remaining, subject=subject
@@ -72,21 +76,31 @@ class SupportService:
             )
             knowledge = snapshot if snapshot is not None else self.knowledge
             if not knowledge.available:
+                observe_support(self.observer, "knowledge", "unavailable")
+                if snapshot is not None:
+                    for issue in getattr(snapshot, "issues", ()):
+                        observe_support(self.observer, "knowledge", issue.code)
                 return finish(unavailable)
+            observe_support(self.observer, "knowledge", "available")
             received = outcome.matches if outcome is not None else knowledge.retrieve(checked)
             if type(received) is not tuple or len(received) > 3:
+                observe_support(self.observer, "retrieval", "invalid_matches")
                 return finish(unavailable)
             passages = tuple(
                 SupportMatch.model_validate(p.model_dump(warnings=False)) for p in received
             )
             if len({passage.passage_id for passage in passages}) != len(passages):
+                observe_support(self.observer, "retrieval", "duplicate_passages", len(passages))
                 return finish(unavailable)
             versions = tuple(snapshot.resolve(passage) for passage in passages) if snapshot else ()
             if any(version is None for version in versions):
+                observe_support(self.observer, "retrieval", "unresolved_version", len(passages))
                 return finish(unavailable)
         except Exception:
+            observe_support(self.observer, "retrieval", "failed")
             return finish(unavailable)
         if not passages:
+            observe_support(self.observer, "retrieval", "no_sources", 0)
             return finish(
                 SupportResponse(
                     status="no_sources",
@@ -95,16 +109,21 @@ class SupportService:
                     escalation=self.escalation,
                 )
             )
+        observe_support(self.observer, "retrieval", "ready", len(passages))
         if self.assistant is None:
+            observe_support(self.observer, "provider", "missing_assistant", len(passages))
             return finish(unavailable)
         try:
             if self.remaining_seconds is not None and self.remaining_seconds() <= 0:
+                observe_support(self.observer, "provider", "deadline_exhausted", len(passages))
                 return finish(unavailable)
             result = self.assistant.select(checked, passages, subject=subject)
             if result is None:
+                observe_support(self.observer, "provider", "result_unavailable", len(passages))
                 return finish(unavailable)
             result = SupportSelectionResult.model_validate(result.model_dump(warnings=False))
         except Exception:
+            observe_support(self.observer, "provider", "failed", len(passages))
             return finish(unavailable)
         selection = result.selection
         # Recheck the same source scope after slow provider work. Expired, edited
@@ -112,6 +131,7 @@ class SupportService:
         try:
             if outcome is not None and isinstance(self.knowledge, SemanticSupportKnowledge):
                 if not self.knowledge.revalidate(outcome):
+                    observe_support(self.observer, "source_validation", "changed", len(passages))
                     return finish(unavailable)
             elif snapshot is not None and isinstance(self.knowledge, VersionedSupportKnowledge):
                 fresh = self.knowledge.snapshot()
@@ -121,16 +141,22 @@ class SupportService:
                     or tuple(fresh.reconstruct(version) for version in versions if version)
                     != passages
                 ):
+                    observe_support(self.observer, "source_validation", "changed", len(passages))
                     return finish(unavailable)
             elif not self.knowledge.available or self.knowledge.retrieve(checked) != passages:
+                observe_support(self.observer, "source_validation", "changed", len(passages))
                 return finish(unavailable)
         except Exception:
+            observe_support(self.observer, "source_validation", "failed", len(passages))
             return finish(unavailable)
+        observe_support(self.observer, "source_validation", "verified", len(passages))
         by_id = {passage.passage_id: passage for passage in passages}
         if not set(selection.passage_ids) <= by_id.keys():
+            observe_support(self.observer, "selection", "invalid_citation", len(passages))
             return finish(unavailable)
         fixture = any(passage.approval == "test_fixture" for passage in passages)
         if selection.status == "unsupported":
+            observe_support(self.observer, "selection", "unsupported", len(passages))
             return finish(
                 SupportResponse(
                     status="unsupported",
@@ -139,6 +165,7 @@ class SupportService:
                     escalation=self.escalation,
                 )
             )
+        observe_support(self.observer, "selection", "answered", len(passages))
         response = SupportResponse(
             status="answered",
             message="Relevant approved documentation is quoted below.",

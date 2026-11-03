@@ -3,6 +3,7 @@ import logging
 from datetime import UTC, datetime
 
 from app.ai.observability import delivery_fields
+from app.ai.support_diagnostics import support_diagnostic_fields, support_runtime_fields
 
 
 class JsonFormatter(logging.Formatter):
@@ -36,6 +37,27 @@ class JsonFormatter(logging.Formatter):
             outcome = getattr(record, "ai_outcome", None)
             if type(outcome) is str and outcome == fields["ai_outcome"]:
                 result.update(fields)
+        except ValueError:
+            pass
+        try:
+            fields_support = support_diagnostic_fields(
+                getattr(record, "support_stage", None),
+                getattr(record, "support_reason", None),
+                getattr(record, "support_passage_count", None),
+            )
+            result.update(fields_support)
+        except ValueError:
+            pass
+        try:
+            runtime = support_runtime_fields(
+                getattr(record, "support_ai_mode", None),
+                getattr(record, "support_accounting_mode", None),
+                getattr(record, "support_retrieval_mode", None),
+                getattr(record, "support_knowledge_backend", None),
+                getattr(record, "support_knowledge_available", None),
+                getattr(record, "support_source_count", None),
+            )
+            result.update(runtime)
         except ValueError:
             pass
         return json.dumps(result)

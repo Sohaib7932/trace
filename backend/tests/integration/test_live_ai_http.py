@@ -295,7 +295,9 @@ def test_support_returns_exact_sources_and_does_not_create_learner_history(api):
         assert not list(db.scalars(select(m.LearningSession)))
     data = json.loads(api.provider.calls[0].data_json)
     assert set(data) == {"question", "reference_passages"}
-    assert all(set(p) == {"passage_id", "text"} for p in data["reference_passages"])
+    assert all(set(p) == {"passage_id", "title", "text"} for p in data["reference_passages"])
+    titles = {p.passage_id: d.title for d in api.state.package.documents for p in d.passages}
+    assert all(p["title"] == titles[p["passage_id"]] for p in data["reference_passages"])
 
 
 def test_support_unknown_question_has_no_sources_and_no_invented_answer(api):
