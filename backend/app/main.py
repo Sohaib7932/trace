@@ -1,6 +1,9 @@
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from threading import Thread
 
+import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,6 +33,17 @@ from app.services.candidate_lifecycle import CandidateLifecycleService
 from app.services.candidate_validation import CandidateValidationService
 from app.services.feedback_operations import FeedbackOperations
 from app.verification.candidate_runtime import IsolatedCandidateRuntime
+
+_SHUTDOWN_GRACE_SECONDS = 30.0
+
+
+def _drain_operations(operations: tuple[FeedbackOperations, ...], timeout: float | None) -> bool:
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    for operation in operations:
+        remaining = max(0, deadline - time.monotonic()) if deadline is not None else None
+        if not operation.wait_for_idle(remaining):
+            return False
+    return True
 
 
 def create_app(
@@ -121,15 +135,44 @@ def create_app(
             )
             yield
         finally:
-            try:
-                feedback_operations.close()
-                tutor_operations.close()
-                support_operations.close()
-                if ai is not None:
-                    ai.close()
-            finally:
-                if database is None:
-                    resource.dispose()
+            operations = (feedback_operations, tutor_operations, support_operations)
+            for operation in operations:
+                operation.close()
+            if ai is not None:
+                ai.client.stop_admission()
+
+            def dispose() -> None:
+                try:
+                    if ai is not None:
+                        ai.close()
+                finally:
+                    if database is None:
+                        resource.dispose()
+
+            # ASGI cancellation does not mean its abandoned sync worker stopped.
+            # Keep the DB/AI alive through fresh final authorization and readback.
+            with anyio.CancelScope(shield=True):
+                drained = await anyio.to_thread.run_sync(
+                    _drain_operations, operations, _SHUTDOWN_GRACE_SECONDS
+                )
+                if drained:
+                    await anyio.to_thread.run_sync(dispose)
+                else:
+                    # A cancellation-resistant injected implementation may exceed
+                    # the grace period. Do not destroy resources under its worker.
+                    # This retains ownership; it does not kill arbitrary threads.
+                    logger.warning("ai_shutdown_drain_deferred")
+
+                    def deferred_dispose() -> None:
+                        _drain_operations(operations, None)
+                        try:
+                            dispose()
+                        except Exception:
+                            logger.error("ai_shutdown_cleanup_failed")
+
+                    Thread(
+                        target=deferred_dispose, daemon=True, name="trace-shutdown-drain"
+                    ).start()
 
     app = FastAPI(title="Trace API", version="0.1.0", lifespan=lifespan)
     app.state.settings = config

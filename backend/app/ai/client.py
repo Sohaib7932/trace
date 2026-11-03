@@ -8,12 +8,14 @@ import json
 import math
 import time
 from collections.abc import Callable
-from threading import RLock
+from contextlib import suppress
+from threading import Condition, RLock
 from typing import Literal, Protocol
 
 from pydantic import TypeAdapter, ValidationError
 
-from app.core.ai_settings import AIClientSettings
+from app.ai.diagnostics import ProviderDiagnostics, ProviderOutcome
+from app.core.ai_settings import GEMINI_PROFILE, AIClientSettings
 from app.schemas.ai_client import (
     Capability,
     ClientCompletion,
@@ -26,7 +28,9 @@ from app.schemas.generation import CompletionStatus
 
 
 class AITransportError(Exception):
-    def __init__(self, code: ClientErrorCode) -> None:
+    def __init__(
+        self, code: ClientErrorCode, completion: TransportCompletion | None = None
+    ) -> None:
         try:
             self.code: ClientErrorCode = TypeAdapter[ClientErrorCode](
                 # The PEP 695 alias object is not type[T] to mypy. Its value is
@@ -35,6 +39,11 @@ class AITransportError(Exception):
             ).validate_python(code)
         except ValidationError:
             self.code = "transport_error"
+        # Failed content cannot escape through an exception. Supplied bounded
+        # usage/model metadata still belongs in accounting even on rejection.
+        self.completion = (
+            completion.model_copy(update={"text": None}) if completion is not None else None
+        )
         super().__init__("AI request failed")
 
 
@@ -56,11 +65,16 @@ class BoundedAIClient:
         self.settings = AIClientSettings.model_validate(settings.model_dump(warnings=False))
         self.transport, self.clock = transport, clock
         self._lock = RLock()
+        self._idle = Condition(self._lock)
         self._windows: dict[tuple[str, Capability], tuple[int, int]] = {}
         self._usage: dict[tuple[Capability, str | None], list[int]] = {}
         self._spent = 0
         self._closed = False
         self._live_attempts = 0
+        self._in_flight = 0
+        self._transport_closed = False
+        self._cleanup_failed = False
+        self._outcomes: dict[tuple[Capability, str], int] = {}
 
     @property
     def closed(self) -> bool:
@@ -68,17 +82,73 @@ class BoundedAIClient:
             return self._closed
 
     def close(self) -> None:
-        """End ownership once; optional transport cleanup does not change its protocol."""
+        """Stop admission; retain transport ownership until real work finishes."""
         with self._lock:
-            if self._closed:
-                return
             self._closed = True
+            if self._in_flight:
+                return
+        self._close_transport()
+
+    def stop_admission(self) -> None:
+        """Quiesce an application before draining its service-level work."""
+        with self._lock:
+            self._closed = True
+
+    def _close_transport(self) -> None:
+        with self._lock:
+            if self._transport_closed:
+                return
+            self._transport_closed = True
         try:
             cleanup = getattr(self.transport, "close", None)
             if callable(cleanup):
                 cleanup()
         except Exception:
+            with self._lock:
+                self._cleanup_failed = True
             raise RuntimeError("AI client cleanup failed.") from None
+
+    def wait_for_idle(self, timeout: float | None = None) -> bool:
+        """Wait for actual work, without claiming synchronous threads were killed."""
+        with self._idle:
+            return self._idle.wait_for(lambda: self._in_flight == 0, timeout=timeout)
+
+    def diagnostics_snapshot(self) -> ProviderDiagnostics:
+        with self._lock:
+            expected = "ai" if self.settings.mode == "gemini_free" else "test_fixture"
+            configured = self.transport is not None and self.transport.source == expected
+            return ProviderDiagnostics(
+                version="provider-diagnostics-v1",
+                mode=self.settings.mode,
+                availability=(
+                    "closed"
+                    if self._closed
+                    else "disabled"
+                    if self.settings.mode == "disabled"
+                    else "configured"
+                    if configured
+                    else "unconfigured"
+                ),
+                capability_profile=GEMINI_PROFILE if self.settings.mode == "gemini_free" else None,
+                capabilities=(
+                    ("generation", "tutor", "support")
+                    if self.settings.mode == "gemini_free"
+                    else ("generation", "tutor", "support", "feedback")
+                    if self.settings.mode == "mock"
+                    else ()
+                ),
+                in_flight=self._in_flight,
+                max_in_flight=self.settings.max_in_flight,
+                attempts=sum(value[0] for value in self._usage.values()),
+                outcomes=tuple(
+                    ProviderOutcome(capability=k[0], outcome=k[1], count=v)
+                    for k, v in sorted(self._outcomes.items())
+                ),
+                network_deadline_enforced=(
+                    getattr(self.transport, "network_deadline_enforced", False) is True
+                ),
+                cleanup_failed=self._cleanup_failed,
+            )
 
     def usage_snapshot(self) -> tuple[UsageRecord, ...]:
         with self._lock:
@@ -120,7 +190,11 @@ class BoundedAIClient:
                 "rate_limited": "rate_limited",
             }
             status: CompletionStatus = (
-                response.status if response else statuses.get(code or "", "unavailable")
+                statuses.get(code, "unavailable")
+                if code
+                else response.status
+                if response
+                else "unavailable"
             )
             if code in {
                 "transport_error",
@@ -132,9 +206,13 @@ class BoundedAIClient:
                 "transient_error",
             }:
                 status = "transport_error"
+            if capability in ("generation", "tutor", "support", "feedback"):
+                with self._lock:
+                    outcome_key = (capability, code or status)
+                    self._outcomes[outcome_key] = self._outcomes.get(outcome_key, 0) + 1
             return ClientCompletion(
                 status=status,
-                text=response.text if response else None,
+                text=response.text if response and code is None else None,
                 provider_id=(
                     "gemini"
                     if self.settings.mode == "gemini_free"
@@ -226,6 +304,8 @@ class BoundedAIClient:
             with self._lock:
                 if self._closed:
                     return result("disabled")
+                if self._in_flight >= self.settings.max_in_flight:
+                    return result("rate_limited")
                 if self.settings.mode == "gemini_free":
                     if self._live_attempts >= self.settings.max_live_requests_per_process:
                         return result("budget_exhausted")
@@ -236,6 +316,7 @@ class BoundedAIClient:
                 self._spent += reserve
                 usage = self._usage.setdefault((capability, model), [0, 0, 0, 0, 0])
                 usage[0] += 1
+                self._in_flight += 1
             error: ClientErrorCode | None = None
             response: TransportCompletion | None = None
             accounted = reserve
@@ -275,13 +356,19 @@ class BoundedAIClient:
                     error = "budget_exhausted"
                 elif (
                     response.returned_model_id != model
-                    and response.returned_model_id is not None
+                    and (
+                        response.returned_model_id is not None
+                        or self.settings.mode == "gemini_free"
+                    )
                     or response.status == "success"
                     and (text is None or not text.strip())
                 ):
                     error = "invalid_response"
             except AITransportError as exc:
                 error = exc.code
+                response = exc.completion
+                if response is not None and response.cost_microusd is not None:
+                    accounted = response.cost_microusd
             except (ValidationError, ValueError, TypeError, UnicodeError, AttributeError):
                 error = "invalid_response"
             except Exception:
@@ -302,6 +389,14 @@ class BoundedAIClient:
                         )
                     ):
                         usage[4] += 1
+                    self._in_flight -= 1
+                    self._idle.notify_all()
+                    cleanup = self._closed and self._in_flight == 0
+                if cleanup:
+                    # The safe failure is observable internally. Never leak
+                    # cleanup errors through a canceled request or late output.
+                    with suppress(RuntimeError):
+                        self._close_transport()
             # Work reserved before shutdown may finish, but its text cannot escape
             # a closed application resource and no further retry may start.
             if self.closed:
@@ -313,5 +408,5 @@ class BoundedAIClient:
                 attempt == self.settings.max_retries
                 or self.clock() - started >= self.settings.total_timeout_seconds
             ):
-                return result(error)
+                return result(error, response)
         return result("transport_error")

@@ -275,7 +275,14 @@ def test_provider_redirect_is_never_followed():
 
 
 @pytest.mark.parametrize(
-    "error,code", [(httpx.ReadTimeout, "timeout"), (httpx.ConnectError, "invalid_response")]
+    "error,code",
+    [
+        (httpx.ReadTimeout, "timeout"),
+        (httpx.ConnectError, "transient_error"),
+        (httpx.ReadError, "transient_error"),
+        (httpx.WriteError, "transient_error"),
+        (httpx.RemoteProtocolError, "transient_error"),
+    ],
 )
 def test_network_failures_never_leak_diagnostics_or_retry(error, code, capsys, caplog):
     calls = []
