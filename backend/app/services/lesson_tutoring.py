@@ -19,8 +19,15 @@ from app.schemas.lesson_assistant import (
     LessonStage,
     SupportedLesson,
 )
-from app.services.catalog import LESSON_ID, PUBLIC_CONTENT, TRANSFER_CONTENT
+from app.services.catalog import (
+    LESSON_ID,
+    PUBLIC_CONTENT,
+    TRANSFER_CONTENT,
+    lesson_hash,
+    transfer_hash,
+)
 from app.services.lesson_assistant import LessonAssistantService, build_lesson_assistant_request
+from app.services.tutor_guidance import stage_guidance
 
 # Authored from the actual FastAPI/Pydantic exercise contracts and trusted verification
 # implementation. These are production help text, not promoted mock-provider fixtures.
@@ -83,10 +90,16 @@ class LessonTutoringService:
                 raise LearningError("conflict", "The tutor is unavailable for this session.")
             lesson = read.lesson
             expected = PUBLIC_CONTENT if lesson.lesson_id == LESSON_ID else TRANSFER_CONTENT
+            expected_hash = (
+                lesson_hash(PUBLIC_CONTENT, "content", "rejected")
+                if lesson.lesson_id == LESSON_ID
+                else transfer_hash(TRANSFER_CONTENT)
+            )
             if (
                 lesson.version != "1.0.0"
                 or lesson.lesson_id not in {LESSON_ID, "fastapi-nested-payload-transfer"}
                 or lesson.public_content != expected
+                or lesson.content_hash != expected_hash
             ):
                 raise LearningError("conflict", "This pinned lesson is not supported by the tutor.")
             stages: dict[str, LessonStage] = {
@@ -96,7 +109,10 @@ class LessonTutoringService:
                 "needs_revision": "modify",
                 "completed": "verify",
             }
+            lesson_id = cast(SupportedLesson, lesson.lesson_id)
+            stage = stages[read.session.state]
             choices = dict(GUIDANCE, objective=lesson.public_content["objective"])
+            choices.update(stage_guidance(lesson_id, stage))
             attempts = read.learning.attempts(session_id)
             attempt_numbers = {attempt.id: attempt.number for attempt in attempts}
             runs = read.learning.runs(session_id)
@@ -137,8 +153,8 @@ class LessonTutoringService:
             }
             signature = hashlib.sha256(json.dumps(facts, sort_keys=True).encode()).hexdigest()
             request = build_lesson_assistant_request(
-                lesson_id=cast(SupportedLesson, lesson.lesson_id),
-                stage=stages[read.session.state],
+                lesson_id=lesson_id,
+                stage=stage,
                 public_content=lesson.public_content,
                 question=question,
             )
