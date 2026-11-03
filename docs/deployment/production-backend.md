@@ -175,6 +175,31 @@ command; its schema/admission summary was exercised without provider probes.
 This identifies a tested local artifact, not a published registry image or a
 completed deployment.
 
+Subsequent validation retained that exact application image. The final local
+infrastructure suite passed **16 tests on PostgreSQL 15 in 19.18 seconds** and
+**16 on PostgreSQL 17 in 17.42 seconds**: four actual TLS/proxy/container checks
+plus twelve deterministic Docker/readiness regressions per major.
+
+The first remote core PostgreSQL jobs passed their 36 production tests before
+infrastructure validation failed on Docker's removed
+`NetworkSettings.IPAddress` field. The initial PostgreSQL 17 pull-request
+artifact job additionally hit temporary initialization-server readiness before
+final TCP readiness, failing before inspection. The targeted harness repairs
+were `4bd6c2f` (supported per-network private IPv4 inspection) and `33c7495`
+(TCP readiness with the original 40-second bound and service health checks).
+No application implementation or image change was required.
+
+Both pinned PostgreSQL 15/17 jobs are verified successful for push and
+pull-request workflows at `33c7495`:
+[run 41619358254](https://github.com/Sohaib7932/trace/actions/runs/41619358254)
+and [run 41619351126](https://github.com/Sohaib7932/trace/actions/runs/41619351126).
+The separate `.gitattributes`-only Ubuntu checkout/hash repair `5a73995` changes
+neither protected migration content, recorded hashes nor test assertions. Its
+newer CI results were still pending at this evidence checkpoint; do not treat
+the successful PostgreSQL runs at `33c7495` as proof that all latest-head checks
+are green. The compatibility report retains the initial failures and full
+repair evidence.
+
 The CI PostgreSQL matrix runs these on pinned official 15.19 and 17.11 images,
 separately from the existing Windows/Ubuntu SQLite quality gates. A Vercel
 frontend preview alone is not backend deployment

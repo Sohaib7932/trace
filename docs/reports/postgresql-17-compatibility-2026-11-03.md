@@ -42,8 +42,9 @@ The PostgreSQL CI workflow now has independent PostgreSQL 15.19 and 17.11 jobs
 with fail-fast disabled. Both the service container and TLS fixture receive the
 same fully pinned official image. The existing Windows/Ubuntu SQLite gates are
 unchanged. GitHub's documented matrix/service contexts are used; YAML parsing
-and the two explicit pinned-image entries were checked locally. This is not a
-claim that a remote GitHub run has completed.
+and the two explicit pinned-image entries were checked locally. At that initial
+checkpoint no completed remote run was claimed; later CI evidence is recorded
+below.
 
 The cached historical PostgreSQL 15 container reported 15.17. It was preserved.
 For the new matrix, a fresh official 15 tag was pulled and resolved to:
@@ -83,6 +84,49 @@ modes and provider availability `not_probed`, with zero provider attempts.
 The packaging check found no private environment files, shared logs or developer
 database. All new TLS/application containers were cleaned by exact ownership
 checks. Scoped Ruff and formatting passed for the infrastructure changes.
+
+## CI investigation and verified repairs
+
+The initial core PostgreSQL jobs passed all **36 production tests**, then failed
+in infrastructure validation because the runner's Docker inspection result no
+longer exposed the legacy `NetworkSettings.IPAddress` field. The initial
+PostgreSQL 17 pull-request artifact job also exposed an earlier readiness race:
+the temporary initialization server could appear ready before the final TCP
+server was accepting connections, so that job failed before inspection.
+These initial failures remain part of the evidence; they were not SQL runtime
+compatibility failures or grounds to weaken the tests.
+
+- `4bd6c2fec078bac8794bd731a9e2cdc5bb63a9e2` reads the supported per-network
+  private IPv4 metadata instead of the removed legacy Docker field.
+- `33c74956a47056c6ae223dde0a3fe73fce528a68` waits for final PostgreSQL TCP
+  readiness, retaining the existing **40-second bound** and service health
+  checks. It does not treat temporary-server readiness as final acceptance.
+
+At `33c7495`, both pinned PostgreSQL **15 and 17** jobs succeeded for **push and
+pull-request** validation. The verified PostgreSQL workflow results are
+[run 41619358254](https://github.com/Sohaib7932/trace/actions/runs/41619358254)
+and [run 41619351126](https://github.com/Sohaib7932/trace/actions/runs/41619351126).
+This is specific PostgreSQL-workflow evidence, not a claim that every quality
+check on a newer commit has completed.
+
+The final local infrastructure suite also passed on both pinned majors:
+
+| Database | Final result | Duration |
+| --- | --- | --- |
+| PostgreSQL 15 | **16 passed** | **19.18 seconds** |
+| PostgreSQL 17 | **16 passed** | **17.42 seconds** |
+
+Each run comprises **4 actual TLS/proxy/container checks** and **12 deterministic
+Docker/readiness regressions**. These validation-harness repairs did not change
+the application implementation or the reviewed application image:
+
+`sha256:bc82a15a186b9a426cf198760311c10a0f413b2b2a10ab3a2a8bf422e4b6ff31`
+
+A separate `.gitattributes`-only correction,
+`5a73995b0691512c62081b5ad1ffd6fb569105da`, addresses the Ubuntu frozen-migration
+hash check by preserving checkout bytes. The protected files, recorded hashes
+and test assertions remain unchanged. Its newer CI runs were still in progress
+at this evidence checkpoint; **no green result for `5a73995` is claimed here**.
 
 ## Remaining release boundaries
 
