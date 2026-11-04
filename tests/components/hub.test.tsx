@@ -205,7 +205,7 @@ test("account: no learner yet means no learning history is read (keeps guest cla
   fixture.me.mockResolvedValue({ ...account, anonymous_history_available: true });
   wrap(<AccountDashboard />);
   expect(await screen.findByRole("heading", { level: 1, name: "Trace learner" })).toBeVisible();
-  expect(screen.getByRole("heading", { name: "This browser has guest progress" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "This browser has guest progress" })).toBeNull(); // the account page no longer shows a claim card
   expect(fixture.journey).not.toHaveBeenCalled();
 });
 test("account: the timeline shows real predictions, attempts and observed results", async () => {
@@ -224,41 +224,18 @@ test("account: the timeline shows real predictions, attempts and observed result
   expect(screen.getByRole("heading", { name: "Concepts practised" })).toBeVisible();
   expect(screen.queryByText(/%/)).toBeNull();
 });
-test("account: follow-ups live here (moved from /learn), from the real journey", async () => {
-  window.history.replaceState(null, "", "/account?tab=follow-ups");
+test("account: a due follow-up from the real journey shows on Overview", async () => {
+  window.history.replaceState(null, "", "/account");
   fixture.me.mockResolvedValue({ ...account, learner_id: "learner" });
   const due = { id: "c1", ordinal: 1, status: "due" as const, due_at: now, completed_at: null, attempt_count: 0, transfer_session_id: "t" };
   const later = { ...due, id: "c2", ordinal: 2, status: "upcoming" as const };
   fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("done", "completed")] }, { completed: true, available: true, sessions: [session("t", "completed")] }, [later, due]));
   fixture.progress.mockResolvedValue(completedProgress);
   wrap(<AccountDashboard />);
-  const heading = await screen.findByRole("heading", { name: "Follow-ups" });
-  const section = heading.closest("section")!;
-  expect(section).toHaveAttribute("id", "follow-ups");
-  const cards = await within(section).findAllByRole("listitem");
-  expect(cards).toHaveLength(2);
+  const heading = await screen.findByRole("heading", { name: "A follow-up is ready" });
+  const cards = await within(heading.closest("section")!).findAllByRole("listitem");
+  expect(cards).toHaveLength(1);
   expect(cards[0]).toHaveTextContent("Follow-up 1");
-  expect(cards[1]).toHaveTextContent("Follow-up 2");
-});
-test("account: claim requires confirmation and a conflict keeps the same retry key", async () => {
-  fixture.me.mockResolvedValue({ ...account, anonymous_history_available: true });
-  const { ApiError } = await import("@/lib/api/client");
-  fixture.claim.mockRejectedValue(new ApiError(409, "Conflict"));
-  wrap(<AccountDashboard />);
-  await userEvent.click(await screen.findByRole("button", { name: "Review history claim" }));
-  expect(fixture.claim).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Confirm history claim" }));
-  expect(await screen.findByText(/Neither history was changed/)).toBeVisible();
-  await userEvent.click(screen.getByRole("button", { name: "Confirm history claim" }));
-  expect(fixture.claim.mock.calls[0][0]).toBe(fixture.claim.mock.calls[1][0]);
-});
-test("account: a successful claim is confirmed", async () => {
-  fixture.me.mockResolvedValueOnce({ ...account, anonymous_history_available: true }).mockResolvedValue({ ...account, learner_id: "learner" });
-  fixture.claim.mockResolvedValue({ claimed: true, learner_id: "learner" });
-  wrap(<AccountDashboard />);
-  await userEvent.click(await screen.findByRole("button", { name: "Review history claim" }));
-  await userEvent.click(screen.getByRole("button", { name: "Confirm history claim" }));
-  expect(await screen.findByText(/Every session is preserved/)).toBeVisible();
 });
 test("account: the support id is collapsed and sign-out clears session links", async () => {
   window.history.replaceState(null, "", "/account?tab=settings");

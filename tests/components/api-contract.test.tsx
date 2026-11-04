@@ -150,7 +150,9 @@ test("an uncertain attempt reuses its key and body; a deliberate new correction 
   await waitFor(() => expect(attempt).toHaveBeenCalledTimes(2));
   expect(attempt.mock.calls[1][2]).toBe(attempt.mock.calls[0][2]);
   expect(attempt.mock.calls[1][1]).toEqual(attempt.mock.calls[0][1]);
-  await user.click(screen.getByRole("button", { name: "Check my change" }));
+  // The saved change is verified on the Verify step; a deliberate new correction starts from "Try another change".
+  await user.click(await screen.findByRole("button", { name: "Try another change" }));
+  await user.click(await screen.findByRole("button", { name: "Check my change" }));
   await waitFor(() => expect(attempt).toHaveBeenCalledTimes(3));
   expect(attempt.mock.calls[2][2]).not.toBe(attempt.mock.calls[0][2]);
 });
@@ -171,13 +173,13 @@ test("an infrastructure error run is retried deliberately with a new verificatio
 // ---------- Verification states ----------
 test("verification statuses map to failed, infrastructure error and pending, without assuming five checks", () => {
   const { rerender } = render(<VerificationEvidence run={failedRun} number={1} />);
-  expect(screen.getByRole("heading", { name: "Request rejected" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: /Request rejected/ })).toBeVisible();
   rerender(<VerificationEvidence run={{ ...failedRun, status: "error", checks: [{ ...failedRun.checks![0], code: "execution", observed: "<b>not html</b>" }] }} number={1} />);
   expect(screen.getByText(/not a learner mistake/)).toBeVisible();
   expect(screen.getByText("execution")).toBeVisible();
   expect(screen.getByText("<b>not html</b>")).toBeVisible();
   rerender(<VerificationEvidence run={{ ...failedRun, status: "pending", completed_at: null, checks: [] }} number={1} />);
-  expect(screen.getByRole("heading", { name: "Verification in progress" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: /Verification in progress/ })).toBeVisible();
 });
 
 test("a pending run offers a progress refresh, never a new verify", async () => {
@@ -194,11 +196,11 @@ test("hint slots come from the summary counts, and error hints read as unavailab
   const errorHint = { ...savedProgress.hints[0], status: "error" as const, text: null };
   const { rerender } = render(<Guidance hints={[errorHint]} summary={{ ...savedProgress.summary, hint_request_count: 1, hints_delivered: 0 }} available pending={false} onRequest={vi.fn()} />);
   expect(screen.getByText(/Unavailable/)).toBeVisible();
-  expect(screen.getByText(/1 of 3 requests used · 0 delivered/)).toBeVisible();
+  expect(screen.getByText(/1 of 3 hints used/)).toBeVisible();
   expect(screen.getByText(/fixture guidance/)).toBeVisible();
   // A pending reservation uses a slot even before a hint row exists.
   rerender(<Guidance hints={[errorHint]} summary={{ ...savedProgress.summary, hint_request_count: 3, hints_delivered: 0 }} available pending={false} onRequest={vi.fn()} />);
-  expect(screen.getByRole("button", { name: "Request a hint" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Show a hint" })).toBeDisabled();
 });
 
 // ---------- Retrieval enablement ----------

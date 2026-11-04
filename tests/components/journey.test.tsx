@@ -65,7 +65,7 @@ test("transfer prediction names the task and requires a choice", async () => {
   const user = userEvent.setup(); const submit = vi.fn();
   render(<PredictionForm pending={false} onSubmit={submit} task />);
   expect(screen.getByRole("button", { name: "Lock prediction" })).toBeDisabled();
-  await user.click(screen.getByLabelText("The task will be saved"));
+  await user.click(screen.getByLabelText(/The task will be saved/));
   await user.type(screen.getByLabelText(/Why do you expect that/), "The values are present.");
   await user.click(screen.getByRole("button", { name: "Lock prediction" }));
   expect(submit).toHaveBeenCalledWith({ selected_answer: "saved", reasoning: "The values are present." });

@@ -87,7 +87,8 @@ test("real panel supports follow-up history, direct style and session-scoped cle
   vi.stubGlobal("fetch", fetch);
   const props = { lessonId: context.lessonId, lessonTitle: "Follow the note", progress: savedProgress, hint: { request: vi.fn(), pending: false, available: false } };
   const view = render(<TutorPanel {...props} />);
-  const panel = screen.getByRole("complementary", { name: "Lesson tutor" });
+  await user.click(screen.getByRole("button", { name: /Lesson tutor/ }));
+  const panel = screen.getByRole("dialog", { name: "Lesson tutor" });
   await user.selectOptions(within(panel).getByLabelText("Explanation style"), "direct");
   await user.type(within(panel).getByLabelText("Ask about this lesson"), "How does await work?");
   await user.click(within(panel).getByRole("button", { name: /^Ask$/ }));

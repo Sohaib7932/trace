@@ -36,11 +36,11 @@ export function VerificationEvidence({ run, number }: { run: Verification; numbe
 export function Guidance({ hints, summary, available, pending, onRequest }: { hints: Hint[]; summary: Progress["summary"]; available: boolean; pending: boolean; onRequest: () => void }) {
   const used = summary.hint_request_count;
   return <section aria-label="Recorded guidance">
-    {hints.length < HINT_SLOTS || hints.length === 0 ? (
+    {(
       <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[0.875rem] font-medium text-secondary transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-45" disabled={!available || pending || used >= HINT_SLOTS} onClick={onRequest}>
         {pending ? "Recording guidance…" : "Show a hint"}
       </button>
-    ) : null}
+    )}
     {hints.length > 0 && <ol className="mt-3 grid gap-2">
       {hints.map((hint) => <li key={hint.id}><HintNote index={hint.sequence}>{hint.status === "error" ? "Unavailable. This request is recorded and used one slot." : hint.text}<span className="ml-1 text-secondary">(fixture guidance)</span></HintNote></li>)}
     </ol>}
