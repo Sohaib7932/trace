@@ -88,14 +88,19 @@ class GitHubAppClient:
             raise unavailable()
         if not path.startswith("/") or ".." in path or "#" in path:
             raise unavailable()
+        headers = {
+            "Accept": "application/json" if oauth else "application/vnd.github+json",
+        }
+        # The OAuth exchange authenticates with its existing JSON body. An empty
+        # `Bearer ` header is invalid on the wire and must not be sent there.
+        # Ordinary REST calls still require their server-held bearer credential.
         try:
+            if not oauth:
+                headers["Authorization"] = "Bearer " + token.get_secret_value()
             with self.http.stream(
                 method,
                 host + path,
-                headers={
-                    "Authorization": "Bearer " + token.get_secret_value(),
-                    "Accept": "application/json" if oauth else "application/vnd.github+json",
-                },
+                headers=headers,
                 json=body,
                 timeout=min(5.0, self.remaining_seconds()),
             ) as response:

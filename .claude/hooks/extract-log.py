@@ -7,12 +7,20 @@ Windows, macOS and Linux for every teammate):
     character becomes '-') and matches case-insensitively, so `C:\\Users\\x\\repo` finds
     `c--Users-x-repo`. Git Bash style paths (`/c/Users/...`) are converted first.
   - Transcripts are read and logs written as UTF-8 (Windows defaults to cp1252).
+  - Only what a person typed is a PROMPT: automatic context summaries and "[Request
+    interrupted by user]" markers are not. Pasted text keeps its exact words; only the
+    editor's internal <pasted_content> wrapper is removed. Attachments are noted, not stored.
+  - Prompt text is written inside a fenced block so it shows exactly as typed on GitHub
+    (pasted Markdown can't break the page). Marker lines and metadata are unchanged.
+  - The hook uses the session id Claude Code passes on stdin, so parallel sessions each
+    update their own file. `--all` rebuilds every session log of this project from the start.
 """
 
 import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
@@ -113,6 +121,13 @@ def get_github_user() -> str:
     """
     if login := os.environ.get('GITHUB_USER'):
         return login
+    try:
+        configured = subprocess.run(['git', 'config', '--get', 'github.user'],
+                                    capture_output=True, text=True, timeout=5)
+        if configured.returncode == 0 and configured.stdout.strip():
+            return configured.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
     noreply = re.match(r'^(?:\d+\+)?([A-Za-z0-9-]+)@users\.noreply\.github\.com$', get_git_email())
     if noreply:
         return noreply.group(1)
@@ -181,17 +196,41 @@ _INJECTED_BLOCKS = re.compile(
 # Harness events delivered as user turns (background-task and agent notifications).
 _HARNESS_PREFIXES = ('<command-name>', '<local-command', 'Caveat:', '<task-notification>',
                      'Another Claude session sent a message')
+# The editor wraps pasted text in this tag; the words inside are the person's exact prompt.
+_PASTE_WRAPPER = re.compile(r'</?pasted_content(?:\s+id="[^"]*")?\s*>\n?')
+INTERRUPTED = '[Request interrupted by user'
+
+
+def attachment_note(entry: dict) -> str:
+    """'1 image', '2 images, 1 document' for attachments sent with a prompt ('' if none)."""
+    content = entry.get('message', {}).get('content', '')
+    if not isinstance(content, list):
+        return ''
+    counts: Dict[str, int] = {}
+    for block in content:
+        kind = block.get('type')
+        if kind in ('image', 'document'):
+            counts[kind] = counts.get(kind, 0) + 1
+    return ', '.join(f"{n} {kind}{'s' if n > 1 else ''}" for kind, n in counts.items())
+
+
+def is_pasted(entry: dict) -> bool:
+    content = entry.get('message', {}).get('content', '')
+    if isinstance(content, list):
+        content = ' '.join(b.get('text', '') for b in content if b.get('type') == 'text')
+    return isinstance(content, str) and '<pasted_content' in content
 
 
 def user_prompt_text(entry: dict) -> Optional[str]:
     """The text a person typed, or None for meta turns, tool results and harness events.
 
     The VS Code extension sends prompts as a list of text blocks (prompt plus IDE context),
-    the CLI as a plain string; both are handled.
+    the CLI as a plain string; both are handled. Automatic context summaries written when a
+    long conversation is compacted are not prompts.
     """
     if entry.get('type') != 'user':
         return None
-    if entry.get('isMeta') or entry.get('isSidechain'):
+    if entry.get('isMeta') or entry.get('isSidechain') or entry.get('isCompactSummary'):
         return None
 
     content = entry.get('message', {}).get('content', '')
@@ -204,7 +243,7 @@ def user_prompt_text(entry: dict) -> Optional[str]:
     if not isinstance(content, str):
         return None
 
-    text = _INJECTED_BLOCKS.sub('', content).strip()
+    text = _PASTE_WRAPPER.sub('', _INJECTED_BLOCKS.sub('', content)).strip()
     if not text or text.startswith(_HARNESS_PREFIXES):
         return None
     return text
@@ -234,8 +273,11 @@ def extract_assistant_text(entry: dict) -> Optional[str]:
     return None
 
 
-def extract_clean_log(jsonl_path: Path) -> List[Tuple[str, str, str]]:
-    """Extract conversation entries from a JSONL file."""
+def extract_clean_log(jsonl_path: Path) -> List[Tuple[str, str, str, Dict[str, Any]]]:
+    """Extract conversation entries from a JSONL file.
+
+    Each entry is (timestamp, role, text, info). role is 'user', 'assistant' or 'interrupt'.
+    """
     entries = []
 
     for line in jsonl_path.read_text(encoding='utf-8', errors='replace').strip().split('\n'):
@@ -249,13 +291,16 @@ def extract_clean_log(jsonl_path: Path) -> List[Tuple[str, str, str]]:
         timestamp = entry.get('timestamp', '')
 
         prompt = user_prompt_text(entry)
-        if prompt:
-            entries.append((timestamp, 'user', redact(prompt)))
+        if prompt and prompt.startswith(INTERRUPTED):
+            entries.append((timestamp, 'interrupt', '', {}))
+        elif prompt:
+            info = {'attachments': attachment_note(entry), 'pasted': is_pasted(entry)}
+            entries.append((timestamp, 'user', redact(prompt), info))
 
         elif entry.get('type') == 'assistant':
             text = extract_assistant_text(entry)
             if text:
-                entries.append((timestamp, 'assistant', redact(text)))
+                entries.append((timestamp, 'assistant', redact(text), {}))
 
     return entries
 
@@ -268,26 +313,39 @@ def format_timestamp(iso_timestamp: str) -> str:
         return ''
 
 
-def dedupe_entries(entries: List[Tuple[str, str, str]]) -> List[Tuple[str, str, str]]:
-    """Keep only the final assistant response before each user prompt."""
+def dedupe_entries(entries):
+    """Keep only the final assistant response before each user prompt.
+
+    An interruption marks the response it cut short (interrupted_by_user) instead of being
+    logged as a prompt.
+    """
     if not entries:
         return []
 
     result = []
     pending_assistant = None
+    interrupted = False
 
-    for timestamp, role, content in entries:
+    def flush():
+        nonlocal pending_assistant, interrupted
+        if pending_assistant:
+            ts, role, content, info = pending_assistant
+            result.append((ts, role, content, {**info, 'interrupted_by_user': True} if interrupted else info))
+        elif interrupted and result and result[-1][1] == 'user':
+            pass  # stopped before any reply text; nothing to attach the flag to
+        pending_assistant, interrupted = None, False
+
+    for entry in entries:
+        timestamp, role, content, info = entry if len(entry) == 4 else (*entry, {})
         if role == 'user':
-            if pending_assistant:
-                result.append(pending_assistant)
-                pending_assistant = None
-            result.append((timestamp, role, content))
+            flush()
+            result.append((timestamp, role, content, info))
         elif role == 'assistant':
-            pending_assistant = (timestamp, role, content)
+            pending_assistant = (timestamp, role, content, info)
+        elif role == 'interrupt':
+            interrupted = True
 
-    if pending_assistant:
-        result.append(pending_assistant)
-
+    flush()
     return result
 
 
@@ -311,6 +369,13 @@ def detect_paste_indicators(content: str) -> Dict[str, bool]:
     return indicators
 
 
+def fenced(text: str) -> str:
+    """Text in a fence longer than any tilde run inside it, so it renders exactly as typed."""
+    longest = max((len(run) for run in re.findall(r'~+', text)), default=0)
+    fence = '~' * max(4, longest + 1)
+    return f"{fence}text\n{text}\n{fence}"
+
+
 def parse_iso_timestamp(timestamp: str) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
@@ -323,8 +388,8 @@ def calculate_session_stats(entries: List[Tuple[str, str, str]]) -> Dict[str, An
     if not entries:
         return {}
 
-    prompts = [(ts, content) for ts, role, content in entries if role == 'user']
-    responses = [(ts, content) for ts, role, content in entries if role == 'assistant']
+    prompts = [(e[0], e[2]) for e in entries if e[1] == 'user']
+    responses = [(e[0], e[2]) for e in entries if e[1] == 'assistant']
 
     if not prompts:
         return {}
@@ -396,15 +461,15 @@ def extract_subagent_log(jsonl_path: Path) -> List[Tuple[str, str, str]]:
         if entry.get('type') == 'user' and isinstance(content, str):
             text = content.strip()
             if text and not text.startswith('<system-reminder>'):
-                entries.append((timestamp, 'user', redact(text)))
+                entries.append((timestamp, 'user', redact(text), {}))
         elif entry.get('type') == 'assistant' and isinstance(content, list):
             for block in content:
                 if block.get('type') == 'tool_use' and block.get('name') == 'SubagentHandback':
                     message = str(block.get('input', {}).get('message', '')).strip()
                     if message:
-                        entries.append((timestamp, 'assistant', redact(message)))
+                        entries.append((timestamp, 'assistant', redact(message), {}))
                 elif block.get('type') == 'text' and block.get('text', '').strip():
-                    entries.append((timestamp, 'assistant', redact(block['text'].strip())))
+                    entries.append((timestamp, 'assistant', redact(block['text'].strip()), {}))
     return entries
 
 
@@ -435,7 +500,7 @@ def subagent_sections(session_dir: Path, session_id: str) -> List[str]:
         lines.append(f"agent_id: {agent_id} | type: {meta.get('agentType', 'unknown')} | "
                      f"model: {meta.get('model', 'default')} | finished: {meta.get('finished', False)}")
         exchange_num = 0
-        for timestamp, role, content in entries:
+        for timestamp, role, content, _info in entries:
             if role == 'user':
                 exchange_num += 1
             kind = 'SUBAGENT_PROMPT' if role == 'user' else 'SUBAGENT_RESPONSE'
@@ -443,8 +508,117 @@ def subagent_sections(session_dir: Path, session_id: str) -> List[str]:
             lines.append(f"timestamp: {timestamp}")
             lines.append(f"time: {format_timestamp(timestamp)}")
             lines.append(f"chars: {len(content)}")
-            lines.append(f"\n{content}\n")
+            lines.append(f"\n{fenced(content) if role == 'user' else content}\n")
     return lines
+
+
+def hook_session() -> Tuple[Optional[str], Optional[Path]]:
+    """Session id and transcript path that Claude Code passes to hooks on stdin (if any)."""
+    if sys.stdin is None or sys.stdin.isatty():
+        return None, None
+    try:
+        payload = json.loads(sys.stdin.read() or '{}')
+    except (json.JSONDecodeError, OSError, ValueError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    session = payload.get('session_id')
+    transcript = payload.get('transcript_path')
+    return (str(session) if session else None), (Path(transcript) if transcript else None)
+
+
+def write_session_log(cwd: Path, session_dir: Path, transcript: Path) -> Optional[Path]:
+    session_id = transcript.stem
+    entries = dedupe_entries(extract_clean_log(transcript))
+    if not any(e[1] == 'user' for e in entries):
+        return None
+
+    session_stats = calculate_session_stats(entries)
+
+    output_dir = cwd / '.claude-logs'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    existing_files = list(output_dir.glob(f"*_{session_id}.md"))
+    date = datetime.now().strftime('%Y-%m-%d')
+    if existing_files:
+        output_path = existing_files[0]
+    else:
+        first = parse_iso_timestamp(entries[0][0])
+        stamp = (first.astimezone() if first else datetime.now()).strftime('%Y-%m-%d_%H-%M-%S')
+        output_path = output_dir / f"{stamp}_{session_id}.md"
+
+    last_entry_type = entries[-1][1] if entries else 'unknown'
+    session_status = 'complete' if last_entry_type == 'assistant' else 'awaiting_response'
+
+    author = get_git_author()
+    github_user = get_github_user()
+    git_email = mask_email(get_git_email())
+    lines = ["---"]
+    lines.append(f"session_id: {session_id}")
+    lines.append(f"date: {date}")
+    lines.append(f"author: {author}")
+    lines.append(f"github_user: {github_user}")
+    lines.append(f"git_email: {git_email}")
+    lines.append(f"project: {cwd.name}")
+    lines.append(f"agent: claude-code")
+    lines.append(f"session_status: {session_status}")
+    lines.append(f"last_entry_type: {last_entry_type}")
+    lines.append(f"total_exchanges: {len([e for e in entries if e[1] == 'user'])}")
+    lines.append(f"generated_at: {datetime.now().isoformat()}")
+
+    for key, value in session_stats.items():
+        lines.append(f"{key}: {value}")
+
+    lines.append("---\n")
+    lines.append(f"# Claude Session Log - {date}\n")
+    lines.append(f"Session: `{session_id}` | Project: `{cwd.name}` | Author: `{author}` | GitHub: `{github_user}`\n")
+    lines.append("Each prompt appears exactly as it was typed or pasted, inside a text block. "
+                 "Each response is the final answer the agent gave to that prompt. "
+                 "Automatic context summaries, tool output and intermediate progress notes are not included.\n")
+    lines.append("---\n")
+
+    exchange_num = 0
+    for timestamp, role, content, info in entries:
+        time_str = format_timestamp(timestamp)
+
+        if role == 'user':
+            exchange_num += 1
+            indicators = detect_paste_indicators(content)
+            lines.append(f"\n### Prompt {exchange_num} · {author} · {time_str} UTC\n")
+            lines.append(f"[CLAUDE_LOG_ENTRY type=PROMPT num={exchange_num} session={session_id}]")
+            lines.append(f"timestamp: {timestamp}")
+            lines.append(f"time: {time_str}")
+            lines.append(f"chars: {len(content)}")
+            lines.append(f"words: {len(content.split())}")
+            lines.append(f"has_code_block: {indicators['has_code_block']}")
+            lines.append(f"has_file_paths: {indicators['has_file_paths']}")
+            lines.append(f"has_urls: {indicators['has_urls']}")
+            lines.append(f"likely_pasted: {indicators['likely_pasted'] or info.get('pasted', False)}")
+            if info.get('attachments'):
+                lines.append(f"attachments: {info['attachments']}")
+            lines.append("")
+            if info.get('attachments'):
+                lines.append(f"_Attached with this prompt: {info['attachments']} (not stored in the log)._\n")
+            lines.append(f"{fenced(content)}\n")
+        else:
+            lines.append(f"\n### Response {exchange_num} · Claude · {time_str} UTC\n")
+            lines.append(f"[CLAUDE_LOG_ENTRY type=RESPONSE num={exchange_num} session={session_id}]")
+            lines.append(f"timestamp: {timestamp}")
+            lines.append(f"time: {time_str}")
+            lines.append(f"chars: {len(content)}")
+            if info.get('interrupted_by_user'):
+                lines.append("interrupted_by_user: True")
+            lines.append(f"\n{content}\n")
+
+    subagents = subagent_sections(session_dir, session_id)
+    if subagents:
+        lines.append("\n---\n")
+        lines.append("# Subagents\n")
+        lines.append("Dispatch prompts sent to each subagent and the reports it handed back, oldest first.")
+        lines.extend(subagents)
+
+    output_path.write_text(redact('\n'.join(lines)), encoding='utf-8')
+    return output_path
 
 
 def main():
@@ -462,105 +636,20 @@ def main():
     if not session_files:
         return
 
-    latest = max(session_files, key=lambda p: p.stat().st_mtime)
-    session_id = latest.stem
-
-    entries = extract_clean_log(latest)
-    entries = dedupe_entries(entries)
-
-    if not entries:
+    if '--all' in sys.argv[1:]:
+        # Rebuild every session log of this project, oldest first.
+        for transcript in sorted(session_files, key=lambda p: p.stat().st_mtime):
+            written = write_session_log(cwd, session_dir, transcript)
+            if written:
+                print(f"wrote {written.relative_to(cwd)}")
         return
 
-    session_stats = calculate_session_stats(entries)
-
-    output_dir = cwd / '.claude-logs'
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    existing_files = list(output_dir.glob(f"*_{session_id}.md"))
-    date = datetime.now().strftime('%Y-%m-%d')
-    if existing_files:
-        output_path = existing_files[0]
-    else:
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        filename = f"{timestamp}_{session_id}.md"
-        output_path = output_dir / filename
-
-    last_entry_type = entries[-1][1] if entries else 'unknown'
-    session_status = 'complete' if last_entry_type == 'assistant' else 'awaiting_response'
-
-    author = get_git_author()
-    github_user = get_github_user()
-    git_email = mask_email(get_git_email())
-    lines = ["---"]
-    lines.append(f"session_id: {session_id}")
-    lines.append(f"date: {date}")
-    lines.append(f"author: {author}")
-    lines.append(f"github_user: {github_user}")
-    lines.append(f"git_email: {git_email}")
-    lines.append(f"project: {cwd.name}")
-    lines.append(f"session_status: {session_status}")
-    lines.append(f"last_entry_type: {last_entry_type}")
-    lines.append(f"total_exchanges: {len([e for e in entries if e[1] == 'user'])}")
-    lines.append(f"generated_at: {datetime.now().isoformat()}")
-
-    for key, value in session_stats.items():
-        lines.append(f"{key}: {value}")
-
-    lines.append("---\n")
-    lines.append(f"# Claude Session Log - {date}\n")
-    lines.append(f"Session: `{session_id}` | Project: `{cwd.name}` | Author: `{author}` | GitHub: `{github_user}`\n")
-    lines.append("---\n")
-
-    prompts_data = []
-    for timestamp, role, content in entries:
-        if role == 'user':
-            paste_indicators = detect_paste_indicators(content)
-            prompts_data.append({
-                'timestamp': timestamp,
-                'content': content,
-                'chars': len(content),
-                'words': len(content.split()),
-                'paste_indicators': paste_indicators,
-            })
-
-    exchange_num = 0
-    prompt_index = 0
-
-    for i, (timestamp, role, content) in enumerate(entries):
-        time_str = format_timestamp(timestamp)
-
-        if role == 'user':
-            exchange_num += 1
-            prompt_data = prompts_data[prompt_index]
-            indicators = prompt_data['paste_indicators']
-
-            lines.append(f"\n[CLAUDE_LOG_ENTRY type=PROMPT num={exchange_num} session={session_id}]")
-            lines.append(f"timestamp: {timestamp}")
-            lines.append(f"time: {time_str}")
-            lines.append(f"chars: {prompt_data['chars']}")
-            lines.append(f"words: {prompt_data['words']}")
-            lines.append(f"has_code_block: {indicators['has_code_block']}")
-            lines.append(f"has_file_paths: {indicators['has_file_paths']}")
-            lines.append(f"has_urls: {indicators['has_urls']}")
-            lines.append(f"likely_pasted: {indicators['likely_pasted']}")
-            lines.append(f"\n{content}\n")
-
-            prompt_index += 1
-        else:
-            lines.append(f"\n[CLAUDE_LOG_ENTRY type=RESPONSE num={exchange_num} session={session_id}]")
-            lines.append(f"timestamp: {timestamp}")
-            lines.append(f"time: {time_str}")
-            lines.append(f"chars: {len(content)}")
-            lines.append(f"\n{content}\n")
-
-    subagents = subagent_sections(session_dir, session_id)
-    if subagents:
-        lines.append("\n---\n")
-        lines.append("# Subagents\n")
-        lines.append("Dispatch prompts sent to each subagent and the reports it handed back, oldest first.")
-        lines.extend(subagents)
-
-    output_path.write_text(redact('\n'.join(lines)), encoding='utf-8')
+    session_id, transcript = hook_session()
+    if transcript is None or not transcript.is_file():
+        transcript = session_dir / f"{session_id}.jsonl" if session_id else None
+    if transcript is None or not transcript.is_file():
+        transcript = max(session_files, key=lambda p: p.stat().st_mtime)
+    write_session_log(cwd, session_dir, transcript)
 
 
 if __name__ == '__main__':

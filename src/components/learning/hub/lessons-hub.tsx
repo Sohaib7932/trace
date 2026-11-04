@@ -11,13 +11,15 @@ import { ErrorNotice } from "@/components/learning/error-notice";
 import { completedCount, formatWhen, hasAnyHistory, latestSession, lessonViews, nextAction, sessionStep } from "@/lib/learning/journey";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { CheckpointCard } from "./checkpoint-card";
-import { CreateCustomLesson, YourLessons } from "./custom-lessons";
+import { MyLessons, StartHere, YourLessons, CreateCustomLesson } from "./custom-lessons";
 import { GuestLibrary } from "./guest-library";
 import { LessonCard } from "./lesson-card";
 
 export function LessonsHub() {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: retryOnInfrastructure, staleTime: 10_000 }, mutations: { retry: false } } }));
-  return <QueryClientProvider client={client}><Hub /></QueryClientProvider>;
+  const auth = useAuth();
+  const identity = auth.status === "signed-in" ? auth.userId : auth.status;
+  return <QueryClientProvider client={client}><Hub key={identity} /></QueryClientProvider>;
 }
 
 function Hub() {
@@ -29,7 +31,7 @@ function Hub() {
   // Real lessons are for signed-in learners only. Guests never trigger a learner request.
   const signedIn = auth.status === "signed-in";
   const hub = useQuery({
-    queryKey: ["hub", auth.status, fresh],
+    queryKey: ["hub", auth.status, auth.status === "signed-in" ? auth.userId : null, fresh],
     enabled: signedIn,
     queryFn: async () => {
       if (auth.status === "signed-in") {
@@ -52,6 +54,7 @@ function Hub() {
   if (!signedIn) return (
     <div className="pb-[clamp(64px,8vw,120px)]">
       <GuestLibrary unconfigured={auth.status === "unconfigured"} />
+      <MyLessons />
       <YourLessons />
       <CreateCustomLesson />
     </div>
@@ -99,10 +102,7 @@ function Hub() {
           <Link href={current.lesson.href} className="inline-flex min-h-11 shrink-0 items-center self-start rounded-[11px] border border-border-strong bg-surface px-5 text-[0.9375rem] font-medium transition-colors hover:bg-surface-muted sm:self-auto">Pick up the lesson</Link>
         </section>
       ) : !returning ? (
-        <section aria-labelledby="new-title" className="hub-enter mt-6 rounded-2xl bg-surface-muted p-5 sm:p-6" style={{ "--d": "80ms" } as React.CSSProperties}>
-          <h2 id="new-title" className="text-[1rem] font-semibold">New here? Start with lesson 1.</h2>
-          <p className="mt-1 max-w-[62ch] text-[0.9375rem] leading-relaxed text-secondary">You&apos;ll read a short request and the code that receives it, predict what the server does, then change one thing and check the real result. Nothing is saved until you start.</p>
-        </section>
+        <StartHere firstLessonHref={lessons[0].href} />
       ) : null}
 
       <section aria-labelledby="path-title" className="mt-[clamp(40px,5vw,64px)]">
@@ -142,7 +142,8 @@ function Hub() {
         )}
       </section>
 
-      {/* Future, separate feature: custom lessons. Prepared UI only; nothing is generated or requested. */}
+      {/* Custom answer-key lessons and ungraded private guides stay separate from the trusted catalog. */}
+      <MyLessons />
       <YourLessons />
       <CreateCustomLesson />
     </div>

@@ -4,6 +4,7 @@ import base64
 import gzip
 import json
 
+import h11
 import httpx
 import jwt
 import pytest
@@ -113,7 +114,13 @@ def test_oauth_exchange_uses_fixed_host_callback_and_keeps_token_private():
 
     def handler(request):
         assert str(request.url) == "https://github.com/login/oauth/access_token"
+        assert request.method == "POST"
+        assert "Authorization" not in request.headers
+        assert request.headers["Accept"] == "application/json"
+        assert request.headers["Content-Type"] == "application/json"
         body = json.loads(request.content)
+        assert body["client_id"] == settings.client_id
+        assert body["client_secret"] == settings.client_secret.get_secret_value()
         assert body["redirect_uri"] == settings.callback_url
         assert body["code"] == "fixture-code"
         return httpx.Response(200, json={"access_token": "fixture-user-token"})
@@ -121,6 +128,77 @@ def test_oauth_exchange_uses_fixed_host_callback_and_keeps_token_private():
     client = GitHubAppClient(settings, transport=httpx.MockTransport(handler))
     try:
         assert "fixture-user-token" not in repr(client.exchange("fixture-code"))
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("oauth", [True, False], ids=["oauth-exchange", "authenticated-rest"])
+def test_real_httpx_requests_serialize_as_http1_with_correct_authentication(oauth):
+    """MockTransport alone bypasses the HTTP/1 header validation used on the wire."""
+    requests = []
+
+    def handler(request):
+        # Serialize the actual HTTPX-built request locally. No socket or external
+        # credentials are involved, but an empty `Bearer ` fails h11 validation.
+        wire = h11.Connection(h11.CLIENT).send(
+            h11.Request(
+                method=request.method.encode("ascii"),
+                target=request.url.raw_path,
+                headers=request.headers.raw,
+            )
+        )
+        assert wire is not None
+        requests.append(request)
+        if oauth:
+            assert "authorization" not in request.headers
+            assert b"\r\nauthorization:" not in wire.lower()
+            assert request.url.host == "github.com"
+            assert request.headers["Content-Type"] == "application/json"
+            return httpx.Response(200, json={"access_token": "fixture-user-token"})
+        assert request.headers["Authorization"] == "Bearer fixture-user-token"
+        assert b"\r\nauthorization: bearer fixture-user-token\r\n" in wire.lower()
+        assert request.url.host == "api.github.com"
+        return httpx.Response(200, json={"id": 321})
+
+    client = GitHubAppClient(config(), transport=httpx.MockTransport(handler))
+    try:
+        if oauth:
+            credential = client.exchange_authorization("fixture-code")
+            assert credential.access_token.get_secret_value() == "fixture-user-token"
+        else:
+            assert client.user_id(SecretStr("fixture-user-token")) == 321
+        assert len(requests) == 1
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("status", [200, 302, 400, 401, 403, 429, 500])
+def test_unsuccessful_oauth_exchange_never_discloses_credentials_or_provider_errors(status):
+    settings = config()
+    canaries = (
+        settings.client_secret.get_secret_value(),
+        "fixture-private-code",
+        "fixture-private-response-token",
+        "fixture-private-provider-description",
+    )
+
+    def handler(request):
+        assert "Authorization" not in request.headers
+        return httpx.Response(
+            status,
+            json={
+                "error": "incorrect_client_credentials",
+                "error_description": " ".join(canaries),
+            },
+        )
+
+    client = GitHubAppClient(settings, transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(ApplicationError) as failed:
+            client.exchange_authorization("fixture-private-code")
+        assert failed.value.status_code == (429 if status == 429 else 503)
+        assert all(canary not in str(failed.value) for canary in canaries)
+        assert "incorrect_client_credentials" not in str(failed.value)
     finally:
         client.close()
 

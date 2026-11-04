@@ -53,7 +53,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="site-canvas">{children}</div>
         </div>
         {/* Trace Help: on every route (it hides itself on the auth callback). */}
-        <Suspense fallback={null}><TraceHelp /></Suspense>
+        {/* Reads the pathname: Suspense keeps dynamic routes (e.g. /learn/custom/[id]) prerenderable. */}
+        <Suspense fallback={null}>
+          <TraceHelp />
+        </Suspense>
       </body>
     </html>
   );

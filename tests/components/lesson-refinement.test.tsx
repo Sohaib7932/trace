@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Progress } from "@/lib/api/client";
 import { TutorPanel, stepLabel } from "@/components/learning/tutor/tutor-panel";
-import { CreateCustomLesson, YourLessons } from "@/components/learning/hub/custom-lessons";
+import { MyLessons, YourLessons, CreateCustomLesson } from "@/components/learning/hub/custom-lessons";
 import { generatedSource, catalogSource } from "@/lib/learning/lesson-source";
 import { lessons } from "@/content/lessons";
 import { attemptBody, editRows } from "@/lib/learning/edits";
@@ -13,13 +13,15 @@ import { ChangeHarness, NOTES_CODE, TASKS_CODE } from "../helpers/change-harness
 import { savedProgress, failedRun } from "../fixtures/learning";
 import { LearningWorkspace } from "@/components/learning/workspace";
 import { TodayPath } from "@/components/daily/today-path";
-import { learningApi } from "@/lib/api/client";
+import { customLessonsApi, learningApi } from "@/lib/api/client";
 
-vi.mock("@/lib/supabase/use-auth", () => ({ useAuth: () => ({ status: "guest" }) }));
+const authFixture = vi.hoisted(() => ({ value: { status: "guest" } as { status: string; userId?: string } }));
+vi.mock("@/lib/supabase/use-auth", () => ({ useAuth: () => authFixture.value }));
 
 let docked = true;
 beforeEach(() => {
   docked = true;
+  authFixture.value = { status: "guest" };
   setMockControls({ scenario: "normal", latencyMs: 0, stream: false });
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("1280") ? docked : false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   localStorage.clear();
@@ -94,10 +96,10 @@ test("the docked tutor collapses to a rail and back; focus follows and chat hist
 });
 
 // ---------- Library ----------
-test("the catalog lists only real Trace lessons; generated lessons are unavailable and empty", () => {
+test("the catalog lists only real Trace lessons; created lessons come from the real API", () => {
   expect(catalogSource.list()).toBe(lessons);
-  expect(generatedSource.status).toBe("unavailable");
-  expect(generatedSource.list()).toEqual([]);
+  expect(generatedSource.status).toBe("available");
+  expect(generatedSource.endpoint).toBe("/api/v1/custom-lessons");
 });
 
 test("Your lessons shows a private-guide sign-in gate for guests", () => {
@@ -127,6 +129,17 @@ test("the private-guide form remains disabled for guests and makes no network re
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
+test("My lessons shows an honest empty state with one way in", () => {
+  const fetchSpy = vi.fn(); vi.stubGlobal("fetch", fetchSpy);
+  render(<MyLessons />);
+  expect(screen.getByRole("heading", { name: "My lessons" })).toBeVisible();
+  expect(screen.getByText("You haven't created a lesson yet.")).toBeVisible();
+  expect(screen.getByRole("link", { name: /^Create a lesson/ })).toHaveAttribute("href", "/learn/new");
+  expect(screen.getByRole("link", { name: "FastAPI request checks" }).getAttribute("href")).toMatch(/^\/learn\/new\?prompt=/);
+  expect(screen.queryByText(/Coming soon/i)).toBeNull();
+  expect(fetchSpy).not.toHaveBeenCalled();
+});
+
 // ---------- Guests: demos only, real lessons need an account ----------
 test("a guest opening a real lesson gets sign-in options and the demo, with no learner request", async () => {
   const calls = [vi.spyOn(learningApi, "identity"), vi.spyOn(learningApi, "lesson"), vi.spyOn(learningApi, "journey"), vi.spyOn(learningApi, "createSession")];
@@ -148,4 +161,18 @@ test("today: a guest keeps the demo steps; the real lesson step asks to sign in"
   expect(screen.getAllByText("Demo exercise").length).toBeGreaterThan(0);
   expect(journey).not.toHaveBeenCalled();
   expect(identity).not.toHaveBeenCalled();
+});
+
+
+test("custom lesson lists clear immediately when the signed-in account changes", async () => {
+  const summary = { id: "owned-a", request_id: "request-a", position: 1, title: "Owner A private custom lesson", objective: "Read a request.", language: "Python", level: "beginner" as const, created_at: "2026-11-04T10:00:00Z", challenge_count: 1, completed_challenges: 0 };
+  const list = vi.spyOn(customLessonsApi, "list").mockResolvedValueOnce({ items: [summary] }).mockResolvedValueOnce({ items: [] });
+  authFixture.value = { status: "signed-in", userId: "owner-a" };
+  const view = render(<MyLessons />);
+  expect(await screen.findByRole("link", { name: /Owner A private custom lesson/ })).toBeVisible();
+  authFixture.value = { status: "signed-in", userId: "owner-b" };
+  view.rerender(<MyLessons />);
+  expect(screen.queryByRole("link", { name: /Owner A private custom lesson/ })).toBeNull();
+  expect(await screen.findByText("You haven't created a lesson yet.")).toBeVisible();
+  expect(list).toHaveBeenCalledTimes(2);
 });

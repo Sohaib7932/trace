@@ -242,7 +242,7 @@ function TutorBody({ lessonId, lessonTitle, progress, hint, session, onCollapse,
             <span aria-hidden="true" className="inline-flex size-7 items-center justify-center rounded-lg bg-primary-soft text-primary-ink"><Lightbulb className="size-4" strokeWidth={1.8} /></span>
             Lesson tutor
           </h2>
-          <DemoLabel />
+          <DemoLabel mode={tutor.mode} />
           {onCollapse && <button ref={collapseRef} type="button" aria-expanded onClick={onCollapse} className="ml-auto inline-flex size-10 items-center justify-center rounded-lg text-secondary hover:bg-foreground/5" aria-label="Collapse the lesson tutor"><PanelRightClose aria-hidden="true" className="size-[18px]" strokeWidth={1.8} /></button>}
         </div>
         <p data-tutor-context="" className="mt-2 rounded-lg bg-surface-muted px-2.5 py-1.5 text-[0.8125rem] leading-snug"><span className="text-secondary">Lesson:</span> {lessonTitle}. <span className="text-secondary">Step:</span> {step}</p>
@@ -351,7 +351,7 @@ function TutorReplyCard({ entry, aiLabel, lessonId }: { entry: Extract<Entry, { 
     <article className="tutor-reply">
       <p className="text-[0.6875rem] font-semibold tracking-[0.06em] text-primary-ink uppercase">{entry.reply?.source === "test_fixture" ? "Test fixture guidance" : aiLabel} · {entry.label}</p>
       {entry.state === "streaming" && !entry.text ? <span className="mt-1 inline-flex items-center gap-1 text-secondary" aria-label="The tutor is answering"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
-        : unavailable ? <p className="mt-1 text-secondary">The tutor isn&apos;t available right now. Fixture hints and the lesson evidence still work.</p>
+        : unavailable ? <p className="mt-1 text-secondary">The tutor isn&apos;t available right now. The AI service didn&apos;t return an answer (it may be switched off, slow or busy). Fixture hints and the lesson evidence still work.</p>
           : entry.text ? <p className="mt-1 whitespace-pre-wrap">{entry.text}</p>
             : <p className="mt-1 text-secondary">No explanation came back. Try again.</p>}
     </article>

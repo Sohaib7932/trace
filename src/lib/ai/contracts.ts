@@ -117,27 +117,30 @@ export type GeneratedExercise = {
 };
 
 /* ------------------------------------------------------------------------------------------
- * Executable AI lesson creation: PROPOSED, needs backend agreement. Nothing calls
- * these contracts. The /learn creation form uses the separate private learning-guide
- * API in lib/api/learning-guides.ts, with unexecuted examples and ungraded practice.
- * A private guide is not a GeneratedLesson or permission to publish executable content.
+ * Legacy proposed executable-lesson DTOs, retained as design references only.
+ * The implemented answer-key custom lessons use generated API schemas through
+ * lib/api/client.ts; private guides use lib/api/learning-guides.ts and remain
+ * ungraded. Neither format grants verified executable-candidate publication.
  * See docs/frontend-api-requests.md ("AI lesson creation").
  * ---------------------------------------------------------------------------------------- */
 
-export type LessonLevel = "beginner" | "intermediate";
+export type LessonLevel = "beginner" | "intermediate" | "advanced";
 
-/** PROPOSED: POST /lessons/custom (Idempotency-Key required). */
+/**
+ * PROPOSED: POST /lessons/custom (Idempotency-Key required). The composer is one chat-style
+ * message: the learner explains the lesson they want; the backend works out language,
+ * level, length and checking from it.
+ */
 export type CustomLessonRequest = {
-  /** What the learner wants to learn, in their own words (max 500 characters). */
-  topic: string;
-  start_level: LessonLevel;
-  target_level: LessonLevel;
-  /** Prefer practical, verified exercises over reading. */
-  practical: boolean;
+  /** The learner's message, in their own words (10-1000 characters). May include a short code snippet. */
+  prompt: string;
 };
 
 /** PROPOSED: lifecycle of a requested lesson. Only "ready" lessons can be opened. */
-export type CustomLessonStatus = "queued" | "generating" | "needs_review" | "ready" | "failed";
+export type CustomLessonStatus = "queued" | "outlining" | "awaiting_approval" | "generating" | "needs_review" | "ready" | "failed" | "rejected" | "cancelled";
+
+/** PROPOSED: how a generated lesson is checked; wording lives in src/lib/learning/verification.ts. */
+export type { VerificationMode } from "@/lib/learning/verification";
 
 /** PROPOSED: GET /lessons/custom/{id} and items of GET /lessons/custom. */
 export type CustomLessonSummary = {
@@ -150,6 +153,8 @@ export type CustomLessonSummary = {
   failure_reason: string | null;
   /** Present when status is "ready": the lesson id to open with GET /lessons/{id}. */
   lesson_id: string | null;
+  language: string;
+  verification_mode: import("@/lib/learning/verification").VerificationMode | null;
 };
 
 /** PROPOSED: one generated challenge. The backend must verify it runs before it is "ready". */
@@ -172,4 +177,7 @@ export type GeneratedLesson = {
   challenges: GeneratedChallenge[];
   /** True only after backend verification of every challenge (and human review if required). */
   verified: boolean;
+  /** Only "server_verified" may be described as checked on a real server. */
+  verification_mode: import("@/lib/learning/verification").VerificationMode;
+  language: string;
 };

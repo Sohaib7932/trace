@@ -61,3 +61,5 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: npx playwright test --config playwright.ai.config.ts
+      # Custom lessons end to end with the backend's mock provider transport (no key, no Gemini).
+      - run: npx playwright test --config playwright.custom-lessons.config.ts

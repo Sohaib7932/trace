@@ -2,16 +2,16 @@
 
 import { Info } from "lucide-react";
 import { useId, useState } from "react";
-import { aiMode } from "@/lib/ai/client";
+import { aiMode, type AiMode } from "@/lib/ai/client";
 
 /**
  * Persistent label on every surface a mock drives. The tooltip opens on hover and on
  * keyboard focus (and stays readable via aria-describedby for screen readers).
  */
-export function DemoLabel({ className = "", text = "Demo responses" }: { className?: string; text?: string }) {
+export function DemoLabel({ className = "", text = "Demo responses", mode = aiMode() }: { className?: string; text?: string; /** The mode of the client driving this surface. */ mode?: AiMode }) {
   const tip = useId();
   const [open, setOpen] = useState(false);
-  if (aiMode() !== "mock") return null;
+  if (mode !== "mock") return null;
   return (
     <span className={`relative inline-flex ${className}`}>
       <button
