@@ -6,6 +6,7 @@ import { CustomLessonView } from "@/components/learning/custom/custom-lesson-vie
 import { MyLessons } from "@/components/learning/hub/custom-lessons";
 import { ApiError, type CustomLesson, type CustomLessonRequest } from "@/lib/api/client";
 import { activeStep, canRetry, describeCustomLessonError, isTerminal, nextPollDelay } from "@/lib/learning/custom-lessons";
+import { saveLocal, tutorContextFor } from "@/lib/learning/custom-loop";
 
 const fx = vi.hoisted(() => ({
   auth: { status: "signed-in" } as { status: string; userId?: string },
@@ -22,6 +23,7 @@ vi.mock("@/lib/api/client", async (original) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   fx.auth = { status: "signed-in", userId: "owner-a" };
+  localStorage.clear();
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("tests use the injected adapter only"); }));
 });
 
@@ -115,23 +117,153 @@ const lesson: CustomLesson = {
   ],
 };
 
-test("viewer: answers go to the server endpoint only; badges use the shared wording; hints step by step", async () => {
+test("loop: read, predict (locked), change a line, verify on the server, revise, then complete from server state", async () => {
   const user = userEvent.setup();
-  fx.api.get.mockResolvedValue(lesson);
-  fx.api.answer.mockResolvedValueOnce({ challenge_id: "c1", verification_mode: "answer_key", correct: true, explanation: "Validation runs first.", model_answer: null, attempts: 1 });
+  const wrong = { ...lesson, challenges: [{ ...lesson.challenges[0], attempts: 1, answered_correctly: false, explanation: "Validation runs first." }, lesson.challenges[1]] };
+  const right = { ...lesson, completed_challenges: 1, challenges: [{ ...lesson.challenges[0], attempts: 2, answered_correctly: true, explanation: "Validation runs first." }, lesson.challenges[1]] };
+  fx.api.get.mockResolvedValueOnce(lesson).mockResolvedValueOnce(wrong).mockResolvedValueOnce(right);
+  fx.api.answer
+    .mockResolvedValueOnce({ challenge_id: "c1", verification_mode: "answer_key", correct: false, explanation: "Validation runs first.", model_answer: null, attempts: 1 })
+    .mockResolvedValueOnce({ challenge_id: "c1", verification_mode: "answer_key", correct: true, explanation: "Validation runs first.", model_answer: null, attempts: 2 });
   render(<CustomLessonView lessonId="lesson-1" />);
-  expect(await screen.findByRole("heading", { level: 1, name: "Request validation" })).toBeVisible();
-  expect(screen.getByText("Checked against an answer key")).toBeVisible();
-  expect(screen.getByText("Practice only")).toBeVisible();
-  expect(screen.queryByText(/real server/)).toBeNull();
-  const first = screen.getAllByRole("listitem").find((item) => item.textContent?.includes("Challenge 1"))!;
-  await user.click(within(first).getByRole("button", { name: /Show hint 1 of 3/ }));
-  expect(within(first).getByText("h1")).toBeVisible();
-  await user.click(within(first).getByText("422"));
-  await user.click(within(first).getByRole("button", { name: "Check answer" }));
-  expect(fx.api.answer).toHaveBeenCalledWith("lesson-1", "c1", { selected_option: 1 }, expect.any(String));
-  expect(await within(first).findByText(/Correct\. Checked against the answer key/)).toBeVisible();
-  expect(within(first).getByText("Validation runs first.")).toBeVisible();
+  const card = await screen.findByRole("region", { name: /Challenge 1 · Multiple choice/ });
+  expect(within(card).getByText("Checked against an answer key")).toBeVisible();
+  expect(screen.queryByText(/real server|verified by the server|ran your code/i)).toBeNull();
+
+  // 01 Read: nothing else is unlocked yet, and no result is in the page.
+  expect(within(card).getByRole("list", { name: "Steps" }).querySelector('[aria-current="step"]')).toHaveTextContent("Read");
+  expect(within(card).queryByRole("radio")).toBeNull();
+  expect(screen.queryByText("Validation runs first.")).toBeNull();
+  await user.click(within(card).getByRole("button", { name: "I've read it" }));
+
+  // 02 Predict: locked once saved; the answer isn't shown.
+  const lockButton = within(card).getByRole("button", { name: "Lock prediction" });
+  expect(lockButton).toBeDisabled();
+  await user.click(within(card).getByRole("radio", { name: "200" }));
+  await user.type(within(card).getByLabelText(/Why\?/), "Defaults fill in.");
+  await user.click(lockButton);
+  expect(within(card).getByText("Your prediction · locked")).toBeVisible();
+  expect(within(card).getByText("A. 200")).toBeVisible();
+  expect(fx.api.answer).not.toHaveBeenCalled();
+
+  // 03 Change: the learner rewrites a line inside the code; only the lesson's options can be checked.
+  await user.click(within(card).getByRole("button", { name: "Try a change in the code" }));
+  await user.click(within(card).getByRole("button", { name: "Change line 2" }));
+  const line = within(card).getByRole("textbox", { name: "Line 2: your change" });
+  expect(line).toHaveValue("    title: str");
+  await user.clear(line);
+  await user.type(line, "    title: str = 'x'");
+  expect(within(card).getAllByRole("radio", { name: /^(200|422)/ }).map((radio) => radio.closest("label")?.textContent)).toEqual(["A200", "B422"]);
+  await user.keyboard("{Enter}");
+  expect(fx.api.answer).toHaveBeenNthCalledWith(1, "lesson-1", "c1", { selected_option: 0 }, expect.any(String));
+
+  // 04 Verify: evidence, neutral wording, the explanation held back until asked for.
+  expect(await within(card).findByText("Your answer doesn't match the lesson's answer key.")).toBeVisible();
+  expect(within(card).getByText("Prediction differed")).toBeVisible();
+  expect(within(card).getByText("Your change · line 2")).toBeVisible();
+  expect(within(card).getByText("This result comes from the lesson, not from running your code.")).toBeVisible();
+  expect(within(card).queryByText("Validation runs first.")).toBeNull();
+
+  // Revise: a new numbered attempt with a new key; the prediction stays locked.
+  await user.click(within(card).getByRole("button", { name: "Try another change" }));
+  expect(within(card).getByText("A. 200")).toBeVisible();
+  await user.click(within(card).getByRole("radio", { name: /^422/ }));
+  await user.click(within(card).getByRole("button", { name: /Check my answer/ }));
+  expect(fx.api.answer).toHaveBeenNthCalledWith(2, "lesson-1", "c1", { selected_option: 1 }, expect.any(String));
+  expect(fx.api.answer.mock.calls[1][3]).not.toBe(fx.api.answer.mock.calls[0][3]);
+
+  expect(await within(card).findByText("Your answer matches the lesson's answer key.")).toBeVisible();
+  expect(within(card).getByText("Validation runs first.")).toBeVisible();
+  expect(within(card).getByRole("list", { name: "Your attempts" })).toHaveTextContent("Attempt 1 · A · changed line 2 · didn't match");
+  expect(within(card).getByRole("list", { name: "Your attempts" })).toHaveTextContent("Attempt 2 · B · matched");
+  // Completion only once the server reports it.
+  expect(await within(card).findByText("Challenge 1 done")).toBeVisible();
+  expect(screen.getByText("1 of 2 challenges done")).toBeVisible();
+  expect(within(card).getByRole("button", { name: /Next challenge/ })).toBeVisible();
+});
+
+test("loop: a challenge without code chooses the answer at step 3 and offers no code edit", async () => {
+  const user = userEvent.setup();
+  fx.api.get.mockResolvedValue({ ...lesson, challenges: [{ ...lesson.challenges[0], code: null }, lesson.challenges[1]] });
+  render(<CustomLessonView lessonId="lesson-1" />);
+  const card = await screen.findByRole("region", { name: /Challenge 1/ });
+  expect(within(card).getByRole("list", { name: "Steps" })).toHaveTextContent("Choose");
+  expect(within(card).getByRole("list", { name: "Steps" })).not.toHaveTextContent("Change");
+  await user.click(within(card).getByRole("button", { name: "I've read it" }));
+  await user.click(within(card).getByRole("radio", { name: "422" }));
+  await user.click(within(card).getByRole("button", { name: "Lock prediction" }));
+  expect(within(card).getByRole("heading", { name: /Choose/ })).toBeVisible();
+  expect(within(card).queryByRole("button", { name: /Try a change/ })).toBeNull();
+  expect(within(card).getByText("Answer-key check: your answer is compared with the lesson's answer key.")).toBeVisible();
+});
+
+test("loop: a challenge saved without code shows the lesson's nearest code, labelled with where it comes from", async () => {
+  const user = userEvent.setup();
+  const second = { ...lesson.challenges[0], id: "c2b", position: 2, prompt: "Which part validates?", code: null };
+  fx.api.get.mockResolvedValue({ ...lesson, completed_challenges: 1, challenges: [{ ...lesson.challenges[0], attempts: 1, answered_correctly: true, explanation: "x" }, second] });
+  render(<CustomLessonView lessonId="lesson-1" />);
+  const card = await screen.findByRole("region", { name: /Challenge 2/ });
+  expect(within(card).getByText(/from challenge 1 · AI-generated · not run/)).toBeVisible();
+  expect(card).toHaveTextContent("class Note(BaseModel):");
+  expect(within(card).getByRole("list", { name: "Steps" })).toHaveTextContent("Change");
+  await user.click(within(card).getByRole("button", { name: "I've read it" }));
+  await user.click(within(card).getByRole("radio", { name: "422" }));
+  await user.click(within(card).getByRole("button", { name: "Lock prediction" }));
+  await user.click(within(card).getByRole("button", { name: "Try a change in the code" }));
+  await user.click(within(card).getByRole("button", { name: "Change line 2" }));
+  expect(within(card).getByRole("textbox", { name: "Line 2: your change" })).toHaveValue("    title: str");
+});
+
+test("loop: resumes from server progress and the stored prediction after a reload", async () => {
+  saveLocal("owner-a", "c1", { prediction: { option: 0, text: null, reason: "" }, attempts: [{ number: 1, option: 0, text: null, correct: false, edit: null }], hintsShown: 1 });
+  fx.api.get.mockResolvedValue({ ...lesson, challenges: [{ ...lesson.challenges[0], attempts: 1, answered_correctly: false, explanation: "Validation runs first." }, lesson.challenges[1]] });
+  render(<CustomLessonView lessonId="lesson-1" />);
+  const card = await screen.findByRole("region", { name: /Challenge 1/ });
+  expect(within(card).getByText("Your prediction · locked")).toBeVisible();
+  expect(within(card).getByText("1 attempt so far didn't match. Try a different answer.")).toBeVisible();
+  expect(within(card).getByRole("list", { name: "Hints" })).toHaveTextContent("h1");
+  expect(within(card).queryByRole("button", { name: "Lock prediction" })).toBeNull();
+});
+
+test("loop: a challenge the server marks done opens the next unfinished one; explain is practice only", async () => {
+  const user = userEvent.setup();
+  const done = { ...lesson, completed_challenges: 1, challenges: [{ ...lesson.challenges[0], attempts: 1, answered_correctly: true, explanation: "Validation runs first." }, lesson.challenges[1]] };
+  fx.api.get.mockResolvedValueOnce(done).mockResolvedValueOnce({ ...done, completed_challenges: 2, challenges: [done.challenges[0], { ...lesson.challenges[1], attempts: 1, explanation: "Because validation runs first." }] });
+  fx.api.answer.mockResolvedValueOnce({ challenge_id: "c2", verification_mode: "practice_only", correct: null, explanation: "Because validation runs first.", model_answer: "FastAPI validates before the handler runs.", attempts: 1 });
+  render(<CustomLessonView lessonId="lesson-1" />);
+  const card = await screen.findByRole("region", { name: /Challenge 2 · Explain in your words/ });
+  expect(within(card).getByText("Practice only")).toBeVisible();
+  await user.click(within(card).getByRole("button", { name: "I've read it" }));
+  await user.type(within(card).getByLabelText("Your explanation"), "It checks the body first.");
+  await user.click(within(card).getByRole("button", { name: "Lock it in" }));
+  await user.click(within(card).getByRole("button", { name: /Check my answer/ }));
+  expect(fx.api.answer).toHaveBeenCalledWith("lesson-1", "c2", { text: "It checks the body first." }, expect.any(String));
+  expect(await within(card).findByText("Compare your explanation with the lesson's example.")).toBeVisible();
+  expect(within(card).getByText("FastAPI validates before the handler runs.")).toBeVisible();
+  expect(within(card).queryByText(/doesn't match|matches the lesson/)).toBeNull();
+  expect(await screen.findByRole("heading", { name: "Request validation", level: 2 })).toBeVisible();
+  expect(screen.getByText("Lesson complete · answer-key checks")).toBeVisible();
+  expect(screen.getAllByRole("link", { name: "Back to my lessons" }).at(-1)).toHaveAttribute("href", "/learn/my");
+});
+
+test("tutor: context has the lesson and the learner's own work, never the explanation, example or key", async () => {
+  const user = userEvent.setup();
+  const answered = { ...lesson.challenges[0], attempts: 1, answered_correctly: false, explanation: "SECRET-EXPLANATION" };
+  const context = tutorContextFor(lesson, answered, { prediction: { option: 0, text: null, reason: "r" }, attempts: [{ number: 1, option: 0, text: null, correct: false, edit: null }], hintsShown: 0 }, "Try another answer");
+  expect(JSON.stringify(context)).not.toMatch(/SECRET-EXPLANATION|explanation|model_answer|correct_option/);
+  expect(context).toMatchObject({ lessonTitle: "Request validation", step: "Try another answer", prediction: { option: "200" }, attempts: [{ option: "200", matched: false }] });
+
+  fx.api.get.mockResolvedValue(lesson);
+  render(<CustomLessonView lessonId="lesson-1" />);
+  await user.click(await screen.findByRole("button", { name: /Lesson tutor/ }));
+  const drawer = screen.getByRole("dialog", { name: "Lesson tutor" });
+  expect(within(drawer).getByText(/Request validation/)).toBeVisible();
+  expect(drawer.querySelector("[data-tutor-context]")).toHaveTextContent("Step: Read the code");
+  await user.click(within(drawer).getByRole("button", { name: /Give me a hint/ }));
+  expect(within(drawer).getByRole("region", { name: "Hints from this lesson" })).toHaveTextContent("h1");
+  await user.click(within(drawer).getByRole("button", { name: "Explain this concept" }));
+  expect(within(drawer).getByRole("article")).toHaveTextContent("Validation first: FastAPI checks the body.");
+  expect(drawer).not.toHaveTextContent(/verified by the server|ran your code/i);
 });
 
 test("viewer delete asks first, then removes and returns to the library", async () => {

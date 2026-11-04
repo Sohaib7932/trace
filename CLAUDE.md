@@ -1580,3 +1580,7 @@ Choose clarity and correctness first.
 Then elevate that experience through outstanding visual design and deliberate interactions.
 
 **The final objective is to make Trace look like a premium modern software product and behave like a rigorous, evidence-based learning tool. Both are required.**
+
+## Session Logs
+
+`.claude/settings.json` runs `.claude/hooks/extract-log.py` on `UserPromptSubmit`, `Stop` and `SubagentStop`, writing prompt + final-response transcripts to `.claude-logs/`. Each session file ends with a "Subagents" section. Always commit `.claude-logs/` with your changes.

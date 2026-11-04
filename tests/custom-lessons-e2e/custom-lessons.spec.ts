@@ -57,22 +57,50 @@ test("hub to composer to tracker to lesson to a server-checked answer, then My l
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Reading code carefully");
   await expect(page.getByText("AI-created").first()).toBeVisible();
   await expect(page.getByText("Checked against an answer key").first()).toBeVisible();
-  await expect(page.getByText("Practice only").first()).toBeVisible();
   await expect(page.getByText(/Checked on a real server/)).toHaveCount(0);
 
-  const first = page.getByRole("listitem").filter({ hasText: "Challenge 1" });
+  // Challenge 1: read, predict (locked), change a line in the code, verify; wrong, then right.
+  const first = page.getByRole("region", { name: /Challenge 1 ·/ });
+  await first.getByRole("button", { name: "I've read it" }).click();
   await first.getByText("It always fails").click();
-  await first.getByRole("button", { name: "Check answer" }).click();
-  await expect(first.getByText(/Not quite\. Checked against the answer key/)).toBeVisible();
+  await first.getByRole("button", { name: "Lock prediction" }).click();
+  await expect(first.getByText("Your prediction · locked")).toBeVisible();
+  await first.getByRole("button", { name: "Try a change in the code" }).click();
+  await first.getByRole("button", { name: "Change line 1" }).click();
+  await first.getByRole("textbox", { name: "Line 1: your change" }).fill("from pydantic import BaseModel, Field");
+  await first.getByRole("textbox", { name: "Line 1: your change" }).press("Enter");
+  await expect(first.getByText("Your answer doesn't match the lesson's answer key.")).toBeVisible();
+  await expect(first.getByText("This result comes from the lesson, not from running your code.")).toBeVisible();
+  await expect(first.getByText("Your change · line 1")).toBeVisible();
+  await first.getByRole("button", { name: "Try another change" }).click();
   await first.getByText("It describes the expected shape").click();
-  await first.getByRole("button", { name: "Check answer" }).click();
-  await expect(first.getByText(/Correct\. Checked against the answer key/)).toBeVisible();
+  await first.getByRole("button", { name: /Check my answer/ }).click();
+  await expect(first.getByText("Your answer matches the lesson's answer key.")).toBeVisible();
+  await expect(first.getByText("Challenge 1 done")).toBeVisible();
   await expect(page.getByText("1 of 3 challenges done")).toBeVisible();
+  await expect(page.getByText(/verified by the server|ran your code/i)).toHaveCount(0);
 
-  const third = page.getByRole("listitem").filter({ hasText: "Challenge 3" });
-  await third.getByLabel("Your answer").fill("It describes the data the code expects.");
-  await third.getByRole("button", { name: "Compare with an example" }).click();
-  await expect(third.getByText(/Example answer:/)).toBeVisible();
+  // The lesson tutor reads this lesson and step; hints come from the lesson.
+  await page.getByRole("button", { name: /Lesson tutor/ }).click();
+  const tutor = page.getByRole("dialog", { name: "Lesson tutor" });
+  await expect(tutor.getByText(/Lesson: Reading code carefully/)).toBeVisible();
+  await tutor.getByRole("button", { name: "Explain this concept" }).click();
+  await expect(tutor.getByRole("article")).toContainText("From this lesson");
+  await tutor.getByRole("button", { name: "Close lesson tutor" }).click();
+
+  // Reload: progress comes back from the server and the next unfinished challenge opens.
+  await page.reload();
+  await expect(page.getByRole("region", { name: /Challenge 2 ·/ })).toBeVisible();
+  await page.getByRole("button", { name: "Challenge 3" }).click();
+  const third = page.getByRole("region", { name: /Challenge 3 ·/ });
+  await expect(third.getByText("Practice only")).toBeVisible();
+  await third.getByRole("button", { name: "I've read it" }).click();
+  await third.getByLabel("Your explanation").fill("It describes the data the code expects.");
+  await third.getByRole("button", { name: "Lock it in" }).click();
+  await third.getByRole("button", { name: /Check my answer/ }).click();
+  await expect(third.getByText("Compare your explanation with the lesson's example.")).toBeVisible();
+  await expect(page.getByText("2 of 3 challenges done")).toBeVisible();
+  await noOverflow(page);
 
   // Saved on the server: still listed after a full reload, with its progress.
   // Saved on the server: offered on /learn, and still listed on /learn/my after a full reload.

@@ -2620,6 +2620,79 @@
     transition: background-color var(--dur-micro) var(--ease-ui), border-color var(--dur-micro) var(--ease-ui);
   }
   .answer-option:hover { background: var(--surface-muted); }
+  .answer-option:has(:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 2px; }
+  .answer-option[data-tried]:not([data-checked]) { background: var(--surface-muted); }
+
+  /* ---------- AI-created lessons: the read, predict, change, verify loop ---------- */
+  .loop-card {
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    padding: clamp(18px, 3vw, 32px);
+  }
+  .loop-stepper { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary); }
+  .loop-stepper li { display: inline-flex; align-items: center; gap: 8px; }
+  .loop-stepper-dot {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    transition: background-color var(--dur-state) var(--ease-ui), border-color var(--dur-state) var(--ease-ui), color var(--dur-state) var(--ease-ui);
+  }
+  .loop-stepper li[data-status="current"] { color: var(--foreground); }
+  .loop-stepper li[data-status="current"] .loop-stepper-dot { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+  .loop-stepper li[data-status="done"] .loop-stepper-dot { border-color: var(--foreground); background: var(--foreground); color: #fff; }
+  .loop-step { animation: loop-step-in var(--dur-state) var(--ease-out) both; }
+  @keyframes loop-step-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .loop-line-pick {
+    display: inline;
+    width: 100%;
+    border-radius: 4px;
+    text-align: left;
+    white-space: pre-wrap;
+    cursor: text;
+    transition: background-color var(--dur-micro) var(--ease-ui);
+  }
+  .loop-line-pick:hover, .loop-line-pick:focus-visible { background: var(--primary-soft); outline: 1px solid color-mix(in srgb, var(--primary) 60%, transparent); }
+  .loop-line-input {
+    width: min(100%, 48ch);
+    min-width: 0;
+    border-radius: 4px;
+    background: var(--surface);
+    padding: 0 4px;
+    font: inherit;
+    color: var(--foreground);
+    caret-color: var(--primary-display);
+    outline: 1px solid color-mix(in srgb, var(--primary) 70%, transparent);
+  }
+  .loop-line-input:focus { outline: 2px solid var(--primary-display); }
+  .loop-line-input::placeholder { color: var(--text-secondary); }
+  .challenge-pill {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: background-color var(--dur-micro) var(--ease-ui), border-color var(--dur-micro) var(--ease-ui);
+  }
+  .challenge-pill:hover { background: var(--surface-muted); }
+  .challenge-pill[data-done] { border-color: var(--success); color: var(--success); }
+  .challenge-pill[aria-current="step"] { border-color: var(--foreground); background: var(--foreground); color: #fff; }
+  @media (prefers-reduced-motion: reduce) {
+    .loop-step { animation: none; }
+    .loop-stepper-dot, .loop-line-pick, .challenge-pill { transition: none; }
+  }
   .answer-option[data-checked] { border-color: var(--foreground); box-shadow: inset 0 0 0 1px var(--foreground); }
   .answer-option:has(input:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 2px; }
   .answer-letter {
