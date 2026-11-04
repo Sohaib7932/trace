@@ -3,6 +3,7 @@
 import base64
 import json
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -521,3 +522,67 @@ def test_http_admission_rate_limit_is_enforced_without_github_network(api):
         assert api.client.post(path).status_code == 503
     limited = api.client.post(path)
     assert limited.status_code == 429 and limited.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize(
+    ("held_method", "held_path", "overlapping_method", "overlapping_path"),
+    [
+        ("connections", "/repositories", "installations", "/installations"),
+        ("installations", "/installations", "connections", "/repositories"),
+    ],
+)
+def test_http_parallel_bootstrap_reads_share_account_admission(
+    api, monkeypatch, held_method, held_path, overlapping_method, overlapping_path
+):
+    client = FakeGitHub(config())
+    entered, release = Event(), Event()
+    service = GitHubProjectService(
+        SqlGitHubProjectRepository(api.database), config(), client, FakeAI(), api.clock
+    )
+    api.app.state.github_projects = service
+    assert api.app.state.github_operations.settings.max_subject_in_flight == 1
+    original = getattr(service, held_method)
+    overlapping = getattr(service, overlapping_method)
+    overlapping_calls = []
+
+    def hold_authorized_read(owner):
+        result = original(owner)
+        entered.set()
+        assert release.wait(5), "The test must release the admitted bootstrap read."
+        return result
+
+    def observe_overlapping_read(owner):
+        overlapping_calls.append(owner)
+        return overlapping(owner)
+
+    monkeypatch.setattr(service, held_method, hold_authorized_read)
+    monkeypatch.setattr(service, overlapping_method, observe_overlapping_read)
+    prefix = "/api/v1/projects/github"
+    try:
+        with ThreadPoolExecutor(max_workers=1) as workers:
+            first = workers.submit(api.client.get, prefix + held_path)
+            try:
+                assert entered.wait(5), "The first authenticated read must be admitted."
+                rejected = api.client.get(prefix + overlapping_path)
+                assert rejected.status_code == 429, rejected.text
+                assert rejected.headers["cache-control"] == "no-store"
+                error = rejected.json()["error"]
+                assert set(error) == {"code", "message", "details", "request_id"}
+                assert error["code"] == "github_busy"
+                assert error["message"] == "GitHub Project Learning is busy. Try again later."
+                assert error["details"] == []
+                assert str(UUID(error["request_id"])) == error["request_id"]
+                assert overlapping_calls == []
+            finally:
+                release.set()
+            completed = first.result(timeout=5)
+        assert completed.status_code == 200, completed.text
+        assert completed.json() == []
+        retry = api.client.get(prefix + overlapping_path)
+        assert retry.status_code == 200, retry.text
+        assert retry.json() == []
+        assert len(overlapping_calls) == 1
+        assert not client.calls
+    finally:
+        release.set()
+        client.close()

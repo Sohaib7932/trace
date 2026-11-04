@@ -33,6 +33,17 @@ async function prepareFixtureProject(email: string, request: APIRequestContext) 
   return { ...project, headers };
 }
 
+async function openFixtureProject(page: Page, connectionId: string) {
+  const response = page.waitForResponse((result) => new URL(result.url()).pathname === "/api/v1/projects/github/repositories" && result.request().method() === "GET", { timeout: 10_000 });
+  await page.goto("/projects");
+  const result = await response;
+  const body = await result.json();
+  const code = typeof body?.error?.code === "string" ? body.error.code.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) : "none";
+  expect(result.status(), `GET /api/v1/projects/github/repositories: HTTP ${result.status()}, code ${code}`).toBe(200);
+  expect(Array.isArray(body)).toBe(true);
+  expect(body.some((item: { id: string }) => item.id === connectionId), "The owned fixture connection must be returned by the initial list API").toBe(true);
+}
+
 test.beforeEach(async ({ page, request }) => {
   await request.post(`${API}/__fixture__/ai-outcome/normal`);
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort("blockedbyclient"));
@@ -195,7 +206,7 @@ test("fixture repository questions use exact cited sources and bounded follow-up
   page.setDefaultTimeout(10_000);
   const email = await signUp(page, request);
   const prepared = await prepareFixtureProject(email, request);
-  await page.goto("/projects");
+  await openFixtureProject(page, prepared.connection_id);
   await expect(page.getByRole("combobox", { name: "Repository", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption(prepared.connection_id);
   await page.getByLabel("Exact commit SHA", { exact: true }).fill(prepared.commit_sha);
@@ -241,7 +252,7 @@ test("fixture repository disconnect withholds owned and foreign source access", 
   // This independent owner keeps authorization checks separate from the longer question journey.
   const email = await signUp(page, request);
   const prepared = await prepareFixtureProject(email, request);
-  await page.goto("/projects");
+  await openFixtureProject(page, prepared.connection_id);
   await expect(page.getByRole("combobox", { name: "Repository", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption(prepared.connection_id);
   await page.getByLabel("Exact commit SHA", { exact: true }).fill(prepared.commit_sha);
@@ -283,7 +294,7 @@ test("repository provider timeout has no invented answer or source citations", a
   page.setDefaultTimeout(10_000);
   const email = await signUp(page, request);
   const prepared = await prepareFixtureProject(email, request);
-  await page.goto("/projects");
+  await openFixtureProject(page, prepared.connection_id);
   await expect(page.getByRole("combobox", { name: "Repository", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption(prepared.connection_id);
   await page.getByLabel("Exact commit SHA", { exact: true }).fill(prepared.commit_sha);

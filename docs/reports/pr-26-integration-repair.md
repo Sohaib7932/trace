@@ -54,7 +54,7 @@ Executed local gates:
 
 - **4,658 backend tests passed** in 2,754.78 seconds; **94.16% branch-aware coverage**,
   above the preceding feature baseline of 94.11%. The unchanged threshold is 85%.
-- Full frontend suite after the locator repair: **213 tests / 17 files passed**;
+- Full frontend suite after the request-ordering repair: **218 tests / 17 files passed**;
   ESLint and full frontend typecheck passed. Both browser specs discover 36 cases
   across the existing viewport projects.
 - Backend Ruff passed; **411 Python files** passed formatting and **254 source
@@ -95,6 +95,45 @@ Focused backend gates:
 - Both SQLite and PostgreSQL migration graphs have one merged head. A local
   PostgreSQL server has not been used; real-server compatibility belongs to CI.
 - 43 project logging/release-workflow unit tests passed.
+
+## GitHub request-ordering follow-up
+
+CI on `d7d6cfe1` established that the textarea-locator repair worked: both ordinary
+browser suites passed **75 tests / 5 existing skips**. All four backend jobs and
+both PostgreSQL versions passed on both triggers. Push also passed **16 protected
+AI tests** and **9 custom-lesson tests / 1 existing skip**; PR reported **14 AI
+passes / 2 failures** because prepared repository connections were absent from
+its dropdowns. Those historical list-response statuses were not captured.
+
+The follow-up deterministically reproduced a matching application defect:
+
+- Before the component fix, holding the repositories read still allowed the
+  installations read to start, failing a no-overlap regression.
+- Two authenticated, socket-disabled backend HTTP cases independently prove
+  that overlapping either initial read returns sanitized **429 `github_busy`**;
+  the rejected handler does not run, and the admitted/then-sequential reads
+  succeed. The entire GitHub integration module passed **38 tests**.
+- The component now queues individual GitHub API calls while preserving both
+  query caches and invalidation. Queries use their AbortSignals; account-scoped
+  mount checks reject stale pending calls/results. Failure releases the queue
+  without replay. User actions do not queue entire refetch sequences.
+- Five new component regressions cover startup/action ordering, focus during
+  ingestion, StrictMode replay, account cancellation and failure continuation.
+  The module passed **24 tests** and the full frontend suite passed **218 tests**.
+- Browser tests now require the initial owned repository list to return HTTP
+  200 and contain the prepared connection before retaining the exact dropdown
+  assertion. Only bounded sanitized status/code metadata is added to failures.
+
+The reproduced race is consistent with the historical dropdown failures; their
+original HTTP status is not retroactively claimed to be known. No server
+concurrency/rate/deadline setting, retry, assertion or skip was weakened.
+
+Final local lint/typecheck/format checks and the production build passed after
+this fix. The two new backend parameter cases bring discovery to **4,660 tests**;
+the earlier full local invocation was **4,658 passing tests**, followed by the
+38-case module including both additions. The final current-head CI must run the
+complete expanded suite and all browser profiles; **its result was pending when
+this follow-up was committed**.
 
 ## Live acceptance and inherited limitations
 
