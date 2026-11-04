@@ -2640,14 +2640,299 @@
   .challenge-card[data-result="correct"] .answer-result { border-left-color: var(--success); }
   .challenge-card[data-result="incorrect"] .answer-result { border-left-color: var(--error); }
 
+  /* ---------- Navbar: Lessons menu (desktop dropdown + mobile accordion) ---------- */
+  .nav-trigger[data-current] { color: var(--foreground); }
+  .nav-chevron { transition: transform var(--dur-micro) var(--ease-ui); }
+  [aria-expanded="true"] > .nav-chevron { transform: rotate(180deg); }
+  .nav-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    z-index: 50;
+    width: 320px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 6px;
+    box-shadow: var(--shadow-float);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 160ms var(--ease-ui), transform 160ms var(--ease-ui), visibility 0s linear 160ms;
+  }
+  .nav-menu[data-open] {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 160ms var(--ease-ui), transform 160ms var(--ease-ui), visibility 0s;
+  }
+  .nav-menu-item {
+    display: flex;
+    min-height: 48px;
+    align-items: flex-start;
+    gap: 12px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.9375rem;
+    transition: background-color var(--dur-micro) var(--ease-ui);
+  }
+  .nav-menu-item:hover, .nav-menu-item:focus-visible { background: var(--surface-muted); }
+  .nav-menu-item[aria-current="page"] { background: var(--primary-soft); }
+  .nav-menu-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--primary-ink);
+  }
+  .nav-dot {
+    position: absolute;
+    top: 10px;
+    right: 2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+
+  /* ---------- Lessons header: progress chip and segmented switcher ---------- */
+  .progress-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    padding: 0 10px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .switcher {
+    position: relative;
+    display: inline-grid;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-muted);
+    padding: 4px;
+  }
+  .switcher-list { position: relative; display: grid; grid-template-columns: 1fr 1fr; }
+  .switcher-indicator {
+    position: absolute;
+    inset: 4px auto 4px 4px;
+    width: calc(50% - 4px);
+    border-radius: 9px;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(21, 25, 35, 0.08);
+    transition: transform var(--dur-state) var(--ease-out);
+  }
+  .switcher[data-at="my"] .switcher-indicator { transform: translateX(100%); }
+  .switcher-link {
+    position: relative;
+    display: flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    transition: color var(--dur-micro) var(--ease-ui);
+  }
+  .switcher-link:hover, .switcher-link[aria-current="page"] { color: var(--foreground); }
+
+  /* ---------- /learn: Continue card and the two Trace lesson cards ---------- */
+  .continue-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 14px 16px 14px 18px;
+  }
+  .continue-card > div { flex: 1 1 14rem; }
+  .trace-grid { position: relative; display: grid; gap: 20px; }
+  @media (min-width: 768px) {
+    .trace-grid { grid-template-columns: 1fr 1fr; gap: 40px; }
+  }
+  .trace-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: clamp(20px, 2.5vw, 28px);
+    transition: border-color var(--dur-micro) var(--ease-ui), transform var(--dur-micro) var(--ease-ui), box-shadow var(--dur-micro) var(--ease-ui);
+  }
+  .trace-card:not([data-locked]):hover { border-color: var(--border-strong); transform: translateY(-2px); box-shadow: var(--shadow-float); }
+  .trace-card[data-locked] { background: var(--background); }
+  .trace-card-number {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .trace-card-action {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 8px;
+    border-radius: 11px;
+    background: var(--foreground);
+    padding: 0 20px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: #fff;
+    transition: background-color var(--dur-micro) var(--ease-ui);
+  }
+  .trace-card-action:hover { background: color-mix(in srgb, var(--foreground) 85%, transparent); }
+  .trace-card-action[data-variant="quiet"] { border: 1px solid var(--border-strong); background: var(--surface); color: var(--foreground); }
+  .trace-card-action[data-variant="quiet"]:hover { background: var(--surface-muted); }
+  .trace-card-action:disabled { cursor: not-allowed; opacity: 0.6; }
+  .trace-peek {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #f7f7fa;
+    padding: 8px 0;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+  }
+  .trace-peek pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .trace-peek [data-focus] { background: var(--primary-soft); box-shadow: inset 2px 0 0 var(--primary); }
+  .trace-peek > pre > code > span { padding: 0 14px; }
+  .trace-peek-num { display: inline-block; width: 1.5rem; color: var(--text-tertiary); user-select: none; }
+  .trace-art { width: 100%; max-width: 240px; height: 56px; color: var(--border-strong); }
+  .trace-art-node { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.5; }
+  .trace-art-end { fill: var(--primary); }
+  .trace-connector { display: none; }
+  @media (min-width: 768px) {
+    .trace-connector {
+      position: absolute;
+      top: 46px;
+      left: calc(50% - 20px);
+      display: block;
+      width: 40px;
+      height: 8px;
+      overflow: visible;
+    }
+    .trace-connector path { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 0; }
+  }
+  @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+    .trace-connector path { animation: draw-once 600ms var(--ease-out) 400ms both; }
+  }
+  @keyframes draw-once { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+  /* ---------- /learn/my: saved lessons ---------- */
+  .my-lessons-grid { display: grid; gap: 16px; }
+  @media (min-width: 768px) { .my-lessons-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1200px) { .my-lessons-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .my-lessons-grid > li { min-width: 0; transition: opacity 220ms var(--ease-ui), transform 220ms var(--ease-ui); }
+  .my-lessons-grid > li[data-removing] { opacity: 0; transform: scale(0.97); }
   .my-lesson-card {
-    display: block;
+    display: flex;
     height: 100%;
+    flex-direction: column;
     border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--surface);
     padding: 16px 18px;
-    transition: border-color var(--dur-micro) var(--ease-ui), transform var(--dur-micro) var(--ease-ui);
+    transition: border-color var(--dur-micro) var(--ease-ui), transform var(--dur-micro) var(--ease-ui), box-shadow var(--dur-micro) var(--ease-ui);
   }
-  .my-lesson-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .my-lesson-card:hover { border-color: var(--border-strong); transform: translateY(-2px); box-shadow: var(--shadow-float); }
+  .card-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 20;
+    min-width: 160px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 4px;
+    box-shadow: var(--shadow-float);
+    animation: menu-in 160ms var(--ease-ui) both;
+  }
+  @keyframes menu-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .dialog-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(21, 25, 35, 0.32); animation: fade-in 160ms linear both; }
+  .confirm-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 61;
+    width: min(calc(100vw - 32px), 26rem);
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: 22px;
+    box-shadow: var(--shadow-float);
+    animation: fade-in 160ms linear both;
+  }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .empty-lessons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px dashed var(--border-strong);
+    border-radius: 18px;
+    padding: clamp(28px, 5vw, 56px) 20px;
+    text-align: center;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-menu, .nav-menu[data-open] { transform: none; transition: opacity 120ms linear, visibility 0s; }
+    .nav-chevron, .switcher-indicator, .my-lessons-grid > li, .trace-card, .my-lesson-card { transition: none; }
+    .trace-card:hover, .my-lesson-card:hover, .my-lessons-grid > li[data-removing] { transform: none; }
+    .card-menu, .dialog-scrim, .confirm-dialog { animation: none; }
+  }
+
+  /* /learn/my: the count on the "My lessons" link and the search controls. */
+  .library-count {
+    min-width: 22px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    padding: 1px 7px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  .library-controls {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 640px) {
+    .library-controls { grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; }
+  }
+  .library-input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--border-strong);
+    border-radius: 11px;
+    background: var(--surface);
+    padding: 0 12px;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: var(--foreground);
+  }
 }

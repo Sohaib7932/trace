@@ -2,110 +2,111 @@
 
 import Link from "next/link";
 import { ArrowRight, Check, Clock, Lock, RotateCcw } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
+import type { LessonEntry } from "@/content/lessons";
 import type { Schema } from "@/lib/api/client";
-import { latestSession, sessionStep, statusLabel, type LessonView } from "@/lib/learning/journey";
+import { statusLabel, type LessonStatus } from "@/lib/learning/journey";
 
-const accents = {
-  amber: "radial-gradient(70% 90% at 20% 20%, #f6cfb2 0%, transparent 70%), radial-gradient(80% 90% at 90% 80%, #eba45e 0%, transparent 72%), #f8e3d2",
-  rose: "radial-gradient(70% 90% at 15% 80%, #e9a3a9 0%, transparent 70%), radial-gradient(80% 90% at 85% 15%, #f4c6a4 0%, transparent 72%), #f6dcd6",
-} as const;
+/** What the one button on a card does: signed-in status, a guest sign-in, or nothing (no accounts). */
+export type CardAction =
+  | { kind: "learner"; status: LessonStatus }
+  | { kind: "guest" }
+  | { kind: "unavailable" };
 
-function useUnlockMoment(id: string, unlocked: boolean, gated: boolean) {
-  // Plays the unlock animation once per browser, the first time a gated lesson shows as open.
-  const [fresh, setFresh] = useState(false);
-  useEffect(() => {
-    if (!gated || !unlocked) return;
-    const key = `trace.unlocked.${id}`;
-    let seen = true;
-    try { seen = localStorage.getItem(key) === "1"; localStorage.setItem(key, "1"); } catch { seen = true; }
-    if (seen) return;
-    const frame = requestAnimationFrame(() => setFresh(true));
-    return () => cancelAnimationFrame(frame);
-  }, [id, unlocked, gated]);
-  return fresh;
-}
+const verbs: Record<Exclude<LessonStatus, "locked">, string> = {
+  not_started: "Start",
+  in_progress: "Continue",
+  needs_revision: "Continue",
+  completed: "Review",
+};
 
-export function LessonCard({ view, index, content, last }: { view: LessonView; index: number; content: Schema["LessonResponse"] | null; last: boolean }) {
-  const { lesson, status, phase } = view;
+/**
+ * One built-in lesson: number, title, one line, two chips, status, and exactly one button.
+ * Status always comes from the server journey; guests see no status.
+ */
+/** `quiet`: the page's Continue card already offers this lesson, so this button steps back. */
+export function LessonCard({ lesson, index, content, action, quiet = false }: { lesson: LessonEntry; index: number; content?: Schema["LessonResponse"] | null; action: CardAction; quiet?: boolean }) {
+  const status = action.kind === "learner" ? action.status : null;
   const locked = status === "locked";
-  const session = latestSession(phase);
-  // The "just opened" moment: a gated lesson that is open but not started yet.
-  const unlockedNow = useUnlockMoment(lesson.id, status === "not_started", Boolean(lesson.requires));
-  const preview = content?.outgoing_code.split("\n").slice(0, 5) ?? [];
-  const cta = status === "completed" ? "Review lesson" : status === "needs_revision" ? "Revise your change" : status === "in_progress" ? "Continue" : "Start lesson";
   const titleId = `lesson-${lesson.id}-title`;
+  const reasonId = `lesson-${lesson.id}-reason`;
+  const peek = content ? peekLines(content.outgoing_code, lesson.previewFocus) : null;
 
   return (
-    <li className="path-item" data-status={status} data-last={last ? "" : undefined} style={{ "--d": `${index * 120}ms` } as CSSProperties}>
-      <div className="path-rail" aria-hidden="true">
-        <span className="path-node" data-unlocked-now={unlockedNow ? "" : undefined}>
-          {status === "completed" ? <Check className="size-4" strokeWidth={2.4} /> : locked ? <Lock className="size-3.5" strokeWidth={2} /> : <span className="font-mono text-[0.8125rem] font-semibold">{index + 1}</span>}
-        </span>
-        <span className="path-seg" />
+    <article aria-labelledby={titleId} className="trace-card hub-enter" data-locked={locked ? "" : undefined} style={{ "--d": `${120 + index * 90}ms` } as CSSProperties}>
+      <div className="flex items-start justify-between gap-4">
+        <span className="trace-card-number" aria-hidden="true">{locked ? <Lock className="size-4" strokeWidth={2} /> : status === "completed" ? <Check className="size-4" strokeWidth={2.4} /> : index + 1}</span>
+        {status && <StatusPill status={status} />}
       </div>
+      <p className="sr-only">Lesson {index + 1}</p>
+      <h2 id={titleId} className="mt-4 text-[1.25rem] font-semibold tracking-[-0.015em]">{content?.title ?? lesson.shortTitle}</h2>
+      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-secondary">{lesson.conceptSentence}</p>
+      <ul className="mt-3 flex flex-wrap gap-2 text-[0.8125rem]" aria-label="Lesson details">
+        <li className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-secondary"><Clock aria-hidden="true" className="size-3.5" strokeWidth={1.8} />{lesson.duration}</li>
+        <li className="rounded-full bg-surface-muted px-2.5 py-1 text-secondary">{lesson.stack}</li>
+      </ul>
 
-      <article aria-labelledby={titleId} className="hub-card lesson-card" data-locked={locked ? "" : undefined} data-unlocked-now={unlockedNow ? "" : undefined}>
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:gap-8">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span aria-hidden="true" className="size-7 shrink-0 rounded-[8px] border border-white/60" style={{ background: accents[lesson.accent] }} />
-              <span className="font-mono text-[0.75rem] tracking-[0.04em] text-secondary uppercase">Lesson {index + 1}</span>
-              <StatusPill status={status} />
-              {unlockedNow && <span role="status" className="unlock-note rounded-full bg-primary-soft px-2.5 py-0.5 text-[0.75rem] font-medium text-primary-ink">Unlocked</span>}
-            </div>
-            <h3 id={titleId} className="type-h3 mt-4 text-foreground">{content?.title ?? lesson.shortTitle}</h3>
-            {content?.objective && <p className="mt-2 max-w-[60ch] text-[0.9375rem] leading-relaxed text-secondary">{content.objective}</p>}
-            <ul className="mt-4 flex flex-wrap gap-2 text-[0.8125rem]" aria-label="Lesson details">
-              <li className="rounded-full border border-border bg-surface px-2.5 py-1 font-medium text-foreground">{lesson.concept}</li>
-              <li className="rounded-full bg-surface-muted px-2.5 py-1 text-secondary"><span className="sr-only">Bug type: </span>{lesson.bugType}</li>
-              <li className="rounded-full bg-surface-muted px-2.5 py-1 text-secondary">{lesson.stack}</li>
-              <li className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-secondary"><Clock aria-hidden="true" className="size-3.5" strokeWidth={1.8} />{lesson.duration}</li>
-            </ul>
-            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-              {locked ? (
-                <p className="flex max-w-[52ch] items-start gap-2 text-[0.875rem] leading-relaxed text-secondary"><Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />{lesson.lockedReason}</p>
-              ) : (
-                <>
-                  <Link href={lesson.href} aria-describedby={titleId} className={`group inline-flex min-h-11 items-center gap-2 rounded-[11px] px-5 text-[0.9375rem] font-medium transition-[background-color,translate] duration-[180ms] active:translate-y-px ${status === "completed" ? "border border-border-strong bg-surface text-foreground hover:bg-surface-muted" : "bg-foreground text-white hover:bg-foreground/85"}`}>
-                    {status === "completed" ? <RotateCcw aria-hidden="true" className="size-4" strokeWidth={1.8} /> : null}
-                    {cta}
-                    {status !== "completed" && <ArrowRight aria-hidden="true" className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={1.8} />}
-                  </Link>
-                  {session && status !== "completed" && <span className="text-[0.875rem] text-secondary">Next step: {sessionStep(session.state).toLowerCase()}</span>}
-                  {phase && phase.attempt_count > 0 && <span className="text-[0.875rem] text-secondary">{phase.attempt_count} {phase.attempt_count === 1 ? "attempt" : "attempts"} saved</span>}
-                </>
-              )}
-            </div>
-          </div>
+      {peek ? (
+        <figure className="trace-peek mt-5" aria-label={`Code from ${lesson.previewFile}`}>
+          <pre><code>{peek.map((line) => <span key={line.number} className="block" data-focus={line.focus ? "" : undefined}><span aria-hidden="true" className="trace-peek-num">{line.number}</span>{line.text || " "}</span>)}</code></pre>
+        </figure>
+      ) : (
+        <SignalArt index={index} />
+      )}
 
-          {preview.length > 0 && (
-            <figure className="min-w-0 self-start overflow-hidden rounded-xl border border-border bg-[#f7f7fa]">
-              <figcaption className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5 font-mono text-[0.75rem] text-secondary">
-                <span className="truncate">{lesson.previewFile}</span>
-                <span className="hidden shrink-0 sm:inline">From the lesson</span>
-              </figcaption>
-              <pre className="overflow-x-auto py-3 font-mono text-[0.8125rem] leading-[1.65]"><code>
-                {preview.map((line, lineIndex) => {
-                  const focus = line.includes(lesson.previewFocus);
-                  return (
-                    <span key={lineIndex} className={`block px-4 ${focus ? "bg-primary-soft shadow-[inset_2px_0_0_var(--primary)]" : ""}`}>
-                      <span aria-hidden="true" className="mr-4 inline-block w-4 text-right text-tertiary select-none">{lineIndex + 1}</span>
-                      {line || " "}
-                    </span>
-                  );
-                })}
-              </code></pre>
-            </figure>
-          )}
-        </div>
-      </article>
-    </li>
+      <div className="mt-auto pt-5">
+        {locked ? (
+          <>
+            <button type="button" disabled aria-describedby={reasonId} className="trace-card-action" data-variant="quiet">
+              <Lock aria-hidden="true" className="size-4" strokeWidth={1.8} />Locked
+            </button>
+            <p id={reasonId} className="mt-2 text-[0.875rem] text-secondary">Finish lesson {index} to unlock</p>
+          </>
+        ) : action.kind === "unavailable" ? (
+          <>
+            <button type="button" disabled aria-describedby={reasonId} className="trace-card-action" data-variant="quiet">Start</button>
+            <p id={reasonId} className="mt-2 text-[0.875rem] text-secondary">Accounts aren&apos;t set up on this copy of Trace.</p>
+          </>
+        ) : action.kind === "guest" ? (
+          <Link href={`/sign-in?next=${encodeURIComponent(lesson.href)}`} aria-label={`Sign in to start ${lesson.shortTitle}`} className="trace-card-action group">
+            Sign in to start<ArrowRight aria-hidden="true" className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={1.8} />
+          </Link>
+        ) : (
+          <Link href={lesson.href} aria-describedby={titleId} className="trace-card-action group" data-variant={status === "completed" || quiet ? "quiet" : undefined}>
+            {status === "completed" && <RotateCcw aria-hidden="true" className="size-4" strokeWidth={1.8} />}
+            {verbs[status as Exclude<LessonStatus, "locked">]}
+            {status !== "completed" && <ArrowRight aria-hidden="true" className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={1.8} />}
+          </Link>
+        )}
+      </div>
+    </article>
   );
 }
 
-export function StatusPill({ status }: { status: LessonView["status"] }) {
-  const styles: Record<LessonView["status"], string> = {
+/** Three lines around the line that matters, from the lesson's real request code, without
+ * the indentation they share (so narrow screens keep the code readable). */
+export function peekLines(code: string, focus: string) {
+  const lines = code.split("\n");
+  const at = Math.max(0, lines.findIndex((line) => line.includes(focus)));
+  const start = Math.max(0, Math.min(at - 1, lines.length - 3));
+  const slice = lines.slice(start, start + 3);
+  const indents = slice.filter((line) => line.trim()).map((line) => line.length - line.trimStart().length);
+  const shared = indents.length ? Math.min(...indents) : 0;
+  return slice.map((text, offset) => ({ number: start + offset + 1, text: text.slice(shared), focus: start + offset === at }));
+}
+
+/** Original decorative art: a signal travelling through three nodes. Never carries meaning. */
+function SignalArt({ index }: { index: number }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 240 56" className="trace-art mt-5" preserveAspectRatio="xMinYMid meet">
+      <path d={index % 2 ? "M8 40 C 60 40, 70 16, 120 16 S 180 40, 232 28" : "M8 16 C 60 16, 70 40, 120 40 S 180 16, 232 28"} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="3 5" />
+      {[8, 120, 232].map((x, i) => <circle key={x} cx={x} cy={i === 1 ? (index % 2 ? 16 : 40) : i === 0 ? (index % 2 ? 40 : 16) : 28} r={i === 2 ? 5 : 4} className={i === 2 ? "trace-art-end" : "trace-art-node"} />)}
+    </svg>
+  );
+}
+
+export function StatusPill({ status }: { status: LessonStatus }) {
+  const styles: Record<LessonStatus, string> = {
     completed: "bg-success-soft text-success",
     needs_revision: "bg-warning-soft text-warning",
     in_progress: "bg-primary-soft text-primary-ink",

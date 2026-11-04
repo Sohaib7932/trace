@@ -8,6 +8,7 @@ import { ApiError, customLessonsApi, type CustomLessonRequest } from "@/lib/api/
 import {
   activeStep, canRetry, describeCustomLessonError, estimatedWait, isTerminal, nextPollDelay, statusCopy, TRACKER_STEPS,
 } from "@/lib/learning/custom-lessons";
+import { refreshNavSignals } from "@/lib/learning/nav-signals";
 import { useAuth } from "@/lib/supabase/use-auth";
 
 /**
@@ -34,6 +35,8 @@ function AccountGenerationTracker({ requestId }: { requestId: string }) {
     try {
       const next = await customLessonsApi.status(requestId, signal);
       setRequest(next);
+      // A finished lesson changes the navbar count of My lessons.
+      if (next.status === "ready") refreshNavSignals();
       setError(null);
       return next;
     } catch (failure) {
@@ -109,7 +112,7 @@ function AccountGenerationTracker({ requestId }: { requestId: string }) {
         <section role="alert" className="hub-card mx-auto max-w-[44rem] p-6 sm:p-8">
           <h2 className="type-h3">{info.title}</h2>
           <p className="mt-2 text-secondary">{info.detail}</p>
-          <Link href="/learn" className="mt-5 inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white">Back to lessons</Link>
+          <Link href="/learn/my" className="mt-5 inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white">Back to my lessons</Link>
         </section>
       );
     }
@@ -175,7 +178,7 @@ function AccountGenerationTracker({ requestId }: { requestId: string }) {
           <Link href={`/learn/new?prompt=${encodeURIComponent(request.topic)}`} className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Edit your request</Link>
         )}
         {ended && canRetry(request) && <Link href={`/learn/new?prompt=${encodeURIComponent(request.topic)}`} className="min-h-11 content-center font-medium underline underline-offset-4">Edit your request</Link>}
-        <Link href="/learn" className="min-h-11 content-center font-medium underline underline-offset-4">Back to lessons</Link>
+        <Link href="/learn/my" className="min-h-11 content-center font-medium underline underline-offset-4">Back to my lessons</Link>
       </div>
 
       {request.status === "ready" && request.lesson_ids.length > 1 && (

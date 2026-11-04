@@ -19,7 +19,7 @@ async function noOverflow(page: Page) {
 
 test("navbar to composer: one message box, a live preview, and sign-in as the next step for guests", async ({ page, isMobile }) => {
   const { errors, creationCalls } = guard(page);
-  await page.goto("/learn");
+  await page.goto("/today");
   if (isMobile) {
     await page.getByRole("button", { name: "Open menu" }).click();
     await page.locator("#mobile-menu").getByRole("link", { name: "Create a lesson" }).click();
@@ -70,20 +70,21 @@ test("keyboard only: reach the composer, use an example, open How it works", asy
   expect(errors).toEqual([]);
 });
 
-test("new and returning learners: Start here shows until a lesson is started", async ({ page, request }) => {
+test("new and returning learners: a first-visit hint, then a Continue card once a lesson is started", async ({ page, request }) => {
   test.setTimeout(120_000);
   const { errors } = guard(page);
   await signUp(page, request);
   await page.goto("/learn");
-  await expect(page.getByRole("heading", { name: "Start here" })).toBeVisible();
-  await page.getByRole("link", { name: "Open lesson 1" }).click();
+  await expect(page.getByText("New here? Start with lesson 1. It takes about 5 minutes.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Continue" })).toHaveCount(0);
+  await page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true }).click();
   await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await page.getByLabel("The request will be rejected", { exact: true }).check();
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
   await page.goto("/learn");
-  await expect(page.getByRole("heading", { name: "Continue where you left off" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Start here" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Continue" })).toBeVisible();
+  await expect(page.getByText(/New here\?/)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

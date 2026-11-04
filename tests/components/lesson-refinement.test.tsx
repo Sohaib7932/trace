@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Progress } from "@/lib/api/client";
 import { TutorPanel, stepLabel } from "@/components/learning/tutor/tutor-panel";
-import { MyLessons, YourLessons, CreateCustomLesson } from "@/components/learning/hub/custom-lessons";
+import { MyLessons } from "@/components/learning/hub/custom-lessons";
+import { YourLessons, CreateCustomLesson } from "@/components/learning/hub/private-guide-hub";
 import { generatedSource, catalogSource } from "@/lib/learning/lesson-source";
 import { lessons } from "@/content/lessons";
 import { attemptBody, editRows } from "@/lib/learning/edits";
@@ -102,11 +103,12 @@ test("the catalog lists only real Trace lessons; created lessons come from the r
   expect(generatedSource.endpoint).toBe("/api/v1/custom-lessons");
 });
 
-test("Your lessons shows a private-guide sign-in gate for guests", () => {
+test("saved lessons (guides API) show a sign-in gate for guests, in lesson wording", () => {
   render(<QueryClientProvider client={new QueryClient()}><YourLessons /></QueryClientProvider>);
-  expect(screen.getByRole("heading", { name: "Your lessons" })).toBeVisible();
-  expect(screen.getByText("Private guides you create will appear here.")).toBeVisible();
-  expect(screen.getByText("Sign in to create and read your private guides.")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Saved lessons" })).toBeVisible();
+  expect(screen.getByText("Lessons you create will appear here.")).toBeVisible();
+  expect(screen.getByText("Sign in to create and read your lessons.")).toBeVisible();
+  expect(document.body.textContent).not.toMatch(/\bguides?\b/i);
 });
 
 test("the private-guide form remains disabled for guests and makes no network request", async () => {
@@ -120,24 +122,36 @@ test("the private-guide form remains disabled for guests and makes no network re
   expect(screen.getByLabelText("Starting level")).toHaveValue("beginner");
   expect(screen.getByLabelText("Target level")).toHaveValue("intermediate");
   expect(screen.getByLabelText("Prefer practical exercises")).toBeChecked();
-  const submit = screen.getByRole("button", { name: "Create guide" });
+  const submit = screen.getByRole("button", { name: "Create lesson" });
   expect(submit).toBeDisabled();
-  expect(submit).toHaveAccessibleDescription("Sign in to create a private guide.");
+  expect(submit).toHaveAccessibleDescription("Sign in to create a lesson.");
+  expect(screen.getByText("What you'll get")).toBeVisible();
+  expect(document.body.textContent).not.toMatch(/\bguides?\b/i);
   await user.click(submit);
   await user.keyboard("{Enter}");
   expect(screen.getByRole("complementary", { name: "Preview of the format" })).toHaveTextContent(/Practice is ungraded/);
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
-test("My lessons shows an honest empty state with one way in", () => {
+test("My lessons asks guests to sign in and makes no request", () => {
   const fetchSpy = vi.fn(); vi.stubGlobal("fetch", fetchSpy);
   render(<MyLessons />);
-  expect(screen.getByRole("heading", { name: "My lessons" })).toBeVisible();
-  expect(screen.getByText("You haven't created a lesson yet.")).toBeVisible();
-  expect(screen.getByRole("link", { name: /^Create a lesson/ })).toHaveAttribute("href", "/learn/new");
-  expect(screen.getByRole("link", { name: "FastAPI request checks" }).getAttribute("href")).toMatch(/^\/learn\/new\?prompt=/);
+  expect(screen.getByRole("heading", { name: "Sign in to see your lessons" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in?next=%2Flearn%2Fmy");
   expect(screen.queryByText(/Coming soon/i)).toBeNull();
   expect(fetchSpy).not.toHaveBeenCalled();
+});
+
+test("My lessons shows an empty state with one primary button and three examples", async () => {
+  vi.spyOn(customLessonsApi, "list").mockResolvedValue({ items: [] });
+  authFixture.value = { status: "signed-in", userId: "owner-a" };
+  render(<MyLessons />);
+  expect(await screen.findByRole("heading", { name: "No lessons yet" })).toBeVisible();
+  expect(screen.getByRole("link", { name: /^Create your first lesson/ })).toHaveAttribute("href", "/learn/new");
+  expect(screen.queryByRole("link", { name: /^Create a lesson/ })).toBeNull();
+  const examples = within(screen.getByRole("list", { name: "Examples" })).getAllByRole("link");
+  expect(examples).toHaveLength(3);
+  for (const example of examples) expect(example.getAttribute("href")).toMatch(/^\/learn\/new\?prompt=/);
 });
 
 // ---------- Guests: demos only, real lessons need an account ----------
@@ -169,10 +183,10 @@ test("custom lesson lists clear immediately when the signed-in account changes",
   const list = vi.spyOn(customLessonsApi, "list").mockResolvedValueOnce({ items: [summary] }).mockResolvedValueOnce({ items: [] });
   authFixture.value = { status: "signed-in", userId: "owner-a" };
   const view = render(<MyLessons />);
-  expect(await screen.findByRole("link", { name: /Owner A private custom lesson/ })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Owner A private custom lesson" })).toBeVisible();
   authFixture.value = { status: "signed-in", userId: "owner-b" };
   view.rerender(<MyLessons />);
-  expect(screen.queryByRole("link", { name: /Owner A private custom lesson/ })).toBeNull();
-  expect(await screen.findByText("You haven't created a lesson yet.")).toBeVisible();
+  expect(screen.queryByText("Owner A private custom lesson")).toBeNull();
+  expect(await screen.findByRole("heading", { name: "No lessons yet" })).toBeVisible();
   expect(list).toHaveBeenCalledTimes(2);
 });

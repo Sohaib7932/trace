@@ -1,8 +1,11 @@
 "use client";
 
-import { Menu, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { createCta, navLinks } from "./nav-links";
+import Link from "next/link";
+import { ChevronDown, Menu, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useNavSignals } from "@/lib/learning/nav-signals";
+import { lessonIcons, useLessonSection } from "./lessons-menu";
+import { createCta, lessonLinks, navLinks } from "./nav-links";
 
 /**
  * Phone menu: opens with a short fade and slide (CSS, reduced-motion safe), traps
@@ -13,10 +16,15 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // "Lessons" is an accordion inside the phone menu, with the same two items as the desktop menu.
+  const [lessonsOpen, setLessonsOpen] = useState(false);
+  const lessonsId = useId();
+  const current = useLessonSection();
+  const { myLessons } = useNavSignals();
 
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.querySelector<HTMLElement>("a")?.focus();
+    panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
 
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -26,7 +34,7 @@ export function MobileNav() {
       }
       if (event.key !== "Tab") return;
       // Focus trap: toggle button + menu links
-      const focusable = [buttonRef.current, ...(panelRef.current?.querySelectorAll<HTMLElement>("a") ?? [])].filter(
+      const focusable = [buttonRef.current, ...(panelRef.current?.querySelectorAll<HTMLElement>("a, button:not([disabled])") ?? [])].filter(
         Boolean,
       ) as HTMLElement[];
       const first = focusable[0];
@@ -90,6 +98,37 @@ export function MobileNav() {
               </a>
             </li>
           ))}
+          <li>
+            <button
+              type="button"
+              aria-expanded={lessonsOpen}
+              aria-controls={lessonsId}
+              onClick={() => setLessonsOpen((value) => !value)}
+              className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-[1rem] font-medium tracking-[-0.01em] text-foreground transition-colors duration-[180ms] hover:bg-surface-muted"
+            >
+              Lessons
+              <ChevronDown aria-hidden="true" className="nav-chevron size-4" strokeWidth={2} />
+            </button>
+            <ul id={lessonsId} hidden={!lessonsOpen} className="pb-1 pl-3">
+              {lessonLinks.map((link) => {
+                const Icon = lessonIcons[link.id];
+                return (
+                  <li key={link.id}>
+                    <Link href={link.href} onClick={() => setOpen(false)} aria-current={current === link.id ? "page" : undefined} className="nav-menu-item">
+                      <span aria-hidden="true" className="nav-menu-icon"><Icon className="size-4" strokeWidth={1.8} /></span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 font-medium text-foreground">
+                          {link.label}
+                          {link.id === "my" && myLessons !== null && <span className="library-count" aria-label={`${myLessons} ${myLessons === 1 ? "lesson" : "lessons"}`}>{myLessons}</span>}
+                        </span>
+                        <span className="mt-0.5 block text-[0.8125rem] leading-snug text-secondary">{link.description}</span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </li>
           <li>
             <a
               href={createCta.href}

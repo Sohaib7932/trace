@@ -21,11 +21,12 @@ test("'Try a lesson' and 'Try Trace' lead to the lessons hub; 'See how Trace wor
   // The hero CTA (the final CTA uses the same label and destination).
   await page.locator("#top").getByRole("link", { name: "Try a lesson" }).click();
   await expect(page).toHaveURL(/\/learn$/);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("real code");
-  // Guests only get demos: the hub lists the lessons and asks them to sign in.
-  await expect(page.getByRole("heading", { name: "Sign in to start the lessons" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
-  await expect(page.getByText("0 of 2 lessons completed", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Trace lessons");
+  // Guests only get demos: each lesson card asks them to sign in.
+  await expect(page.getByRole("link", { name: "Sign in to start Follow the note" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Lesson library" }).getByRole("link", { name: "Trace lessons" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText("0 of 2 completed", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Follow-ups|See today's exercises/)).toHaveCount(0);
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -35,8 +36,8 @@ test("a signed-in learner's hub shows the progress summary from the server journ
   await signUp(page, request);
   await guard(page, errors);
   await page.goto("/learn");
-  await expect(page.getByText("0 of 2 lessons completed", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Start lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+  await expect(page.getByText("0 of 2 completed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -48,12 +49,12 @@ test("the transfer lesson stays locked until the first is complete, then the com
   await guard(page, errors);
   await page.goto("/learn");
   const transfer = page.getByRole("article", { name: "The Nested Payload Problem" });
-  await expect(transfer.getByText("Locked", { exact: true })).toBeVisible();
-  await expect(transfer.getByText(/Opens when you complete/)).toBeVisible();
+  await expect(transfer.getByRole("button", { name: "Locked" })).toBeDisabled();
+  await expect(transfer.getByText("Finish lesson 1 to unlock")).toBeVisible();
   await expect(transfer.getByRole("link")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("learn-new.png"), fullPage: true });
 
-  await page.getByRole("link", { name: "Start lesson 1" }).click();
+  await page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Lessons" })).toBeVisible();
   await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await page.getByLabel("The request will be rejected", { exact: true }).check();
@@ -66,10 +67,10 @@ test("the transfer lesson stays locked until the first is complete, then the com
   // Not completed on the server yet: no completion panel, transfer still locked.
   await expect(page.getByText("Lesson completed · verified by the server")).toHaveCount(0);
   await page.goto("/learn");
-  await expect(page.getByRole("article", { name: "The Nested Payload Problem" }).getByText("Locked", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Continue where you left off" })).toBeVisible();
+  await expect(page.getByRole("article", { name: "The Nested Payload Problem" }).getByRole("button", { name: "Locked" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Continue" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Pick up the lesson" }).click();
+  await page.getByRole("region", { name: "Continue" }).getByRole("link", { name: /^Continue / }).click();
   await page.getByRole("button", { name: /^Change field name, currently / }).click();
   await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
@@ -81,8 +82,9 @@ test("the transfer lesson stays locked until the first is complete, then the com
   await panel.getByRole("link", { name: /Next lesson/ }).click();
   await expect(page).toHaveURL(/\/learn\/fastapi-nested-payload-transfer$/);
   await page.goto("/learn");
-  await expect(page.getByText("1 of 2 lessons completed", { exact: true })).toBeVisible();
-  await expect(page.getByRole("article", { name: "The Nested Payload Problem" }).getByRole("link", { name: "Start lesson" })).toBeVisible();
+  await expect(page.getByText("1 of 2 completed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Review" })).toBeVisible();
+  await expect(page.getByRole("article", { name: "The Nested Payload Problem" }).getByRole("link", { name: "Start", exact: true })).toBeVisible();
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -134,11 +136,12 @@ test("keyboard alone can reach a lesson from the hub", async ({ page, request, i
   test.skip(isMobile, "Keyboard path checked on desktop");
   await signUp(page, request);
   await page.goto("/learn");
-  await expect(page.getByRole("link", { name: "Start lesson 1" })).toBeVisible();
+  await expect(page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true })).toBeVisible();
   for (let i = 0; i < 40; i++) {
     await page.keyboard.press("Tab");
+    const href = await page.evaluate(() => (document.activeElement as HTMLAnchorElement | null)?.getAttribute("href"));
     const name = await page.evaluate(() => document.activeElement?.textContent?.trim());
-    if (name === "Start lesson 1") break;
+    if (name === "Start" && href === "/learn/fastapi-payload-mismatch") break;
   }
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/learn\/fastapi-payload-mismatch$/);

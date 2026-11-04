@@ -75,7 +75,7 @@ export function CompletionPanel({ lessonId }: { lessonId: string }) {
           {!next && (
             <p className="mt-5 max-w-[62ch] rounded-xl bg-surface-muted p-4 text-[0.9375rem] leading-relaxed">
               {firstFollowUp
-                ? <>That was the last lesson for now. Your next step is follow-up {firstFollowUp.ordinal}: it {firstFollowUp.status === "due" ? "is open now" : <>opens <time dateTime={firstFollowUp.due_at}>{formatWhen(firstFollowUp.due_at)}</time></>} on the lessons page.</>
+                ? <>That was the last lesson for now. Your next step is follow-up {firstFollowUp.ordinal}: it {firstFollowUp.status === "due" ? "is open now" : <>opens <time dateTime={firstFollowUp.due_at}>{formatWhen(firstFollowUp.due_at)}</time></>} on your account page.</>
                 : "That was the last lesson for now. New lessons are being written."}
             </p>
           )}
@@ -85,7 +85,7 @@ export function CompletionPanel({ lessonId }: { lessonId: string }) {
                 Next lesson<span className="sr-only">: {next.lesson.shortTitle}</span><ArrowRight aria-hidden="true" className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={1.8} />
               </Link>
             ) : firstFollowUp?.status === "due" ? (
-              <Link href="/learn#follow-ups" className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Answer follow-up {firstFollowUp.ordinal}</Link>
+              <Link href="/account#follow-ups" className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Answer follow-up {firstFollowUp.ordinal}</Link>
             ) : null}
             <Link href="/learn" className="inline-flex min-h-11 items-center rounded-[11px] border border-border-strong bg-surface px-5 font-medium transition-colors hover:bg-surface-muted">Back to lessons</Link>
           </div>

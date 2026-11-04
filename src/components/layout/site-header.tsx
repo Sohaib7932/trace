@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Wordmark } from "@/components/brand/trace-mark";
 import { AccountLink } from "@/components/auth/account-link";
 import { ButtonLink } from "@/components/ui/button-link";
+import { LessonsMenu } from "./lessons-menu";
 import { MobileNav } from "./mobile-nav";
 import { NavScroll } from "./nav-scroll";
 import { navLinks, primaryCta } from "./nav-links";
@@ -32,6 +33,7 @@ export function SiteHeader({ cta = primaryCta }: { cta?: Cta | null } = {}) {
               </a>
             </li>
           ))}
+            <li><LessonsMenu /></li>
           </ul>
         </div>
 
