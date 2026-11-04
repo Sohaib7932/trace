@@ -19,6 +19,8 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:8111",
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_controlled_test_fixture",
         NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3300", NEXT_PUBLIC_AI_MODE: "real",
+        // Test-only: the leaderboard has no backend endpoint yet, so this stack uses the labelled demo adapter.
+        NEXT_PUBLIC_LEADERBOARD_DEMO: "1",
       },
     },
   ],

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { AmbientPage } from "@/components/layout/ambient-page";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthForm, type CallbackError } from "@/components/auth/auth-form";
 import { RedirectIfSignedIn } from "@/components/auth/redirect-if-signed-in";
@@ -14,5 +15,5 @@ async function Content({ searchParams }: { searchParams: Params }) {
   return <RedirectIfSignedIn><AuthForm mode="sign-in" callbackError={callbackError} next={params.next} /></RedirectIfSignedIn>;
 }
 export default function Page({ searchParams }: { searchParams: Params }) {
-  return <AuthShell><Suspense fallback={<p role="status" className="text-secondary">Loading sign in…</p>}><Content searchParams={searchParams} /></Suspense></AuthShell>;
+  return <AmbientPage calm><AuthShell><Suspense fallback={<p role="status" className="text-secondary">Loading sign in…</p>}><Content searchParams={searchParams} /></Suspense></AuthShell></AmbientPage>;
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Avatar } from "@/components/avatar/avatar";
+import { useProfile } from "@/lib/avatars/profile";
 import { useNavSignals } from "@/lib/learning/nav-signals";
 import { useAuth } from "@/lib/supabase/use-auth";
 
@@ -13,6 +15,7 @@ import { useAuth } from "@/lib/supabase/use-auth";
 export function AccountLink({ guestLabel = "Sign in", className = "" }: { guestLabel?: string; className?: string }) {
   const auth = useAuth();
   const { followUpDue } = useNavSignals();
+  const { status, profile } = useProfile();
   if (auth.status === "unconfigured") return null;
   const signedIn = auth.status === "signed-in";
   const loading = auth.status === "loading";
@@ -24,6 +27,7 @@ export function AccountLink({ guestLabel = "Sign in", className = "" }: { guestL
       tabIndex={loading ? -1 : undefined}
       className={`relative inline-flex min-h-11 items-center rounded-lg px-2 text-[0.875rem] whitespace-nowrap sm:px-3 font-medium tracking-[-0.01em] text-secondary transition-[color,opacity] duration-150 hover:text-foreground ${loading ? "pointer-events-none opacity-0" : "opacity-100"} ${className}`}
     >
+      {signedIn && <Avatar avatarId={profile?.avatarId} seed={profile?.userId ?? "account"} size={24} loading={status !== "ready"} decorative className="mr-2" />}
       {signedIn ? "Account" : guestLabel}
       {signedIn && followUpDue && <span aria-hidden="true" className="nav-dot" />}
     </Link>

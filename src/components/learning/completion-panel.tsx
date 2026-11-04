@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { lessonById } from "@/content/lessons";
 import { learningApi } from "@/lib/api/client";
 import { formatWhen, nextUnlocked } from "@/lib/learning/journey";
+import { CompletionRank } from "@/components/leaderboard/completion-rank";
 
 /**
  * Shown on a lesson page once the server reports a completed session for this lesson,
@@ -72,6 +73,7 @@ export function CompletionPanel({ lessonId }: { lessonId: string }) {
             {facts.map((fact) => <li key={fact} className="flex items-start gap-2"><span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground/40" />{fact}</li>)}
             {completedSession.completed_at && <li className="flex items-start gap-2"><span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground/40" />Completed <time dateTime={completedSession.completed_at}>{formatWhen(completedSession.completed_at)}</time></li>}
           </ul>
+          <CompletionRank />
           {!next && (
             <p className="mt-5 max-w-[62ch] rounded-xl bg-surface-muted p-4 text-[0.9375rem] leading-relaxed">
               {firstFollowUp
@@ -85,7 +87,7 @@ export function CompletionPanel({ lessonId }: { lessonId: string }) {
                 Next lesson<span className="sr-only">: {next.lesson.shortTitle}</span><ArrowRight aria-hidden="true" className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={1.8} />
               </Link>
             ) : firstFollowUp?.status === "due" ? (
-              <Link href="/account#follow-ups" className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Answer follow-up {firstFollowUp.ordinal}</Link>
+              <Link href="/account?tab=follow-ups" className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white hover:bg-foreground/85">Answer follow-up {firstFollowUp.ordinal}</Link>
             ) : null}
             <Link href="/learn" className="inline-flex min-h-11 items-center rounded-[11px] border border-border-strong bg-surface px-5 font-medium transition-colors hover:bg-surface-muted">Back to lessons</Link>
           </div>

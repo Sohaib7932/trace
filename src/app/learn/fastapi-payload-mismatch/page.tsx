@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { CompletionPanel } from "@/components/learning/completion-panel";
-import { LessonTopBar } from "@/components/learning/lesson-top-bar";
+import { AmbientPage } from "@/components/layout/ambient-page";
+import { SiteHeader } from "@/components/layout/site-header";
+import { createCta } from "@/components/layout/nav-links";
 import { LearningWorkspace } from "@/components/learning/workspace";
 
 export const metadata: Metadata = { title: "Follow the note · Trace", description: "Read the payload, commit a prediction, and verify a real saved note." };
@@ -8,10 +10,14 @@ export const metadata: Metadata = { title: "Follow the note · Trace", descripti
 const LESSON = "fastapi-payload-mismatch";
 
 export default function LessonPage() {
-  return <main id="main" className="shell">
-    <LessonTopBar title="Follow the note" />
-    <LearningWorkspace lessonId={LESSON}>
-      <CompletionPanel lessonId={LESSON} />
-    </LearningWorkspace>
-  </main>;
+  return (
+    <AmbientPage calm>
+      <SiteHeader cta={createCta} />
+      <main id="main" className="shell">
+        <LearningWorkspace lessonId={LESSON}>
+          <CompletionPanel lessonId={LESSON} />
+        </LearningWorkspace>
+      </main>
+    </AmbientPage>
+  );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Wordmark } from "@/components/brand/trace-mark";
 import { AccountLink } from "@/components/auth/account-link";
 import { ButtonLink } from "@/components/ui/button-link";
+import { LeaderboardLink } from "./leaderboard-link";
 import { LessonsMenu } from "./lessons-menu";
 import { MobileNav } from "./mobile-nav";
 import { NavScroll } from "./nav-scroll";
@@ -15,7 +16,7 @@ export function SiteHeader({ cta = primaryCta }: { cta?: Cta | null } = {}) {
     <header id="site-header" className="site-header enter-down sticky top-0 z-40 px-3 pt-3 sm:px-4 sm:pt-[18px]">
       <nav
         aria-label="Main"
-        className="relative mx-auto flex h-[58px] w-full max-w-[1100px] items-center justify-between rounded-[14px] border border-border bg-surface pr-2 pl-4 shadow-[0_1px_2px_rgba(21,25,35,0.04),0_10px_30px_-18px_rgba(21,25,35,0.18)] sm:pl-5 lg:w-[78%]"
+        className="relative mx-auto flex h-[58px] w-full max-w-[1100px] items-center justify-between bg-surface pr-2 pl-4 sm:pl-5 lg:w-[78%]"
       >
         <div className="flex items-center gap-6 lg:gap-8">
           <Link href="/#top" className="rounded-md text-foreground" aria-label="Trace home">
@@ -34,6 +35,7 @@ export function SiteHeader({ cta = primaryCta }: { cta?: Cta | null } = {}) {
             </li>
           ))}
             <li><LessonsMenu /></li>
+            <li><LeaderboardLink /></li>
           </ul>
         </div>
 

@@ -306,6 +306,44 @@ The UI reads lessons through `src/lib/learning/lesson-source.ts` (`catalogSource
 
 ---
 
+## Leaderboard and account (PROPOSED, nothing below exists in openapi.json)
+
+Frontend status: `/leaderboard` and the "Your rank" card on `/account` are built against the proposed contract in `src/lib/leaderboard/contracts.ts`. The real client throws `EndpointNotAvailableError` until the endpoint exists, so the page shows "The leaderboard isn't open yet". Fictional demo data exists only behind `NEXT_PUBLIC_LEADERBOARD_DEMO=1` (labelled "Demo data") and in tests. The frontend never computes, sorts or sends a score, rank or count.
+
+### V1 rules (from the team)
+Global all-time board of all registered users. Metric: number of DISTINCT server-verified problems completed. Only verified completions count (attempts, drafts, unfinished and unverified never count). Completing the same problem again counts once. Sorted by count descending; equal counts share a rank; show rank, avatar, display name and count; highlight the signed-in user; empty state when nobody has a verified completion.
+
+### Proposed endpoint
+`GET /api/v1/leaderboard?cursor=<opaque>&limit=<1..50>`, signed-in learners only (Bearer, same as the other learner endpoints; `no-store` is NOT wanted: a short `Cache-Control: private, max-age=60` is fine).
+
+```json
+{
+  "entries": [{ "rank": 1, "user_id": "opaque-stable-id", "display_name": "Mina", "avatar_id": "sage-leaf", "avatar_url": null, "verified_count": 2, "is_me": false }],
+  "next_cursor": "opaque-or-null",
+  "me": { "rank": 7, "verified_count": 1, "passable_with_one_more": 12 },
+  "generated_at": "2026-11-04T10:00:00Z",
+  "total_ranked": 143
+}
+```
+- `me` is `null` when the learner has no verified completion. `passable_with_one_more` and `total_ranked` are optional; the UI shows the "pass N people" nudge only if the number is present.
+- `user_id` is an opaque board id, not the account id. `avatar_url` (if ever used) must be HTTPS; the UI loads it with `referrerPolicy="no-referrer"` and falls back to a drawn avatar.
+- Errors: the standard envelope. 401 sign in again, 429 with a retry hint (UI says "wait a minute"), 503 unavailable, 5xx with `request_id` (shown under "Support details").
+- Rate limit: refetch on focus and every ~3 minutes while visible; please allow about 20 requests per minute per account.
+
+### Open questions
+1. **Ranking type:** competition (1, 1, 3) or dense (1, 1, 2)? The UI shows whatever rank the server sends and labels ties "Rank 3, tied".
+2. **Stable tiebreak:** equal counts need a deterministic secondary order (for example first verification time, then board id) so cursor pages never skip or repeat a person.
+3. **`me` object:** is it OK that it is returned separately from `entries` (needed when you are off the loaded page)?
+4. **Privacy:** can a learner opt out of the board? Default display name for people who never set one? Where does the avatar come from (stored `avatar_id`, provider photo, none) and what is the URL allowlist? Is the display name moderated (length, profanity, impersonation)?
+5. **Signed-out visitors:** may they view the board, or is it signed-in only (current frontend assumption)?
+6. **What counts as one "problem":** a Trace lesson (today there are two) or a challenge inside one? Do AI-created (custom) lessons ever count? The frontend assumes never, because they are answer-key or practice-only and not server-verified.
+7. **Page size, total count and freshness:** default page size (UI asks for 20), is `total_ranked` available, how stale may `generated_at` be?
+8. **Avatar and display name fields:** to show other people's chosen avatars the backend needs to store `avatar_id` (the frontend currently saves it only in Supabase user metadata and localStorage) and a display name (the frontend reads the provider profile name, falling back to "Trace learner").
+9. **Display-name editing and leaderboard opt-out:** not built in the UI because the contract has neither; tell us if you want them.
+
+### Flag for the team
+With only two server-verified Trace lessons, scores will be 0, 1 or 2 and most users will tie until more verified problems exist. The first screen will mostly be one large tied group; the UI handles this (highlighted rows instead of a podium when a rank has more than three people), but the board will feel flat until there are more problems.
+
 ## What the RAG backend needs (recommendation, not an implementation)
 
 - **Corpus format:** Markdown articles with front matter: `id`, `title`, `tags`,

@@ -32,6 +32,7 @@ export function CodeWindow({
   note,
   wrap = false,
   body,
+  flat = false,
 }: {
   file: string;
   lang?: string;
@@ -61,6 +62,8 @@ export function CodeWindow({
   wrap?: boolean;
   /** Custom rows (e.g. the lesson's editable request), rendered inside the same frame. */
   body?: ReactNode;
+  /** A flat pane for a lesson window: no frame or window dots, just a file header and the code. */
+  flat?: boolean;
 }) {
   const dark = tone === "dark";
   const staticHighlight = magnify?.length ? [...highlight, magnify[0].line] : highlight;
@@ -70,6 +73,27 @@ export function CodeWindow({
   const codeProps = { lines, start, highlight: staticHighlight, added, removed, tone, plain, wrap };
   const code = <CodeLines {...codeProps} revealRows={revealRows} />;
   const lensCopy = <CodeLines {...codeProps} />;
+
+  if (flat) {
+    return (
+      <figure className={`code-window overflow-visible ${className}`}>
+        <figcaption className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5">
+          <p className="flex min-w-0 items-center gap-2 font-mono text-[0.75rem] text-foreground">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />
+            <span className="truncate">{file}</span>
+          </p>
+          <p className="flex shrink-0 items-center gap-2 font-mono text-[0.6875rem] tracking-[0.06em] text-secondary uppercase">
+            <span>{lang}{meta && <> · {meta}</>}</span>
+            {(copy ?? size !== "sm") && <CopyCode text={lines.join("\n")} dark={false} />}
+          </p>
+        </figcaption>
+        <div data-code-body role="group" aria-label={label ?? `Code: ${file}`} className={`relative ${wrap ? "" : "overflow-x-auto"} code-block code-light code-surface py-3`}>
+          <pre className={`relative z-[1] ${wrap ? "" : "min-w-max"}`}>{body ?? code}</pre>
+        </div>
+        {note && <p className="border-t border-border px-4 py-2.5 font-mono text-[0.75rem] leading-snug text-secondary">{note}</p>}
+      </figure>
+    );
+  }
 
   return (
     <figure

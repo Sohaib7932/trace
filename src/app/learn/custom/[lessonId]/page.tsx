@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AmbientPage } from "@/components/layout/ambient-page";
 import { SiteHeader } from "@/components/layout/site-header";
 import { createCta } from "@/components/layout/nav-links";
 import { CustomLessonView } from "@/components/learning/custom/custom-lesson-view";
@@ -14,13 +15,13 @@ async function View({ params }: { params: Promise<{ lessonId: string }> }) {
 
 export default function CustomLessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
   return (
-    <>
+    <AmbientPage calm>
       <SiteHeader cta={createCta} />
       <main id="main" className="shell">
         <Suspense fallback={<p role="status" className="py-12 text-secondary">Loading your lesson…</p>}>
           <View params={params} />
         </Suspense>
       </main>
-    </>
-  );
+    </AmbientPage>
+ );
 }

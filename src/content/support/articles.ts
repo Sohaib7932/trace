@@ -102,7 +102,7 @@ export const helpArticles: HelpArticle[] = [
     id: "follow-ups",
     title: "How follow-ups work",
     body: "When you complete the Tasks lesson, Trace schedules two short follow-up questions: 24 hours and 7 days later. Dates come from the server. A missed follow-up stays open until you answer, and no reminder email is sent.",
-    link: "/account#follow-ups",
+    link: "/account?tab=follow-ups",
     keywords: ["follow", "up", "followup", "follow-up", "follow-ups", "checkpoint", "revisit", "retrieval", "24", "hours", "7", "days", "due", "when"],
     draft: "07-progress-retrieval.md",
   },

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
+import { AmbientPage } from "@/components/layout/ambient-page";
 import { SiteHeader } from "@/components/layout/site-header";
 import { LessonsHeader } from "@/components/learning/hub/lessons-header";
 import { MyLessons } from "@/components/learning/hub/custom-lessons";
-import { SavedLessonsLink } from "@/components/learning/hub/guides-library";
 import { SplitHeading } from "@/components/motion/split-heading";
 
 export const metadata: Metadata = {
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function MyLessonsPage() {
   return (
-    <>
+    <AmbientPage>
       {/* The page has its own primary action ("Create a lesson"). */}
       <SiteHeader cta={null} />
       <main id="main" className="shell">
@@ -23,8 +23,7 @@ export default function MyLessonsPage() {
           line="Lessons you asked for, saved to your account."
         />
         <MyLessons />
-        <SavedLessonsLink />
       </main>
-    </>
-  );
+    </AmbientPage>
+ );
 }

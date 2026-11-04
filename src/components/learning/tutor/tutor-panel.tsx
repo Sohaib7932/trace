@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Lightbulb, PanelRightClose, PanelRightOpen, X } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Lightbulb, PanelRightClose, X } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createAiClients, isUnavailable, type TutorContext } from "@/lib/ai/client";
 import type { LessonId, LessonStage, TutorReply } from "@/lib/ai/contracts";
 import { ApiError, type Progress, type Schema } from "@/lib/api/client";
@@ -12,7 +12,6 @@ import { HINT_SLOTS } from "../evidence";
 import { useAuth } from "@/lib/supabase/use-auth";
 
 export const TUTOR_MAX_CHARS = 400;
-const DOCK_QUERY = "(min-width: 1280px)";
 
 type Entry =
   | { id: string; kind: "question"; text: string }
@@ -58,20 +57,6 @@ export function workedUnlocked(progress: Progress | undefined) {
   return progress.session.state === "completed" || progress.summary.hint_request_count >= HINT_SLOTS || failedRuns >= 2;
 }
 
-const canQuery = () => typeof window !== "undefined" && typeof window.matchMedia === "function";
-
-function useMedia(query: string) {
-  return useSyncExternalStore(
-    (notify) => {
-      if (!canQuery()) return () => {};
-      const mq = window.matchMedia(query);
-      mq.addEventListener("change", notify);
-      return () => mq.removeEventListener("change", notify);
-    },
-    () => (canQuery() ? window.matchMedia(query).matches : false),
-    () => false,
-  );
-}
 
 /**
  * Lesson tutor. It explains and guides; only the server's verification decides whether a
@@ -86,48 +71,21 @@ export function TutorPanel({ lessonId, lessonTitle, progress, hint }: { lessonId
 }
 
 function OwnedTutorPanel({ lessonId, lessonTitle, progress, hint }: { lessonId: LessonId; lessonTitle: string; progress: Progress | undefined; hint: HintControl }) {
-  const docked = useMedia(DOCK_QUERY);
   const [open, setOpen] = useState(false);
-  const collapsed = useSyncExternalStore(collapse.subscribe, collapse.get, () => false);
-  // Chat history lives here (page session only) so it survives collapsing or closing the drawer.
+  // Chat history lives here (page session only) so it survives closing the drawer.
   const session = useTutorSession();
-  // Focus follows the toggle: collapse -> rail button, expand -> collapse button.
   const toggle = useRef<HTMLButtonElement>(null);
-  const moveFocus = useRef(false);
-  useEffect(() => {
-    if (!moveFocus.current) return;
-    moveFocus.current = false;
-    toggle.current?.focus();
-  }, [collapsed]);
   // Keep Trace Help clear of the tutor bar, and out of the way while the drawer is open.
   useEffect(() => {
     const root = document.documentElement;
-    if (docked) { root.style.removeProperty("--help-lift"); return; }
     root.style.setProperty("--help-lift", "72px");
     return () => { root.style.removeProperty("--help-lift"); };
-  }, [docked]);
+  }, []);
   useEffect(() => {
-    document.documentElement.toggleAttribute("data-tutor-open", open && !docked);
+    document.documentElement.toggleAttribute("data-tutor-open", open);
     return () => document.documentElement.removeAttribute("data-tutor-open");
-  }, [open, docked]);
-  function setCollapse(next: boolean) {
-    moveFocus.current = true;
-    collapse.set(next);
-  }
+  }, [open]);
 
-  if (docked) {
-    if (collapsed) {
-      return (
-        <aside aria-label="Lesson tutor" className="tutor-rail">
-          <button ref={toggle} type="button" aria-expanded={false} onClick={() => setCollapse(false)} className="tutor-rail-button" aria-label="Expand the lesson tutor">
-            <PanelRightOpen aria-hidden="true" className="size-5" strokeWidth={1.8} />
-            <span aria-hidden="true" className="tutor-rail-label">Lesson tutor</span>
-          </button>
-        </aside>
-      );
-    }
-    return <aside aria-label="Lesson tutor" className="tutor-dock"><TutorBody lessonId={lessonId} lessonTitle={lessonTitle} progress={progress} hint={hint} session={session} onCollapse={() => setCollapse(true)} collapseRef={toggle} /></aside>;
-  }
   return (
     <>
       <div className="tutor-bar">
@@ -141,24 +99,6 @@ function OwnedTutorPanel({ lessonId, lessonTitle, progress, hint }: { lessonId: 
     </>
   );
 }
-
-/** Collapsed/expanded is a per-viewer convenience: remembered in localStorage when it works. */
-const collapse = (() => {
-  const KEY = "trace.tutor.collapsed";
-  const listeners = new Set<() => void>();
-  let value = false; // used only when storage is blocked
-  return {
-    get() {
-      try { return localStorage.getItem(KEY) === "1"; } catch { return value; }
-    },
-    set(next: boolean) {
-      value = next;
-      try { localStorage.setItem(KEY, next ? "1" : "0"); } catch { /* storage blocked: keep it in memory */ }
-      listeners.forEach((notify) => notify());
-    },
-    subscribe(notify: () => void) { listeners.add(notify); return () => { listeners.delete(notify); }; },
-  };
-})();
 
 type TutorSession = ReturnType<typeof useTutorSession>;
 function useTutorSession() {

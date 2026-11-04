@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { AmbientPage } from "@/components/layout/ambient-page";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SplitHeading } from "@/components/motion/split-heading";
 import { LessonComposer } from "@/components/learning/composer/lesson-composer";
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function NewLessonPage() {
   return (
-    <>
+    <AmbientPage>
       {/* The composer has this page's one primary action. */}
       <SiteHeader cta={null} />
       <main id="main" className="shell">
@@ -40,6 +41,6 @@ export default function NewLessonPage() {
         </header>
         <LessonComposer />
       </main>
-    </>
-  );
+    </AmbientPage>
+ );
 }

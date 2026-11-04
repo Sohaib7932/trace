@@ -14,7 +14,7 @@ export type LoopStep = "read" | "predict" | "change" | "verify";
 export const LOOP_STEPS: readonly { id: LoopStep; label: string }[] = [
   { id: "read", label: "Read" },
   { id: "predict", label: "Predict" },
-  { id: "change", label: "Change" },
+  { id: "change", label: "Modify" },
   { id: "verify", label: "Verify" },
 ];
 export const HINT_SLOTS = 3;
@@ -46,8 +46,9 @@ export function loopState(challenge: CustomChallenge, local: LocalChallenge): Lo
 }
 
 /** The step the learner is on. "Change" is where they keep or switch their answer before checking. */
-export function currentStep(state: LoopState, read: boolean): LoopStep {
-  if (state === "awaiting_prediction") return read ? "predict" : "read";
+export function currentStep(state: LoopState): LoopStep {
+  // The lesson opens on Predict with the code beside it, as in the demo; Read is shown as done.
+  if (state === "awaiting_prediction") return "predict";
   if (state === "completed") return "verify";
   return "change";
 }
@@ -60,8 +61,8 @@ export function stepStatus(step: LoopStep, current: LoopStep, state: LoopState):
 }
 
 /** Plain-language step name for the tutor's context line. */
-export function stepName(state: LoopState, read: boolean, written: boolean): string {
-  if (state === "awaiting_prediction") return read ? (written ? "Write your explanation" : "Predict the result") : "Read the code";
+export function stepName(state: LoopState, _read: boolean, written: boolean): string {
+  if (state === "awaiting_prediction") return written ? "Write your explanation" : "Predict the result";
   if (state === "ready_for_attempt") return written ? "Compare with the example" : "Check your answer";
   if (state === "needs_revision") return "Try another answer";
   return "Review the result";
