@@ -105,4 +105,3 @@ class CustomLessonRepository(Protocol):
         text: str | None,
         now: datetime,
     ) -> AnswerOutcome: ...
-

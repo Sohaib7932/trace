@@ -99,7 +99,8 @@ async function realConversation(context: TutorContext, question: string, options
 
 async function realSupport(input: SupportAskRequest, options?: StreamOptions): Promise<SupportReply> {
   // Client route/conversation/document hints are unnecessary for public-document retrieval.
-  const reply = await aiApi.support(input.question, options?.signal);
+  const history = input.history?.slice(-4).map(item => ({ role: item.role, text: item.text.slice(0, 250) }));
+  const reply = await aiApi.support(input.question, options?.signal, history);
   const answer = reply.status === "answered"
     ? reply.references.map((reference) => reference.quote).join("\n\n")
     : reply.message;

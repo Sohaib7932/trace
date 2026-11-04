@@ -209,7 +209,6 @@ def test_mock_mode_from_environment_still_requires_explicit_factory(
 def test_public_api_schema_matches_export_and_existing_fixture_hints_are_unchanged(learner):
     baseline = json.loads((Path(__file__).resolve().parents[2] / "openapi.json").read_text())
     assert learner.app.openapi() == baseline
-    # Learner-requested lessons (additive feature) are counted separately.
     custom_paths = {path for path in baseline["paths"] if path.startswith("/api/v1/custom-lessons")}
     assert len(custom_paths) == 7
     legacy_paths = {
@@ -217,7 +216,7 @@ def test_public_api_schema_matches_export_and_existing_fixture_hints_are_unchang
         for path in baseline["paths"]
         if not path.startswith(("/api/v1/admin/", "/api/v1/custom-lessons"))
     }
-    assert len(legacy_paths) == 24
+    assert len(legacy_paths) == 39
     assert set(baseline["paths"]) - legacy_paths - custom_paths == {
         "/api/v1/admin/knowledge/revisions",
         "/api/v1/admin/knowledge/revisions/{revision_id}",

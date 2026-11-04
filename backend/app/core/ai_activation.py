@@ -131,6 +131,16 @@ def activated_gemini_environment(
     env = os.environ if environ is None else environ
     key = private_gemini_key(backend_root=backend_root, environ=env)
     changes = {**_ACTIVATION, "GEMINI_API_KEY": key.get_secret_value()}
+    # Genuine Gemini responses can exceed the generic ten-second fixture/default
+    # budget. Use the existing transport ceiling only when no tighter operator
+    # response/total deadline has been supplied. Never raise an explicit cap.
+    if "TRACE_LLM_RESPONSE_TIMEOUT_SECONDS" not in env:
+        total = env.get("TRACE_LLM_TOTAL_TIMEOUT_SECONDS")
+        try:
+            response_budget = min(20.0, float(total)) if total is not None else 20.0
+        except (ValueError, TypeError):
+            raise ActivationError() from None
+        changes["TRACE_LLM_RESPONSE_TIMEOUT_SECONDS"] = str(response_budget)
     trial = {**env, **changes}
     try:
         checked = process_ai_settings(trial)

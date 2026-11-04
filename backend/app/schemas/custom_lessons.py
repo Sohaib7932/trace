@@ -124,4 +124,3 @@ class LanguageView(Strict):
 class LanguageList(Strict):
     items: list[LanguageView]
     generation_available: bool
-

@@ -1,5 +1,17 @@
 # Trace frontend API integration handoff
 
+> **Current PR #26 integration contract (4 November 2026):** the combined application
+> exposes **53 paths / 58 operations**, including Custom Lessons, Private Learning
+> Guides and GitHub Project Learning. The authoritative current exports are
+> [backend/openapi.json](../backend/openapi.json) and
+> [generated TypeScript declarations](../src/lib/api/schema.d.ts).
+> Sections 1–11 and `docs/api/openapi.json` below are the explicitly dated original
+> 21-path handoff, not the current API inventory. Section 12 documents the added
+> Custom Lessons APIs; see the [GitHub App guide](frontend/github-app-project-learning.md)
+> for owner configuration and the Project Learning flow. See the
+> [PR #26 repair evidence](reports/pr-26-integration-repair.md) for compatibility
+> validation and remaining live-authorization requirements.
+
 For Sohaib. Audited against commit `fc5b1d1e44fc4030db289bbfe17f4bec559ecc8a` on
 `feat/phase-3-5a-engineering-evidence`, 2 November 2026. This is the backend
 contract at that commit, not a claim about what is deployed on a remote server.

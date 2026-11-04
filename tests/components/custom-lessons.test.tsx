@@ -8,7 +8,7 @@ import { ApiError, type CustomLesson, type CustomLessonRequest } from "@/lib/api
 import { activeStep, canRetry, describeCustomLessonError, isTerminal, nextPollDelay } from "@/lib/learning/custom-lessons";
 
 const fx = vi.hoisted(() => ({
-  auth: { status: "signed-in" } as { status: string },
+  auth: { status: "signed-in" } as { status: string; userId?: string },
   push: vi.fn(),
   api: { status: vi.fn(), cancel: vi.fn(), create: vi.fn(), get: vi.fn(), answer: vi.fn(), remove: vi.fn(), list: vi.fn() },
 }));
@@ -21,7 +21,7 @@ vi.mock("@/lib/api/client", async (original) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fx.auth = { status: "signed-in" };
+  fx.auth = { status: "signed-in", userId: "owner-a" };
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("tests use the injected adapter only"); }));
 });
 
@@ -154,4 +154,32 @@ test("My lessons lists the learner's real lessons (AI-generated, with progress)"
   expect(link).toHaveTextContent("AI-generated");
   expect(link).toHaveTextContent("1 of 2 challenges");
   expect(screen.getByRole("link", { name: /^Create a lesson/ })).toHaveAttribute("href", "/learn/new");
+});
+
+
+test("viewer clears the previous owner's lesson before a foreign-account read is rejected", async () => {
+  fx.api.get.mockResolvedValueOnce(lesson).mockRejectedValueOnce(new ApiError(404, "Lesson not found.", "not_found"));
+  const view = render(<CustomLessonView lessonId="lesson-1" />);
+  expect(await screen.findByRole("heading", { name: "Request validation", level: 1 })).toBeVisible();
+  fx.auth = { status: "signed-in", userId: "owner-b" };
+  view.rerender(<CustomLessonView lessonId="lesson-1" />);
+  expect(screen.queryByRole("heading", { name: "Request validation", level: 1 })).toBeNull();
+  expect(screen.queryByText("FastAPI checks the body.")).toBeNull();
+  expect(await screen.findByRole("heading", { name: "We couldn't find this." })).toBeVisible();
+  expect(fx.api.get).toHaveBeenCalledTimes(2);
+  expect(fx.api.answer).not.toHaveBeenCalled();
+});
+
+test("tracker clears the previous owner's request and opens no foreign lesson", async () => {
+  fx.api.status.mockResolvedValueOnce(req("ready", { topic: "Owner A private request", lesson_ids: ["owner-a-lesson"], lessons_ready: 1 })).mockRejectedValueOnce(new ApiError(404, "Lesson request not found.", "not_found"));
+  const view = render(<GenerationTracker requestId="req-1" />);
+  expect(await screen.findByText("Owner A private request")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open your lesson" })).toHaveAttribute("href", "/learn/custom/owner-a-lesson");
+  fx.auth = { status: "signed-in", userId: "owner-b" };
+  view.rerender(<GenerationTracker requestId="req-1" />);
+  expect(screen.queryByText("Owner A private request")).toBeNull();
+  expect(screen.queryByRole("link", { name: "Open your lesson" })).toBeNull();
+  expect(await screen.findByRole("heading", { name: "We couldn't find this." })).toBeVisible();
+  expect(fx.api.status).toHaveBeenCalledTimes(2);
+  expect(fx.api.create).not.toHaveBeenCalled();
 });

@@ -21,7 +21,7 @@ from app.domain.clock import Clock
 from app.domain.learning import LearningError
 from app.schemas.errors import ErrorResponse
 from app.schemas.support import SupportQuestion, SupportResponse
-from app.schemas.support_http import SupportAskCreate
+from app.schemas.support_http import SupportAskCreate, contextual_support_question
 from app.services.accounts import AccountService
 from app.services.feedback_operations import FeedbackOperations
 from app.services.knowledge import KnowledgeGovernanceService
@@ -64,7 +64,7 @@ async def ask(
         if clock() >= auth.identity.expires_at:
             raise LearningError("unauthenticated", "Account authorization expired.")
         result = service.answer_with_provenance(
-            SupportQuestion(question=body.question),
+            SupportQuestion(question=contextual_support_question(body)),
             subject="support:" + hashlib.sha256(str(auth.account.id).encode()).hexdigest(),
         )
         if clock() >= auth.identity.expires_at:

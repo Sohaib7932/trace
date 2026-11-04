@@ -24,6 +24,12 @@ const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 /** A private, AI-generated lesson. Every answer is checked by the server endpoint. */
 export function CustomLessonView({ lessonId }: { lessonId: string }) {
   const auth = useAuth();
+  const identity = auth.status === "signed-in" ? auth.userId : auth.status;
+  return <AccountCustomLessonView key={`${identity}:${lessonId}`} lessonId={lessonId} />;
+}
+
+function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
+  const auth = useAuth();
   const router = useRouter();
   const [lesson, setLesson] = useState<CustomLesson | null>(null);
   const [error, setError] = useState<unknown>(null);

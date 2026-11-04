@@ -38,6 +38,7 @@ export default function LessonsPage() {
           </div>
         </header>
         <LessonsHub />
+        <p className="my-8 text-[0.9375rem]"><Link href="/projects" className="underline underline-offset-4">Learn from a connected GitHub project</Link></p>
       </main>
     </>
   );

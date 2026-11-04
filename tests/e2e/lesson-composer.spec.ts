@@ -30,7 +30,8 @@ test("navbar to composer: one message box, a live preview, and sign-in as the ne
   await expect(page.getByRole("heading", { level: 1 })).toContainText("What do you want to learn?");
   // The composer page has its own primary action, so the navbar has none.
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Create a lesson" })).toHaveCount(0);
-  const box = page.getByLabel("What do you want to learn?");
+  const box = page.getByRole("textbox", { name: "What do you want to learn?", exact: true });
+  await expect(box).toHaveCount(1);
   await box.fill("Teach me FastAPI request validation with predict-and-fix exercises");
   const preview = page.getByRole("region", { name: /FastAPI request validation/ });
   await expect(preview.getByText("Python · FastAPI")).toBeVisible();
@@ -44,7 +45,7 @@ test("navbar to composer: one message box, a live preview, and sign-in as the ne
   await expect(page.getByRole("button", { name: "Create lesson" })).toHaveCount(0);
   await expect(page.getByText("Draft saved")).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("What do you want to learn?")).toHaveValue("Explain closures in JavaScript");
+  await expect(page.getByRole("textbox", { name: "What do you want to learn?", exact: true })).toHaveValue("Explain closures in JavaScript");
   await noOverflow(page);
   expect(creationCalls).toEqual([]);
   expect(errors).toEqual([]);
@@ -58,8 +59,8 @@ test("keyboard only: reach the composer, use an example, open How it works", asy
   for (let i = 0; i < 40 && !(await example.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
   await expect(example).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByLabel("What do you want to learn?")).toBeFocused();
-  await expect(page.getByLabel("What do you want to learn?")).toHaveValue(/async and await/);
+  await expect(page.getByRole("textbox", { name: "What do you want to learn?", exact: true })).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "What do you want to learn?", exact: true })).toHaveValue(/async and await/);
   const how = page.getByRole("button", { name: "How it works" });
   await how.focus();
   await page.keyboard.press("Enter");

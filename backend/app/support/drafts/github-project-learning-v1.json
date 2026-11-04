@@ -1,0 +1,14 @@
+{
+  "source_id": "github-project-learning",
+  "title": "GitHub Project Learning",
+  "passages": [
+    {
+      "passage_id": "github-app-selected-read-access",
+      "text": "Project Learning uses a GitHub App connection, separately from optional GitHub social sign-in. The app owner must configure it before a learner can authorize access. Only selected repositories with read-only permissions are accepted, and Trace checks that the authorizing GitHub user can access the selected repository. Trace does not run repository code or write repository changes. An unconfigured app is reported as unavailable; it is not a connected repository."
+    },
+    {
+      "passage_id": "github-project-learning-boundaries",
+      "text": "A Project Learning snapshot is pinned to an exact commit and contains bounded changed-file excerpts, associated pull-request titles and eligible agent prompt or final-answer excerpts. It is not a complete repository or history analysis. Review the displayed excerpts before requesting Gemini learning questions, and only use material you are allowed to share with the provider. Questions cite snapshot references and remain ungraded and unexecuted. Generated wording is not saved course progress. Authorization may need renewing after expiry or restart."
+    }
+  ]
+}

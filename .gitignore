@@ -51,6 +51,7 @@ __pycache__/
 htmlcov/
 backend/*.db
 backend/*.db-*
+backend/*.db.*
 backend/*.sqlite*
 !backend/.env.example
 !backend/.env.gemini.example

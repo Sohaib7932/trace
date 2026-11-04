@@ -16,6 +16,12 @@ import { useAuth } from "@/lib/supabase/use-auth";
  */
 export function GenerationTracker({ requestId }: { requestId: string }) {
   const auth = useAuth();
+  const identity = auth.status === "signed-in" ? auth.userId : auth.status;
+  return <AccountGenerationTracker key={`${identity}:${requestId}`} requestId={requestId} />;
+}
+
+function AccountGenerationTracker({ requestId }: { requestId: string }) {
+  const auth = useAuth();
   const router = useRouter();
   const [request, setRequest] = useState<CustomLessonRequest | null>(null);
   const [error, setError] = useState<unknown>(null);

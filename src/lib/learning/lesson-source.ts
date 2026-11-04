@@ -1,11 +1,10 @@
 import { lessons, type LessonEntry } from "@/content/lessons";
 
 /**
- * Where lessons come from. Today only the catalog is real: Trace lessons published by the
- * backend (content from GET /lessons/{id}, status from GET /learners/me/journey).
- *
- * Generated ("custom") lessons are created by the learner and stored privately by the
- * backend (POST /custom-lessons/requests, GET /custom-lessons).
+ * The verified executable catalog contains the trusted Trace lesson runtimes.
+ * Learner-created custom lessons are a separate private API and may use answer-key
+ * or practice-only checks; they do not become verified executable catalog lessons.
+ * Private learning guides use lib/api/learning-guides.ts and remain ungraded.
  */
 export type LessonSource<T> =
   | { kind: "catalog"; status: "available"; list: () => readonly T[] }
@@ -17,7 +16,7 @@ export const catalogSource = {
   list: () => lessons,
 } as const satisfies LessonSource<LessonEntry>;
 
-/** Lessons a learner created: private, listed by GET /api/v1/custom-lessons (customLessonsApi.list). */
+/** Private custom lessons listed by customLessonsApi.list; not the verified catalog. */
 export const generatedSource = {
   kind: "generated",
   status: "available",

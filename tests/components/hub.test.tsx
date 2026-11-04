@@ -11,9 +11,9 @@ import { AccountDashboard } from "@/components/account/account-dashboard";
 import { failedRun, lesson, savedProgress } from "../fixtures/learning";
 
 const fixture = vi.hoisted(() => ({
-  auth: { status: "guest" } as { status: string; email?: string | null },
+  auth: { status: "guest" } as { status: string; email?: string | null; userId?: string },
   identity: vi.fn(), journey: vi.fn(), lesson: vi.fn(), progress: vi.fn(),
-  me: vi.fn(), claim: vi.fn(), push: vi.fn(), refresh: vi.fn(), signOut: vi.fn(), getUser: vi.fn(),
+  customList: vi.fn(), guideList: vi.fn(), me: vi.fn(), claim: vi.fn(), push: vi.fn(), refresh: vi.fn(), signOut: vi.fn(), getUser: vi.fn(),
 }));
 vi.mock("@/lib/supabase/use-auth", () => ({ useAuth: () => fixture.auth }));
 vi.mock("@/lib/supabase/browser", () => ({ browserAuth: () => ({ auth: { signOut: fixture.signOut, getUser: fixture.getUser, onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }) } }) }));
@@ -22,7 +22,10 @@ vi.mock("@/lib/api/client", async (original) => ({
   ...await original<typeof import("@/lib/api/client")>(),
   learningApi: { identity: fixture.identity, journey: fixture.journey, lesson: fixture.lesson, progress: fixture.progress, retrieval: vi.fn(), retrieve: vi.fn() },
   accountApi: { me: fixture.me, claim: fixture.claim },
+  customLessonsApi: { list: fixture.customList },
 }));
+
+vi.mock("@/lib/api/learning-guides", () => ({ learningGuidesApi: { list: fixture.guideList } }));
 
 const now = "2026-11-01T09:00:00Z";
 const session = (id: string, state: Schema["SessionResponse"]["state"]): Schema["SessionResponse"] => ({ id, lesson_version_id: "v", state, created_at: now, completed_at: state === "completed" ? now : null });
@@ -47,6 +50,8 @@ beforeEach(() => {
   fixture.lesson.mockImplementation(async (id: string) => ({ ...lesson, id, title: id === lesson.id ? "Follow the note" : "The Nested Payload Problem" }));
   fixture.journey.mockResolvedValue(journeyWith({}));
   fixture.me.mockResolvedValue(account);
+  fixture.customList.mockResolvedValue({ items: [] });
+  fixture.guideList.mockResolvedValue([]);
   fixture.getUser.mockResolvedValue({ data: { user: { email: "learner@example.test", email_confirmed_at: now, identities: [{ provider: "email" }], user_metadata: {} } } });
   fixture.signOut.mockResolvedValue({ error: null });
   try { localStorage.clear(); } catch { /* jsdom */ }
@@ -84,8 +89,9 @@ test("hub: a guest sees the lesson library and sign-in prompts, and no learner r
   expect(screen.getByRole("link", { name: "Sign in to start The nested payload" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Try the demo" })).toHaveAttribute("href", "/#demo");
   expect(screen.queryByText(/lessons completed/)).toBeNull();
+  expect(screen.getByText("Private guides you create will appear here.")).toBeVisible();
   expect(screen.getByText("You haven't created a lesson yet.")).toBeVisible();
-  for (const call of [fixture.identity, fixture.journey, fixture.lesson, fixture.me]) expect(call).not.toHaveBeenCalled();
+  for (const call of [fixture.identity, fixture.journey, fixture.lesson, fixture.me, fixture.customList, fixture.guideList]) expect(call).not.toHaveBeenCalled();
 });
 test("hub: a new signed-in learner sees both real lessons, the transfer locked with its reason, and no fake lessons", async () => {
   fixture.auth = { status: "signed-in", email: "learner@example.test" };
@@ -239,4 +245,19 @@ test("account: load errors are shown with a retry and no invented identity", asy
   expect(screen.getByText("req-503")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
   expect(screen.queryByText("trace-user-fixture")).toBeNull();
+});
+
+
+test("hub: switching signed-in accounts clears the previous account's cached journey", async () => {
+  fixture.auth = { status: "signed-in", userId: "owner-a" };
+  fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("owner-a-session", "completed")] }));
+  const view = render(<LessonsHub />);
+  expect(await screen.findByText("1 of 2 lessons completed")).toBeVisible();
+  fixture.auth = { status: "signed-in", userId: "owner-b" };
+  fixture.journey.mockResolvedValue(journeyWith({}));
+  view.rerender(<LessonsHub />);
+  expect(screen.queryByText("1 of 2 lessons completed")).toBeNull();
+  expect(await screen.findByText("0 of 2 lessons completed")).toBeVisible();
+  expect(fixture.identity).toHaveBeenCalledTimes(2);
+  expect(fixture.journey).toHaveBeenCalledTimes(2);
 });

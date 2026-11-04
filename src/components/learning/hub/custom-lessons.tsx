@@ -19,6 +19,12 @@ const shortExamples = [
  */
 export function MyLessons() {
   const auth = useAuth();
+  const identity = auth.status === "signed-in" ? auth.userId : auth.status;
+  return <AccountLessons key={identity} />;
+}
+
+function AccountLessons() {
+  const auth = useAuth();
   const [items, setItems] = useState<CustomLessonSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const signedIn = auth.status === "signed-in";
@@ -98,3 +104,6 @@ export function StartHere({ firstLessonHref }: { firstLessonHref: string }) {
     </section>
   );
 }
+
+// Private guides remain a separate, ungraded learning format.
+export { YourLessons, CreateCustomLesson } from "./private-guide-hub";

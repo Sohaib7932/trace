@@ -59,6 +59,27 @@ def test_conversation_follow_up_does_not_promote_history_to_verification_evidenc
     assert "Override" not in api.provider.calls[0].instructions
 
 
+def test_line_by_line_tutoring_gets_exact_owned_public_source_and_no_private_answers(api):
+    from app.services.catalog import PUBLIC_CONTENT
+
+    session = start(api.client)
+    api.provider.text = json.dumps(
+        {
+            "status": "answered",
+            "text": "The schema declares a Pydantic model; this explanation is unexecuted.",
+        }
+    )
+    response = ask(api, session, question="Explain each line of the schema shown in this lesson.")
+    assert response.status_code == 200 and response.json()["status"] == "answered"
+    sent = json.loads(api.provider.calls[0].data_json)
+    public = sent["trusted_context"]["public"]["lesson"]
+    assert public["outgoing_code"] == PUBLIC_CONTENT["outgoing_code"]
+    assert public["schema_code"] == PUBLIC_CONTENT["schema_code"]
+    assert "verbatim" in api.provider.calls[0].instructions
+    assert not {"expected_field", "prediction_answer", "private_evaluator"} & public.keys()
+    assert response.json()["execution_status"] == "not_executed"
+
+
 def test_worked_examples_require_explicit_conversation_style_and_remain_unexecuted(api):
     session = start(api.client)
     api.provider.text = json.dumps(
@@ -68,6 +89,27 @@ def test_worked_examples_require_explicit_conversation_style_and_remain_unexecut
     assert response.status_code == 200
     assert "```python" in response.json()["text"]
     assert response.json()["execution_status"] == "not_executed"
+
+
+def test_switching_owned_sessions_uses_the_pinned_tasks_source_not_notes_history(api):
+    from app.services.catalog import PUBLIC_CONTENT, TRANSFER_CONTENT
+    from tests.integration.test_transfer_retrieval import complete_original, start_transfer
+
+    notes = complete_original(api.client)
+    tasks = start_transfer(api.client)
+    api.provider.text = '{"status":"answered","text":"Compare the supplied nested schema."}'
+    for session, expected in ((notes, PUBLIC_CONTENT), (tasks, TRANSFER_CONTENT)):
+        response = ask(
+            api,
+            session,
+            question="Explain the current supplied schema.",
+            history=[{"role": "assistant", "text": "The previous lesson used a flat schema."}],
+        )
+        assert response.status_code == 200 and response.json()["status"] == "answered"
+        context = json.loads(api.provider.calls[-1].data_json)["trusted_context"]["public"]
+        assert context["lesson"]["schema_code"] == expected["schema_code"]
+        assert context["lesson"]["outgoing_code"] == expected["outgoing_code"]
+    assert PUBLIC_CONTENT["schema_code"] != TRANSFER_CONTENT["schema_code"]
 
 
 def test_conversation_requires_account_and_foreign_missing_sessions_remain_indistinguishable(api):

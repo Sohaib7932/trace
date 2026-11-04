@@ -115,6 +115,14 @@ async function request<T>(path: string, body?: object, key?: string, options: Re
   return response.json() as Promise<T>;
 }
 
+/** Account-protected extensions share the existing token, origin and safe-error path.
+ * Provider-backed writes are never automatically replayed after a 401. Callers
+ * retain their idempotency key when explicitly retrying an uncertain operation.
+ */
+export function protectedApiRequest<T>(path: string, body?: object, key?: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, body, key, { signal, refreshOn401: body === undefined });
+}
+
 export const learningApi = {
   async identity(): Promise<Schema["IdentityResponse"]> {
     // backend: 401 here means "no identity yet", not empty history. A dependency failure
@@ -156,7 +164,7 @@ export const aiApi = {
   conversation: (sessionId: string, body: Schema["TutorConversationCreate"], signal?: AbortSignal) => request<Schema["ConversationTutorReply"]>(
     `/sessions/${encodeURIComponent(sessionId)}/tutor/ask`, body, undefined, { signal, refreshOn401: false },
   ),
-  support: (question: string, signal?: AbortSignal) => request<Schema["SupportResponse"]>("/support/ask", { question }, undefined, { signal, refreshOn401: false }),
+  support: (question: string, signal?: AbortSignal, history?: { role: "user" | "assistant"; text: string }[]) => request<Schema["SupportResponse"]>("/support/ask", { question, ...(history?.length ? { history } : {}) }, undefined, { signal, refreshOn401: false }),
 };
 
 // ---------- Learner-requested (custom) lessons ----------

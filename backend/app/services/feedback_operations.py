@@ -295,7 +295,10 @@ class FeedbackOperations:
         shared_admission: SharedAdmission | None = None,
         admission_policy: AdmissionPolicy | None = None,
     ) -> None:
-        self.settings = FeedbackSettings.model_validate(settings.model_dump(warnings=False))
+        # Preserve the server-selected family's stricter schema (including body
+        # limits). Public clients never select a settings type. Revalidation still
+        # rejects forged copies and invalid concurrency/deadline bounds.
+        self.settings = type(settings).model_validate(settings.model_dump(warnings=False))
         self.clock = clock
         if (shared_admission is None) != (admission_policy is None):
             raise ValueError("Shared admission requires both an adapter and an explicit policy")

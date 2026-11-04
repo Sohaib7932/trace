@@ -119,10 +119,25 @@ test("tutor: context line, collapse at desktop, drawer below 1280px", async ({ p
   expect(errors).toEqual([]);
 });
 
+test("library: verified Trace lessons and private-guide creation stay gated for guests", async ({ page }) => {
+  const errors = guard(page);
+  const requests: string[] = [];
+  page.on("request", (request) => { if (/\/api\/v1\/(?:learning-guides|custom-lessons|lessons\/custom)/.test(request.url())) requests.push(request.url()); });
+  await page.goto("/learn");
+  await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
+  await expect(page.getByText("Private guides you create will appear here.")).toBeVisible();
+  await page.getByRole("textbox", { name: "What do you want to learn?", exact: true }).fill("FastAPI authentication");
+  const create = page.getByRole("button", { name: "Create guide" });
+  await expect(create).toBeDisabled();
+  await expect(page.getByText("Sign in to create a private guide.")).toBeVisible();
+  expect(requests).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("library: Trace lessons, an empty My lessons, and the way into the composer", async ({ page }) => {
   const errors = guard(page);
   const requests: string[] = [];
-  page.on("request", (request) => { if (/lessons\/custom|generat/.test(request.url())) requests.push(request.url()); });
+  page.on("request", (request) => { if (/\/api\/v1\/(?:learning-guides|custom-lessons|lessons\/custom)/.test(request.url())) requests.push(request.url()); });
   await page.goto("/learn");
   await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "My lessons" })).toBeVisible();
@@ -130,7 +145,7 @@ test("library: Trace lessons, an empty My lessons, and the way into the composer
   await expect(page.getByText(/Coming soon/i)).toHaveCount(0);
   await page.getByRole("link", { name: "SQL duplicate rows" }).click();
   await expect(page).toHaveURL(/\/learn\/new$/);
-  await expect(page.getByLabel("What do you want to learn?")).toHaveValue(/SQL joins/);
+  await expect(page.getByRole("textbox", { name: "What do you want to learn?", exact: true })).toHaveValue(/SQL joins/);
   // Guests are asked to sign in before anything is created or sent.
   await expect(page.getByRole("link", { name: "Sign in to create this lesson" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create lesson" })).toHaveCount(0);

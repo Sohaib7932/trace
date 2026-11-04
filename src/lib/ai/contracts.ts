@@ -51,6 +51,8 @@ export type SupportEscalation = { label: string; url: string };
 
 export type SupportAskRequest = {
   question: string;
+  /** Untrusted dialogue kept only in this open Help panel; never source authority. */
+  history?: { role: "user" | "assistant"; text: string }[];
   /** Optional, if the backend chooses conversations; the frontend keeps history in memory only. */
   conversation_id?: string | null;
   /** Current app route, so answers can point to the right page. Never includes learner data. */
@@ -115,8 +117,10 @@ export type GeneratedExercise = {
 };
 
 /* ------------------------------------------------------------------------------------------
- * AI lesson creation: PROPOSED, not a backend contract; needs backend agreement. Nothing
- * calls these yet: the /learn/new composer keeps its submit unavailable and sends nothing.
+ * Legacy proposed executable-lesson DTOs, retained as design references only.
+ * The implemented answer-key custom lessons use generated API schemas through
+ * lib/api/client.ts; private guides use lib/api/learning-guides.ts and remain
+ * ungraded. Neither format grants verified executable-candidate publication.
  * See docs/frontend-api-requests.md ("AI lesson creation").
  * ---------------------------------------------------------------------------------------- */
 

@@ -11,13 +11,15 @@ import { ErrorNotice } from "@/components/learning/error-notice";
 import { completedCount, formatWhen, hasAnyHistory, latestSession, lessonViews, nextAction, sessionStep } from "@/lib/learning/journey";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { CheckpointCard } from "./checkpoint-card";
-import { MyLessons, StartHere } from "./custom-lessons";
+import { MyLessons, StartHere, YourLessons, CreateCustomLesson } from "./custom-lessons";
 import { GuestLibrary } from "./guest-library";
 import { LessonCard } from "./lesson-card";
 
 export function LessonsHub() {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: retryOnInfrastructure, staleTime: 10_000 }, mutations: { retry: false } } }));
-  return <QueryClientProvider client={client}><Hub /></QueryClientProvider>;
+  const auth = useAuth();
+  const identity = auth.status === "signed-in" ? auth.userId : auth.status;
+  return <QueryClientProvider client={client}><Hub key={identity} /></QueryClientProvider>;
 }
 
 function Hub() {
@@ -29,7 +31,7 @@ function Hub() {
   // Real lessons are for signed-in learners only. Guests never trigger a learner request.
   const signedIn = auth.status === "signed-in";
   const hub = useQuery({
-    queryKey: ["hub", auth.status, fresh],
+    queryKey: ["hub", auth.status, auth.status === "signed-in" ? auth.userId : null, fresh],
     enabled: signedIn,
     queryFn: async () => {
       if (auth.status === "signed-in") {
@@ -53,6 +55,8 @@ function Hub() {
     <div className="pb-[clamp(64px,8vw,120px)]">
       <GuestLibrary unconfigured={auth.status === "unconfigured"} />
       <MyLessons />
+      <YourLessons />
+      <CreateCustomLesson />
     </div>
   );
   if (hub.isPending) return <HubSkeleton />;
@@ -138,8 +142,10 @@ function Hub() {
         )}
       </section>
 
-      {/* Lessons the learner creates (AI-generated). Creation isn't published yet: honest empty state. */}
+      {/* Custom answer-key lessons and ungraded private guides stay separate from the trusted catalog. */}
       <MyLessons />
+      <YourLessons />
+      <CreateCustomLesson />
     </div>
   );
 }

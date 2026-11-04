@@ -52,16 +52,15 @@ def test_internal_feedback_dependency_reuses_app_provider_and_existing_repositor
         assert not transport.calls
         expected = json.loads((Path(__file__).resolve().parents[2] / "openapi.json").read_text())
         assert app.openapi() == expected
-        # Learner-requested lessons (additive feature) are counted separately.
         custom = {p for p in expected["paths"] if p.startswith("/api/v1/custom-lessons")}
         assert len(custom) == 7
-        assert len(expected["paths"]) - len(custom) == 31
+        assert len(expected["paths"]) == 53
         assert (
             sum(
                 not path.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
                 for path in expected["paths"]
             )
-            == 24
+            == 39
         )
         assert "/api/v1/sessions/{session_id}/feedback" in expected["paths"]
     assert resources.client.closed

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
 import { Suspense } from "react";
+import "./globals.css";
 import { TraceHelp } from "@/components/support/trace-help";
 
 const geistSans = Geist({

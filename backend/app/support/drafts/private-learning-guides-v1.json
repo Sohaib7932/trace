@@ -1,0 +1,14 @@
+{
+  "source_id": "private-learning-guides",
+  "title": "Private learning guides",
+  "passages": [
+    {
+      "passage_id": "private-guide-create-read",
+      "text": "When private guides and Gemini are enabled, signed-in learners can choose a coding topic, starting and target levels, learning goals and explanation preferences. Trace requests a structured guide, validates it and saves the result privately to that account. Ready guides can be opened again from Your lessons. A provider failure or invalid response is shown as unavailable, not as a completed guide. Do not include personal information, credentials or private code in a request."
+    },
+    {
+      "passage_id": "private-guide-ungraded-boundary",
+      "text": "A private guide contains progressive explanations, suggested examples, optional practice and learning outcomes to aim for. Examples are not executed and practice is ungraded. A guide does not complete a verified coding lesson, assign a competency score or create a daily exercise assignment. The reader's scratch notes are not saved or sent. Verified Notes and Tasks lessons remain separate."
+    }
+  ]
+}

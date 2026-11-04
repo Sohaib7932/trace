@@ -75,6 +75,90 @@
         "title": "AccountResponse",
         "type": "object"
       },
+      "AgentLogMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "correlation": {
+            "const": "same_pinned_snapshot_only",
+            "default": "same_pinned_snapshot_only",
+            "title": "Correlation",
+            "type": "string"
+          },
+          "entry_number": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Entry Number",
+            "type": "integer"
+          },
+          "format": {
+            "const": "native_cohort",
+            "default": "native_cohort",
+            "title": "Format",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_.:/-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_to_file_relationship": {
+            "const": "unproven",
+            "default": "unproven",
+            "title": "Prompt To File Relationship",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp_source": {
+            "default": "unknown",
+            "enum": [
+              "hook.timestamp",
+              "hook_capture_time_utc",
+              "unknown"
+            ],
+            "title": "Timestamp Source",
+            "type": "string"
+          },
+          "turn_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_-]{1,128}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Id"
+          }
+        },
+        "required": [
+          "session_id",
+          "entry_number"
+        ],
+        "title": "AgentLogMetadata",
+        "type": "object"
+      },
       "AnswerCreate": {
         "additionalProperties": false,
         "properties": {
@@ -557,6 +641,52 @@
           "claimed"
         ],
         "title": "ClaimResponse",
+        "type": "object"
+      },
+      "CommitSha": {
+        "pattern": "^[0-9a-f]{40}$",
+        "type": "string"
+      },
+      "ConnectionView": {
+        "additionalProperties": false,
+        "properties": {
+          "full_name": {
+            "maxLength": 201,
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "installation_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          },
+          "private": {
+            "title": "Private",
+            "type": "boolean"
+          },
+          "repository_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          },
+          "status": {
+            "default": "connected",
+            "enum": [
+              "connected",
+              "disconnected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository_id",
+          "full_name",
+          "private",
+          "id",
+          "installation_id"
+        ],
+        "title": "ConnectionView",
         "type": "object"
       },
       "Contract": {
@@ -1167,12 +1297,367 @@
         ],
         "type": "string"
       },
+      "GitHubId": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 9.223372036854776e+18,
+        "type": "integer"
+      },
       "Goal": {
         "enum": [
           "understand",
           "debug",
           "build"
         ],
+        "type": "string"
+      },
+      "GuideContent": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "$ref": "#/components/schemas/GuideText"
+          },
+          "learning_objectives": {
+            "$ref": "#/components/schemas/Items_GuideTitle__MinLen_min_length_1_",
+            "maxLength": 6,
+            "minLength": 1
+          },
+          "schema_version": {
+            "const": "private-learning-guide-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "sections": {
+            "$ref": "#/components/schemas/Items_GuideSection__MinLen_min_length_2_",
+            "maxLength": 6,
+            "minLength": 2
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GuideText"
+          },
+          "title": {
+            "$ref": "#/components/schemas/GuideTitle"
+          }
+        },
+        "required": [
+          "schema_version",
+          "title",
+          "description",
+          "learning_objectives",
+          "sections",
+          "summary"
+        ],
+        "title": "GuideContent",
+        "type": "object"
+      },
+      "GuideCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "goals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InputText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "practical": {
+            "title": "Practical",
+            "type": "boolean"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InputText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "target_level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/InputText",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "topic",
+          "start_level",
+          "target_level",
+          "practical"
+        ],
+        "title": "GuideCreate",
+        "type": "object"
+      },
+      "GuideDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuideContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content_sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "execution_status": {
+            "const": "not_executed",
+            "default": "not_executed",
+            "title": "Execution Status",
+            "type": "string"
+          },
+          "generation_version": {
+            "const": "private-guide-generator-v1",
+            "default": "private-guide-generator-v1",
+            "title": "Generation Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "request": {
+            "$ref": "#/components/schemas/GuideCreate"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ai",
+                  "test_fixture"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "generating",
+              "ready",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "ungraded": {
+            "$ref": "#/components/schemas/Yes",
+            "default": true
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "topic",
+          "status",
+          "created_at",
+          "updated_at",
+          "title",
+          "request",
+          "content",
+          "content_sha256",
+          "source"
+        ],
+        "title": "GuideDetail",
+        "type": "object"
+      },
+      "GuideExample": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/GuideText"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/GuideText"
+          },
+          "language": {
+            "enum": [
+              "python",
+              "typescript",
+              "javascript",
+              "text",
+              "sql"
+            ],
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language",
+          "code",
+          "explanation"
+        ],
+        "title": "GuideExample",
+        "type": "object"
+      },
+      "GuideSection": {
+        "additionalProperties": false,
+        "properties": {
+          "example": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuideExample"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_outcome": {
+            "$ref": "#/components/schemas/GuideText"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/GuideText"
+          },
+          "id": {
+            "$ref": "#/components/schemas/LocalId"
+          },
+          "practice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuideText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "$ref": "#/components/schemas/GuideTitle"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "explanation",
+          "example",
+          "practice",
+          "expected_outcome"
+        ],
+        "title": "GuideSection",
+        "type": "object"
+      },
+      "GuideSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "generating",
+              "ready",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "topic",
+          "status",
+          "created_at",
+          "updated_at",
+          "title"
+        ],
+        "title": "GuideSummary",
+        "type": "object"
+      },
+      "GuideText": {
+        "maxLength": 3000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "GuideTitle": {
+        "maxLength": 150,
+        "minLength": 1,
         "type": "string"
       },
       "HintCreate": {
@@ -1379,6 +1864,110 @@
         "title": "IngestKnowledge",
         "type": "object"
       },
+      "InputText": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+      },
+      "InstallationComplete": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Code",
+            "type": "string"
+          },
+          "installation_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          },
+          "state": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installation_id",
+          "state",
+          "code"
+        ],
+        "title": "InstallationComplete",
+        "type": "object"
+      },
+      "InstallationStart": {
+        "additionalProperties": false,
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "installation_url": {
+            "title": "Installation Url",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installation_url",
+          "authorization_url",
+          "state",
+          "expires_at"
+        ],
+        "title": "InstallationStart",
+        "type": "object"
+      },
+      "InstallationView": {
+        "additionalProperties": false,
+        "properties": {
+          "authorization_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Expires At"
+          },
+          "installation_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          },
+          "repository_selection": {
+            "const": "selected",
+            "default": "selected",
+            "title": "Repository Selection",
+            "type": "string"
+          },
+          "status": {
+            "default": "reauthorization_required",
+            "enum": [
+              "authorized",
+              "reauthorization_required",
+              "disconnected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installation_id"
+        ],
+        "title": "InstallationView",
+        "type": "object"
+      },
       "Items_ApprovedSupportPassageVersion__MaxLen_max_length_8_": {
         "items": {
           "$ref": "#/components/schemas/ApprovedSupportPassageVersion"
@@ -1409,6 +1998,18 @@
         },
         "type": "array"
       },
+      "Items_GuideSection__MinLen_min_length_2_": {
+        "items": {
+          "$ref": "#/components/schemas/GuideSection"
+        },
+        "type": "array"
+      },
+      "Items_GuideTitle__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/GuideTitle"
+        },
+        "type": "array"
+      },
       "Items_KnowledgeEvent__MinLen_min_length_1_": {
         "items": {
           "$ref": "#/components/schemas/KnowledgeEvent"
@@ -1418,6 +2019,51 @@
       "Items_LessonAlias__MaxLen_max_length_5_": {
         "items": {
           "$ref": "#/components/schemas/LessonAlias"
+        },
+        "type": "array"
+      },
+      "Items_Literal__excluded_path____unsupported_type____file_size____invalid_content____tree_budget____catalog_budget____file_budget____source_budget____history_budget____changed_files_budget____request_deadline_budget____truncated_tree____unsupported_agent_format____MaxLen_max_length_14_": {
+        "items": {
+          "enum": [
+            "excluded_path",
+            "unsupported_type",
+            "file_size",
+            "invalid_content",
+            "tree_budget",
+            "catalog_budget",
+            "file_budget",
+            "source_budget",
+            "history_budget",
+            "changed_files_budget",
+            "request_deadline_budget",
+            "truncated_tree",
+            "unsupported_agent_format"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "Items_ProjectAnswerCitation__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/ProjectAnswerCitation"
+        },
+        "type": "array"
+      },
+      "Items_ProjectAnswerSection__MaxLen_max_length_5_": {
+        "items": {
+          "$ref": "#/components/schemas/ProjectAnswerSection"
+        },
+        "type": "array"
+      },
+      "Items_ProjectLearningStep__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/ProjectLearningStep"
+        },
+        "type": "array"
+      },
+      "Items_ProjectReference__MaxLen_max_length_40_": {
+        "items": {
+          "$ref": "#/components/schemas/ProjectReference"
         },
         "type": "array"
       },
@@ -1445,6 +2091,36 @@
         },
         "type": "array"
       },
+      "Items_RepositoryCommit__MaxLen_max_length_30_": {
+        "items": {
+          "$ref": "#/components/schemas/RepositoryCommit"
+        },
+        "type": "array"
+      },
+      "Items_RepositoryPath__MaxLen_max_length_75_": {
+        "items": {
+          "$ref": "#/components/schemas/RepositoryPath"
+        },
+        "type": "array"
+      },
+      "Items_RepositorySourceReference__MinLen_min_length_1_": {
+        "items": {
+          "$ref": "#/components/schemas/RepositorySourceReference"
+        },
+        "type": "array"
+      },
+      "Items_RepositoryTreeEntry__MaxLen_max_length_240_": {
+        "items": {
+          "$ref": "#/components/schemas/RepositoryTreeEntry"
+        },
+        "type": "array"
+      },
+      "Items_SupportHistoryMessage__MaxLen_max_length_4_": {
+        "items": {
+          "$ref": "#/components/schemas/SupportHistoryMessage"
+        },
+        "type": "array"
+      },
       "Items_SupportPassage__MinLen_min_length_1_": {
         "items": {
           "$ref": "#/components/schemas/SupportPassage"
@@ -1457,6 +2133,12 @@
         },
         "type": "array"
       },
+      "Items_TutorHistoryMessage__MaxLen_max_length_4_": {
+        "items": {
+          "$ref": "#/components/schemas/TutorHistoryMessage"
+        },
+        "type": "array"
+      },
       "Items_TutorHistoryMessage__MaxLen_max_length_6_": {
         "items": {
           "$ref": "#/components/schemas/TutorHistoryMessage"
@@ -1466,6 +2148,12 @@
       "Items_VersionId__MinLen_min_length_1_": {
         "items": {
           "$ref": "#/components/schemas/VersionId"
+        },
+        "type": "array"
+      },
+      "Items_str__MaxLen_max_length_5_": {
+        "items": {
+          "type": "string"
         },
         "type": "array"
       },
@@ -2470,6 +3158,372 @@
         "title": "ProgressResponse",
         "type": "object"
       },
+      "ProjectAnswerCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "line_end": {
+            "minimum": 1.0,
+            "title": "Line End",
+            "type": "integer"
+          },
+          "line_start": {
+            "minimum": 1.0,
+            "title": "Line Start",
+            "type": "integer"
+          },
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "quote": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Quote",
+            "type": "string"
+          },
+          "reference_id": {
+            "$ref": "#/components/schemas/Digest"
+          }
+        },
+        "required": [
+          "reference_id",
+          "path",
+          "line_start",
+          "line_end",
+          "quote"
+        ],
+        "title": "ProjectAnswerCitation",
+        "type": "object"
+      },
+      "ProjectAnswerSection": {
+        "additionalProperties": false,
+        "properties": {
+          "citations": {
+            "$ref": "#/components/schemas/Items_ProjectAnswerCitation__MinLen_min_length_1_",
+            "maxLength": 3,
+            "minLength": 1
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/ProjectExplanation"
+          }
+        },
+        "required": [
+          "explanation",
+          "citations"
+        ],
+        "title": "ProjectAnswerSection",
+        "type": "object"
+      },
+      "ProjectExplanation": {
+        "$ref": "#/components/schemas/ProjectText"
+      },
+      "ProjectLearningContent": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": "project-learning-v1",
+            "default": "project-learning-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "steps": {
+            "$ref": "#/components/schemas/Items_ProjectLearningStep__MinLen_min_length_1_",
+            "maxLength": 5,
+            "minLength": 1
+          },
+          "title": {
+            "$ref": "#/components/schemas/ProjectExplanation"
+          }
+        },
+        "required": [
+          "title",
+          "steps"
+        ],
+        "title": "ProjectLearningContent",
+        "type": "object"
+      },
+      "ProjectLearningPath": {
+        "additionalProperties": false,
+        "properties": {
+          "can_complete_lesson": {
+            "const": false,
+            "default": false,
+            "title": "Can Complete Lesson",
+            "type": "boolean"
+          },
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectLearningContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "execution_status": {
+            "const": "not_executed",
+            "default": "not_executed",
+            "title": "Execution Status",
+            "type": "string"
+          },
+          "grading": {
+            "const": "ungraded",
+            "default": "ungraded",
+            "title": "Grading",
+            "type": "string"
+          },
+          "snapshot_digest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "source": {
+            "default": "none",
+            "enum": [
+              "ai",
+              "test_fixture",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "snapshot_digest",
+          "commit_sha"
+        ],
+        "title": "ProjectLearningPath",
+        "type": "object"
+      },
+      "ProjectLearningStep": {
+        "additionalProperties": false,
+        "properties": {
+          "explanation": {
+            "$ref": "#/components/schemas/ProjectExplanation"
+          },
+          "question": {
+            "$ref": "#/components/schemas/ProjectExplanation"
+          },
+          "reference_ids": {
+            "$ref": "#/components/schemas/Items_Digest__MinLen_min_length_1_",
+            "maxLength": 4,
+            "minLength": 1
+          },
+          "title": {
+            "$ref": "#/components/schemas/ProjectExplanation"
+          }
+        },
+        "required": [
+          "title",
+          "explanation",
+          "question",
+          "reference_ids"
+        ],
+        "title": "ProjectLearningStep",
+        "type": "object"
+      },
+      "ProjectQuestionAnswer": {
+        "additionalProperties": false,
+        "properties": {
+          "can_complete_lesson": {
+            "const": false,
+            "default": false,
+            "title": "Can Complete Lesson",
+            "type": "boolean"
+          },
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "execution_status": {
+            "const": "not_executed",
+            "default": "not_executed",
+            "title": "Execution Status",
+            "type": "string"
+          },
+          "grading": {
+            "const": "ungraded",
+            "default": "ungraded",
+            "title": "Grading",
+            "type": "string"
+          },
+          "limitations": {
+            "$ref": "#/components/schemas/Items_str__MaxLen_max_length_5_",
+            "default": [],
+            "maxLength": 5
+          },
+          "schema_version": {
+            "const": "project-question-v1",
+            "default": "project-question-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "sections": {
+            "$ref": "#/components/schemas/Items_ProjectAnswerSection__MaxLen_max_length_5_",
+            "default": [],
+            "maxLength": 5
+          },
+          "selected_references": {
+            "maximum": 12.0,
+            "minimum": 0.0,
+            "title": "Selected References",
+            "type": "integer"
+          },
+          "snapshot_digest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "source": {
+            "default": "none",
+            "enum": [
+              "ai",
+              "test_fixture",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "answered",
+              "insufficient_information",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "commit_sha",
+          "snapshot_digest",
+          "selected_references"
+        ],
+        "title": "ProjectQuestionAnswer",
+        "type": "object"
+      },
+      "ProjectQuestionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "history": {
+            "$ref": "#/components/schemas/Items_TutorHistoryMessage__MaxLen_max_length_4_",
+            "default": [],
+            "maxLength": 4
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commit_sha",
+          "question"
+        ],
+        "title": "ProjectQuestionCreate",
+        "type": "object"
+      },
+      "ProjectReference": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "commit",
+              "changed_file",
+              "pull_request",
+              "source",
+              "agent_prompt",
+              "agent_response"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "reference_id": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "text": {
+            "$ref": "#/components/schemas/ProjectText"
+          }
+        },
+        "required": [
+          "reference_id",
+          "kind",
+          "path",
+          "text"
+        ],
+        "title": "ProjectReference",
+        "type": "object"
+      },
+      "ProjectSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "complete_repository": {
+            "const": false,
+            "default": false,
+            "title": "Complete Repository",
+            "type": "boolean"
+          },
+          "connection_id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "omitted_files": {
+            "minimum": 0.0,
+            "title": "Omitted Files",
+            "type": "integer"
+          },
+          "references": {
+            "$ref": "#/components/schemas/Items_ProjectReference__MaxLen_max_length_40_",
+            "maxLength": 40
+          },
+          "schema_version": {
+            "const": "project-snapshot-v1",
+            "default": "project-snapshot-v1",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connection_id",
+          "commit_sha",
+          "digest",
+          "references",
+          "omitted_files"
+        ],
+        "title": "ProjectSnapshot",
+        "type": "object"
+      },
+      "ProjectText": {
+        "maxLength": 1000,
+        "minLength": 1,
+        "type": "string"
+      },
       "PublicEvidenceCitation": {
         "additionalProperties": false,
         "properties": {
@@ -2815,6 +3869,407 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RepositoryChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "installation_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          },
+          "repository_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          }
+        },
+        "required": [
+          "installation_id",
+          "repository_id"
+        ],
+        "title": "RepositoryChoice",
+        "type": "object"
+      },
+      "RepositoryCommit": {
+        "additionalProperties": false,
+        "properties": {
+          "changed_files": {
+            "$ref": "#/components/schemas/Items_RepositoryPath__MaxLen_max_length_75_",
+            "default": [],
+            "maxLength": 75
+          },
+          "changed_files_complete": {
+            "default": false,
+            "title": "Changed Files Complete",
+            "type": "boolean"
+          },
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commit_sha",
+          "title"
+        ],
+        "title": "RepositoryCommit",
+        "type": "object"
+      },
+      "RepositoryIngestionCoverage": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog_entries": {
+            "maximum": 240.0,
+            "minimum": 0.0,
+            "title": "Catalog Entries",
+            "type": "integer"
+          },
+          "changed_files_complete": {
+            "title": "Changed Files Complete",
+            "type": "boolean"
+          },
+          "fetched_files": {
+            "maximum": 18.0,
+            "minimum": 0.0,
+            "title": "Fetched Files",
+            "type": "integer"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "max_artifact_bytes": {
+            "const": 98304,
+            "default": 98304,
+            "title": "Max Artifact Bytes",
+            "type": "integer"
+          },
+          "max_catalog_entries": {
+            "const": 240,
+            "default": 240,
+            "title": "Max Catalog Entries",
+            "type": "integer"
+          },
+          "max_changed_files": {
+            "const": 75,
+            "default": 75,
+            "title": "Max Changed Files",
+            "type": "integer"
+          },
+          "max_fetched_files": {
+            "const": 18,
+            "default": 18,
+            "title": "Max Fetched Files",
+            "type": "integer"
+          },
+          "max_file_bytes": {
+            "const": 32768,
+            "default": 32768,
+            "title": "Max File Bytes",
+            "type": "integer"
+          },
+          "max_history_commits": {
+            "const": 30,
+            "default": 30,
+            "title": "Max History Commits",
+            "type": "integer"
+          },
+          "max_references": {
+            "const": 40,
+            "default": 40,
+            "title": "Max References",
+            "type": "integer"
+          },
+          "max_source_bytes": {
+            "const": 48000,
+            "default": 48000,
+            "title": "Max Source Bytes",
+            "type": "integer"
+          },
+          "max_tree_requests": {
+            "const": 20,
+            "default": 20,
+            "title": "Max Tree Requests",
+            "type": "integer"
+          },
+          "omitted_files": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Omitted Files",
+            "type": "integer"
+          },
+          "reasons": {
+            "$ref": "#/components/schemas/Items_Literal__excluded_path____unsupported_type____file_size____invalid_content____tree_budget____catalog_budget____file_budget____source_budget____history_budget____changed_files_budget____request_deadline_budget____truncated_tree____unsupported_agent_format____MaxLen_max_length_14_",
+            "default": [],
+            "maxLength": 14
+          },
+          "status": {
+            "const": "partial",
+            "default": "partial",
+            "title": "Status",
+            "type": "string"
+          },
+          "tree_complete": {
+            "title": "Tree Complete",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tree_complete",
+          "history_complete",
+          "changed_files_complete",
+          "catalog_entries",
+          "fetched_files",
+          "omitted_files"
+        ],
+        "title": "RepositoryIngestionCoverage",
+        "type": "object"
+      },
+      "RepositoryKnowledgeMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "default_branch": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Default Branch",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 201,
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "title": "Full Name",
+            "type": "string"
+          },
+          "private": {
+            "title": "Private",
+            "type": "boolean"
+          },
+          "repository_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          }
+        },
+        "required": [
+          "repository_id",
+          "full_name",
+          "private",
+          "default_branch"
+        ],
+        "title": "RepositoryKnowledgeMetadata",
+        "type": "object"
+      },
+      "RepositoryKnowledgeSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog": {
+            "$ref": "#/components/schemas/Items_RepositoryTreeEntry__MaxLen_max_length_240_",
+            "maxLength": 240
+          },
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "commits": {
+            "$ref": "#/components/schemas/Items_RepositoryCommit__MaxLen_max_length_30_",
+            "default": [],
+            "maxLength": 30
+          },
+          "complete_repository": {
+            "const": false,
+            "default": false,
+            "title": "Complete Repository",
+            "type": "boolean"
+          },
+          "connection_id": {
+            "$ref": "#/components/schemas/VersionId"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/RepositoryIngestionCoverage"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "references": {
+            "$ref": "#/components/schemas/Items_RepositorySourceReference__MinLen_min_length_1_",
+            "maxLength": 40,
+            "minLength": 1
+          },
+          "repository": {
+            "$ref": "#/components/schemas/RepositoryKnowledgeMetadata"
+          },
+          "schema_version": {
+            "const": "project-repository-v2",
+            "default": "project-repository-v2",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connection_id",
+          "commit_sha",
+          "digest",
+          "repository",
+          "catalog",
+          "references",
+          "coverage"
+        ],
+        "title": "RepositoryKnowledgeSnapshot",
+        "type": "object"
+      },
+      "RepositoryPath": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "RepositorySourceReference": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentLogMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blob_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SourceCategory"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "kind": {
+            "default": "source",
+            "enum": [
+              "source",
+              "agent_prompt",
+              "agent_response"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "line_end": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Line End",
+            "type": "integer"
+          },
+          "line_start": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Line Start",
+            "type": "integer"
+          },
+          "path": {
+            "$ref": "#/components/schemas/RepositoryPath"
+          },
+          "reference_id": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "text": {
+            "$ref": "#/components/schemas/SourceText"
+          }
+        },
+        "required": [
+          "reference_id",
+          "digest",
+          "path",
+          "line_start",
+          "line_end",
+          "text",
+          "category",
+          "blob_sha"
+        ],
+        "title": "RepositorySourceReference",
+        "type": "object"
+      },
+      "RepositoryTreeEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "blob_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SourceCategory"
+          },
+          "content_included": {
+            "default": false,
+            "title": "Content Included",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "directory"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/RepositoryPath"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "maximum": 1099511627776.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          }
+        },
+        "required": [
+          "path",
+          "kind",
+          "blob_sha",
+          "category"
+        ],
+        "title": "RepositoryTreeEntry",
+        "type": "object"
+      },
+      "RepositoryView": {
+        "additionalProperties": false,
+        "properties": {
+          "full_name": {
+            "maxLength": 201,
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "title": "Full Name",
+            "type": "string"
+          },
+          "private": {
+            "title": "Private",
+            "type": "boolean"
+          },
+          "repository_id": {
+            "$ref": "#/components/schemas/GitHubId"
+          }
+        },
+        "required": [
+          "repository_id",
+          "full_name",
+          "private"
+        ],
+        "title": "RepositoryView",
+        "type": "object"
+      },
       "RequestStatus": {
         "enum": [
           "queued",
@@ -3155,6 +4610,41 @@
         "title": "SessionResponse",
         "type": "object"
       },
+      "SnapshotCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "commit_sha": {
+            "$ref": "#/components/schemas/CommitSha"
+          }
+        },
+        "required": [
+          "commit_sha"
+        ],
+        "title": "SnapshotCreate",
+        "type": "object"
+      },
+      "SourceCategory": {
+        "enum": [
+          "frontend",
+          "backend",
+          "api_schema",
+          "database",
+          "migration",
+          "documentation",
+          "source",
+          "agent_log"
+        ],
+        "type": "string"
+      },
+      "SourceText": {
+        "maxLength": 1800,
+        "minLength": 1,
+        "type": "string"
+      },
+      "SourceTimestamp": {
+        "maxLength": 50,
+        "type": "string"
+      },
       "Summary": {
         "maxLength": 600,
         "minLength": 1,
@@ -3163,6 +4653,11 @@
       "SupportAskCreate": {
         "additionalProperties": false,
         "properties": {
+          "history": {
+            "$ref": "#/components/schemas/Items_SupportHistoryMessage__MaxLen_max_length_4_",
+            "default": [],
+            "maxLength": 4
+          },
           "question": {
             "maxLength": 500,
             "minLength": 1,
@@ -3194,6 +4689,31 @@
           "url"
         ],
         "title": "SupportEscalation",
+        "type": "object"
+      },
+      "SupportHistoryMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 250,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "SupportHistoryMessage",
         "type": "object"
       },
       "SupportMessage": {
@@ -6256,6 +7776,390 @@
         ]
       }
     },
+    "/api/v1/learning-guides": {
+      "get": {
+        "operationId": "list_private_learning_guides",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GuideSummary"
+                  },
+                  "title": "Response List Private Learning Guides",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Guides",
+        "tags": [
+          "private-learning-guides"
+        ]
+      },
+      "post": {
+        "operationId": "create_private_learning_guide",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create",
+        "tags": [
+          "private-learning-guides"
+        ]
+      }
+    },
+    "/api/v1/learning-guides/{guide_id}": {
+      "get": {
+        "operationId": "get_private_learning_guide",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "guide_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Guide Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get",
+        "tags": [
+          "private-learning-guides"
+        ]
+      }
+    },
     "/api/v1/lessons/{lesson_id}": {
       "get": {
         "operationId": "get_lesson",
@@ -6368,6 +8272,1966 @@
         "summary": "Lesson",
         "tags": [
           "learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/installations": {
+      "get": {
+        "operationId": "installations_api_v1_projects_github_installations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InstallationView"
+                  },
+                  "title": "Response Installations Api V1 Projects Github Installations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Installations",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/installations/complete": {
+      "post": {
+        "operationId": "complete_installation_api_v1_projects_github_installations_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallationComplete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Installation",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/installations/start": {
+      "post": {
+        "operationId": "start_installation_api_v1_projects_github_installations_start_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationStart"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Start Installation",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/installations/{installation_id}/disconnect": {
+      "post": {
+        "operationId": "disconnect_installation_api_v1_projects_github_installations__installation_id__disconnect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "maximum": 9223372036854775807,
+              "title": "Installation Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Disconnect Installation",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/installations/{installation_id}/repositories": {
+      "get": {
+        "operationId": "repositories_api_v1_projects_github_installations__installation_id__repositories_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "maximum": 9223372036854775807,
+              "title": "Installation Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RepositoryView"
+                  },
+                  "title": "Response Repositories Api V1 Projects Github Installations  Installation Id  Repositories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Repositories",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories": {
+      "get": {
+        "operationId": "connections_api_v1_projects_github_repositories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionView"
+                  },
+                  "title": "Response Connections Api V1 Projects Github Repositories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Connections",
+        "tags": [
+          "project learning"
+        ]
+      },
+      "post": {
+        "operationId": "connect_api_v1_projects_github_repositories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepositoryChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Connect",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/ask": {
+      "post": {
+        "operationId": "ask_repository_api_v1_projects_github_repositories__connection_id__ask_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectQuestionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectQuestionAnswer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask Repository",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/disconnect": {
+      "post": {
+        "operationId": "disconnect_connection_api_v1_projects_github_repositories__connection_id__disconnect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Disconnect Connection",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/ingest": {
+      "post": {
+        "operationId": "ingest_repository_api_v1_projects_github_repositories__connection_id__ingest_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryKnowledgeSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ingest Repository",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/knowledge": {
+      "get": {
+        "operationId": "repository_knowledge_api_v1_projects_github_repositories__connection_id__knowledge_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "commit_sha",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CommitSha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryKnowledgeSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Repository Knowledge",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/learning-path": {
+      "post": {
+        "operationId": "learning_path_api_v1_projects_github_repositories__connection_id__learning_path_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLearningPath"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Learning Path",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/snapshot": {
+      "get": {
+        "operationId": "snapshot_api_v1_projects_github_repositories__connection_id__snapshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "commit_sha",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CommitSha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Snapshot",
+        "tags": [
+          "project learning"
+        ]
+      }
+    },
+    "/api/v1/projects/github/repositories/{connection_id}/sync": {
+      "post": {
+        "operationId": "sync_api_v1_projects_github_repositories__connection_id__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Sync",
+        "tags": [
+          "project learning"
         ]
       }
     },

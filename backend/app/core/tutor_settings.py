@@ -18,6 +18,6 @@ class TutorSettings(FeedbackSettings):
     )
     requests_per_minute: Annotated[FeedbackLimit, Field(le=60)] = 5
     max_global_in_flight: Annotated[FeedbackLimit, Field(le=32)] = 2
-    request_timeout_seconds: Annotated[float, Field(gt=0, le=30)] = 20.0
-    provider_timeout_seconds: Annotated[float, Field(gt=0, le=10)] = 10.0
+    request_timeout_seconds: Annotated[float, Field(gt=0, le=30)] = 30.0
+    provider_timeout_seconds: Annotated[float, Field(gt=0, le=20)] = 20.0
     max_request_bytes: Annotated[FeedbackLimit, Field(le=16384)] = 16384
