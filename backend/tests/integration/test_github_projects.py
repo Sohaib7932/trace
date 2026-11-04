@@ -1,5 +1,6 @@
 """Read-only GitHub Project Learning with fake external and AI transports only."""
 
+import base64
 import json
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
 from alembic import command
+from app.ai.github_projects import GitHubUserToken
 from app.ai.providers.github_app import GitHubAppClient
 from app.core.errors import ApplicationError
 from app.core.github_settings import GitHubSettings
@@ -43,6 +45,7 @@ def config(**changes):
         client_secret=SecretStr("fixture-only-secret"),
         private_key=SecretStr("fixture-only-key"),
         state_signing_secret=SecretStr("s" * 32),
+        token_encryption_key=SecretStr(base64.urlsafe_b64encode(b"t" * 32).decode()),
         **changes,
     )
 
@@ -71,6 +74,9 @@ class FakeGitHub(GitHubAppClient):
         if code == "failure":
             raise ApplicationError("github_unavailable", "GitHub is unavailable.", 503)
         return SecretStr("fixture-user-token")
+
+    def exchange_authorization(self, code):
+        return GitHubUserToken(access_token=self.exchange(code), expires_in=300)
 
     def user_id(self, token):
         return 321

@@ -1,8 +1,9 @@
 import { protectedApiRequest } from "./client";
+import type { components } from "./schema";
 
-export type GitHubInstallation = { installation_id: number; repository_selection: "selected"; authorization_expires_at: string | null };
+export type GitHubInstallation = { installation_id: number; repository_selection: "selected"; authorization_expires_at: string | null; status?: "authorized" | "reauthorization_required" | "disconnected" };
 export type GitHubRepository = { repository_id: number; full_name: string; private: boolean };
-export type GitHubConnection = GitHubRepository & { id: string; installation_id: number };
+export type GitHubConnection = GitHubRepository & { id: string; installation_id: number; status?: "connected" | "disconnected" };
 export type GitHubStart = { installation_url: string; authorization_url: string; state: string; expires_at: string };
 export type ProjectSnapshot = {
   schema_version: "project-snapshot-v1"; connection_id: string; commit_sha: string; digest: string;
@@ -14,6 +15,9 @@ export type ProjectLearningPath = {
   snapshot_digest: string; commit_sha: string; source: "ai" | "test_fixture" | "none";
   grading: "ungraded"; execution_status: "not_executed"; can_complete_lesson: false;
 };
+export type RepositoryKnowledge = components["schemas"]["RepositoryKnowledgeSnapshot"];
+export type ProjectAnswer = components["schemas"]["ProjectQuestionAnswer"];
+export type ProjectQuestion = components["schemas"]["ProjectQuestionCreate"];
 const prefix = "/projects/github";
 export const githubProjectsApi = {
   start: () => protectedApiRequest<GitHubStart>(`${prefix}/installations/start`, {}),
@@ -24,6 +28,11 @@ export const githubProjectsApi = {
   connections: () => protectedApiRequest<GitHubConnection[]>(`${prefix}/repositories`),
   sync: (id: string, commit_sha: string) => protectedApiRequest<ProjectSnapshot>(`${prefix}/repositories/${encodeURIComponent(id)}/sync`, { commit_sha }),
   learningPath: (id: string, commit_sha: string) => protectedApiRequest<ProjectLearningPath>(`${prefix}/repositories/${encodeURIComponent(id)}/learning-path`, { commit_sha }),
+  disconnect: (id: string) => protectedApiRequest<GitHubConnection>(`${prefix}/repositories/${encodeURIComponent(id)}/disconnect`, {}),
+  disconnectInstallation: (id: number) => protectedApiRequest<GitHubInstallation>(`${prefix}/installations/${id}/disconnect`, {}),
+  ingest: (id: string, commit_sha: string) => protectedApiRequest<RepositoryKnowledge>(`${prefix}/repositories/${encodeURIComponent(id)}/ingest`, { commit_sha }),
+  knowledge: (id: string, commit_sha: string) => protectedApiRequest<RepositoryKnowledge>(`${prefix}/repositories/${encodeURIComponent(id)}/knowledge?commit_sha=${encodeURIComponent(commit_sha)}`),
+  ask: (id: string, body: ProjectQuestion) => protectedApiRequest<ProjectAnswer>(`${prefix}/repositories/${encodeURIComponent(id)}/ask`, body),
 };
 
 const PENDING_KEY = "trace-github-app-authorization-v1";

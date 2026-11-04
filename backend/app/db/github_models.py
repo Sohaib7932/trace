@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
 )
@@ -37,6 +38,10 @@ class GitHubInstallationGrant(Base):
     github_user_id: Mapped[int] = mapped_column(BigInteger)
     repository_ids: Mapped[list[int]] = mapped_column(JSON)
     authorized_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    token_ciphertext: Mapped[str | None] = mapped_column(Text())
+    credential_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    disconnected_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    authorization_revision: Mapped[int] = mapped_column(default=1, server_default="1")
 
 
 class GitHubRepositoryConnection(Base):
@@ -56,6 +61,8 @@ class GitHubRepositoryConnection(Base):
     full_name: Mapped[str] = mapped_column(String(201))
     private: Mapped[bool] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    disconnected_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    connection_revision: Mapped[int] = mapped_column(default=1, server_default="1")
 
 
 class GitHubProjectSnapshot(Base):

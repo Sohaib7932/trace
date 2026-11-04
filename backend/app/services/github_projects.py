@@ -3,14 +3,8 @@
 import hashlib
 import json
 import re
-from datetime import datetime, timedelta
 from pathlib import PurePosixPath
-from threading import RLock
-from urllib.parse import urlencode
-from uuid import UUID, uuid4
-
-import jwt
-from pydantic import SecretStr
+from uuid import UUID
 
 from app.ai.client import BoundedAIClient
 from app.ai.github_projects import GitHubProjectClient
@@ -20,7 +14,7 @@ from app.core.errors import ApplicationError
 from app.core.github_errors import unavailable
 from app.core.github_settings import GitHubSettings
 from app.domain.clock import Clock, utc_now
-from app.repositories.github_projects import GitHubProjectRepository
+from app.repositories.github_projects import GitHubConnectionLease, GitHubProjectRepository
 from app.schemas.github_projects import (
     ConnectionView,
     InstallationComplete,
@@ -32,6 +26,8 @@ from app.schemas.github_projects import (
     ProjectSnapshot,
     RepositoryView,
 )
+from app.services.github_authorization import GitHubAuthorizationService
+from app.services.project_ingestion import safe_repository_path
 
 
 def digest(data: object) -> str:
@@ -41,6 +37,8 @@ def digest(data: object) -> str:
 
 
 def allowed_source(path: str) -> bool:
+    if not safe_repository_path(path):
+        return False
     parsed = PurePosixPath(path)
     if (
         len(path) > 500
@@ -52,6 +50,18 @@ def allowed_source(path: str) -> bool:
     ):
         return False
     return parsed.suffix.lower() in {".py", ".ts", ".tsx", ".js", ".jsx", ".md", ".json"}
+
+
+def _safe_snapshot_sources(snapshot: ProjectSnapshot) -> None:
+    for item in snapshot.references:
+        if item.kind == "source" and not allowed_source(item.path):
+            raise unavailable()
+        if item.kind == "changed_file" and not (
+            allowed_source(item.path) or allowed_log(item.path)
+        ):
+            raise unavailable()
+        if item.kind in {"agent_prompt", "agent_response"} and not allowed_log(item.path):
+            raise unavailable()
 
 
 def allowed_log(path: str) -> bool:
@@ -123,161 +133,50 @@ class GitHubProjectService:
     ) -> None:
         self.repository, self.settings, self.client = repository, settings, client
         self.ai_client, self.clock = ai_client, clock
-        self._lock = RLock()
-        self._proofs: dict[tuple[UUID, int], tuple[SecretStr, datetime]] = {}
-
-    def _enabled(self) -> None:
-        if self.settings.mode != "enabled":
-            raise ApplicationError(
-                "github_not_configured", "GitHub App owner configuration is required.", 503
-            )
+        self.authorization = GitHubAuthorizationService(repository, settings, client, clock)
 
     def start(self, owner: UUID) -> InstallationStart:
-        self._enabled()
-        now, state_id = self.clock(), uuid4()
-        expiry = now + timedelta(minutes=10)
-        self.repository.reserve_state(owner, state_id, expiry)
-        state = jwt.encode(
-            {
-                "jti": str(state_id),
-                "sub": str(owner),
-                "iss": "trace-github-installation",
-                "aud": "trace-project-learning",
-                "exp": int(expiry.timestamp()),
-            },
-            self.settings.state_signing_secret.get_secret_value(),
-            algorithm="HS256",
-        )
-        authorization = "https://github.com/login/oauth/authorize?" + urlencode(
-            {
-                "client_id": self.settings.client_id,
-                "state": state,
-                "redirect_uri": self.settings.callback_url,
-            }
-        )
-        return InstallationStart(
-            installation_url=(
-                f"https://github.com/apps/{self.settings.slug}/installations/new?"
-                + urlencode({"state": state})
-            ),
-            authorization_url=authorization,
-            state=state,
-            expires_at=expiry,
-        )
-
-    def _consume(self, owner: UUID, state: str) -> None:
-        try:
-            claims = jwt.decode(
-                state,
-                self.settings.state_signing_secret.get_secret_value(),
-                algorithms=["HS256"],
-                audience="trace-project-learning",
-                issuer="trace-github-installation",
-                options={"verify_exp": False, "require": ["jti", "sub", "exp", "iss", "aud"]},
-            )
-            state_id = UUID(claims["jti"])
-            if claims["sub"] != str(owner) or claims["exp"] <= self.clock().timestamp():
-                raise ValueError()
-        except Exception:
-            raise ApplicationError(
-                "github_state_invalid", "Restart GitHub authorization.", 409
-            ) from None
-        # Atomically consume before any external call: two callbacks cannot both
-        # exchange the code. Failed exchanges require a new authorization flow.
-        if not self.repository.consume_state(owner, state_id, self.clock()):
-            raise ApplicationError("github_state_invalid", "Restart GitHub authorization.", 409)
+        return self.authorization.start(owner)
 
     def complete(self, owner: UUID, body: InstallationComplete) -> InstallationView:
-        self._enabled()
-        self._consume(owner, body.state)
-        token = self.client.exchange(body.code)
-        user_id = self.client.user_id(token)
-        self.client.validate_installation(body.installation_id)
-        repositories = self.client.accessible_repositories(token, body.installation_id)
-        expiry = self.clock() + timedelta(minutes=5)
-        self.repository.bind_installation(
-            owner,
-            body.installation_id,
-            user_id,
-            [item.repository_id for item in repositories],
-            self.clock(),
-        )
-        with self._lock:
-            self._proofs = {
-                key: value for key, value in self._proofs.items() if value[1] > self.clock()
-            }
-            if len(self._proofs) >= 1000:
-                raise unavailable()
-            self._proofs[(owner, body.installation_id)] = (token, expiry)
-        return InstallationView(
-            installation_id=body.installation_id, authorization_expires_at=expiry
-        )
+        return self.authorization.complete(owner, body)
 
     def installations(self, owner: UUID) -> tuple[InstallationView, ...]:
-        identities = self.repository.installations(owner)
-        with self._lock:
-            return tuple(
-                InstallationView(
-                    installation_id=identity,
-                    authorization_expires_at=self._proofs[(owner, identity)][1]
-                    if (owner, identity) in self._proofs
-                    else None,
-                )
-                for identity in identities
-            )
+        return self.authorization.installations(owner)
 
     def repositories(self, owner: UUID, installation: int) -> tuple[RepositoryView, ...]:
-        self._enabled()
-        repository_ids = self.repository.installation_repository_ids(owner, installation)
-        if repository_ids is None:
-            raise ApplicationError("not_found", "Connection not found.", 404)
-        allowed = set(repository_ids)
-        with self._lock:
-            proof = self._proofs.get((owner, installation))
-            if proof is None or proof[1] <= self.clock():
-                raise ApplicationError(
-                    "github_reauthorization_required", "Reconnect GitHub to refresh access.", 409
-                )
-        self.client.validate_installation(installation)
-        return tuple(
-            item
-            for item in self.client.accessible_repositories(proof[0], installation)
-            if item.repository_id in allowed
-        )
+        return self.authorization.repositories(owner, installation)
 
     def connect(self, owner: UUID, installation: int, repository_id: int) -> ConnectionView:
-        chosen = next(
-            (
-                item
-                for item in self.repositories(owner, installation)
-                if item.repository_id == repository_id
-            ),
-            None,
-        )
-        if chosen is None:
-            raise ApplicationError("not_found", "Repository is not authorized.", 404)
-        return self.repository.connect(owner, installation, chosen, self.clock())
+        return self.authorization.connect(owner, installation, repository_id)
 
     def connections(self, owner: UUID) -> tuple[ConnectionView, ...]:
         return self.repository.connections(owner)
 
+    def authorize_connection(self, owner: UUID, connection_id: UUID) -> GitHubConnectionLease:
+        return self.authorization.authorize_connection(owner, connection_id)
+
+    def assert_authorization(self, owner: UUID, lease: GitHubConnectionLease) -> None:
+        self.authorization.assert_authorization(owner, lease)
+
+    def disconnect_installation(self, owner: UUID, installation: int) -> InstallationView:
+        return self.authorization.disconnect_installation(owner, installation)
+
+    def disconnect_connection(self, owner: UUID, identity: UUID) -> ConnectionView:
+        return self.authorization.disconnect_connection(owner, identity)
+
     def _owned(self, owner: UUID, connection_id: UUID) -> ConnectionView:
-        result = self.repository.owned_connection(owner, connection_id)
-        allowed = self.repositories(owner, result.installation_id)
-        # A rename/transfer requires explicit reconnect rather than using stale paths.
-        if not any(
-            item.repository_id == result.repository_id and item.full_name == result.full_name
-            for item in allowed
-        ):
-            raise ApplicationError("not_found", "Repository is not authorized.", 404)
-        return result
+        return self.authorize_connection(owner, connection_id).connection
 
     def sync(self, owner: UUID, connection_id: UUID, sha: str) -> ProjectSnapshot:
-        connection = self._owned(owner, connection_id)
+        lease = self.authorize_connection(owner, connection_id)
+        connection = lease.connection
         saved = self.repository.load_snapshot(connection_id, sha)
         if saved is not None:
+            _safe_snapshot_sources(saved)
             if digest(saved.model_dump(mode="json", exclude={"digest"})) != saved.digest:
                 raise unavailable()
+            self.assert_authorization(owner, lease)
             return saved
         token = self.client.repository_token(connection.installation_id, connection.repository_id)
         commit = self.client.commit(token, connection.full_name, sha)
@@ -348,22 +247,26 @@ class GitHubProjectService:
             "complete_repository": False,
         }
         result = ProjectSnapshot.model_validate({**payload, "digest": digest(payload)})
-        self._owned(owner, connection_id)  # Access may have changed during network I/O.
-        if not self.repository.save_snapshot(result, self.clock()):
+        self.assert_authorization(owner, lease)
+        if not self.repository.save_snapshot(result, self.clock(), lease=lease):
             # A concurrent immutable insert returns the owned existing receipt.
             return self.snapshot(owner, connection_id, sha)
+        self.assert_authorization(owner, lease)
         return result
 
     def snapshot(self, owner: UUID, connection_id: UUID, sha: str) -> ProjectSnapshot:
-        self._owned(owner, connection_id)
+        lease = self.authorize_connection(owner, connection_id)
         result = self.repository.load_snapshot(connection_id, sha)
         if result is None:
             raise ApplicationError("not_found", "Ingest this pinned commit first.", 404)
+        _safe_snapshot_sources(result)
         if digest(result.model_dump(mode="json", exclude={"digest"})) != result.digest:
             raise unavailable()
+        self.assert_authorization(owner, lease)
         return result
 
     def learning_path(self, owner: UUID, connection_id: UUID, sha: str) -> ProjectLearningPath:
+        lease = self.authorize_connection(owner, connection_id)
         snapshot = self.snapshot(owner, connection_id, sha)
         result = self.ai_client.complete(
             capability="generation",
@@ -393,7 +296,7 @@ class GitHubProjectService:
             allowed = {item.reference_id for item in snapshot.references}
             if any(not set(step.reference_ids) <= allowed for step in content.steps):
                 raise ValueError()
-            self._owned(owner, connection_id)
+            self.assert_authorization(owner, lease)
         except ValueError:
             return ProjectLearningPath(
                 status="unavailable", snapshot_digest=snapshot.digest, commit_sha=sha

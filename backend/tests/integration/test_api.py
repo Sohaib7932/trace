@@ -62,10 +62,15 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
         "/api/v1/projects/github/installations/complete",
         "/api/v1/projects/github/installations",
         "/api/v1/projects/github/installations/{installation_id}/repositories",
+        "/api/v1/projects/github/installations/{installation_id}/disconnect",
         "/api/v1/projects/github/repositories",
         "/api/v1/projects/github/repositories/{connection_id}/sync",
         "/api/v1/projects/github/repositories/{connection_id}/snapshot",
         "/api/v1/projects/github/repositories/{connection_id}/learning-path",
+        "/api/v1/projects/github/repositories/{connection_id}/disconnect",
+        "/api/v1/projects/github/repositories/{connection_id}/ingest",
+        "/api/v1/projects/github/repositories/{connection_id}/knowledge",
+        "/api/v1/projects/github/repositories/{connection_id}/ask",
     }
     assert schema["paths"]["/api/v1/health/ready"]["get"]["responses"]["503"]
 

@@ -4,8 +4,8 @@ This guide describes the implemented local integration. Public hosting has not
 been provisioned. It does not certify another developer's machine, an external
 OAuth dashboard, production traffic or provider billing.
 
-The current generated contract has **41 paths / 45 operations** after the private
-guide and GitHub App additions. Historical 21/23 and 31/33 inventories describe
+The current generated contract has **46 paths / 50 operations** after the private
+guide, durable GitHub authorization and repository-question additions. Historical 21/23, 31/33 and 41/45 inventories describe
 earlier milestones. Use `backend/openapi.json` and `src/lib/api/schema.d.ts` for
 the current app, and [the acceptance report](../reports/trace-ai-and-github-acceptance.md)
 for precise automated, live-provider and external-setup status.
@@ -212,72 +212,133 @@ fixtures do not establish genuine Gemini guide acceptance.
 ## GitHub App Project Learning
 
 GitHub repository connection is separate from optional Supabase GitHub social
-login. A signed-in Trace learner opens `/projects`, explicitly installs the
-owner-configured GitHub App on selected repositories, then authorizes the App
-as a GitHub user. The existing `/projects/github/callback` strips sensitive query
-parameters and completes the protected backend flow. This is not a repository
-access grant merely because someone signed in through GitHub.
+login. A signed-in learner opens `/projects`, installs the owner-configured App
+on selected repositories, then explicitly authorizes that App as a GitHub user.
+The `/projects/github/callback` flow strips sensitive query parameters before
+completing the protected backend exchange. Supabase GitHub sign-in alone grants
+no repository access.
 
 Use `githubProjectsApi` from `src/lib/api/github-projects.ts`. All endpoints below
-share the `/api/v1/projects/github` prefix and require the authenticated learner
-and no-store handling. Writes additionally require an allowed Origin and
-`X-Trace-Client: learning-web`.
+share `/api/v1/projects/github`, require authenticated learner ownership and
+return no-store responses. Writes additionally require an allowed Origin and
+`X-Trace-Client: learning-web`; GET authentication does not require those write
+headers. There is no client-selected file loader, source allowlist or provider.
 
 | Method/path beneath the prefix | Request | Result |
 | --- | --- | --- |
-| POST `/installations/start` | `{}` | Fixed GitHub installation/authorization URLs, signed state and expiry |
-| POST `/installations/complete` | `{installation_id,code,state}` | Verified owned installation summary; no tokens |
+| POST `/installations/start` | No body | Fixed GitHub installation/user-authorization URLs, state and expiry |
+| POST `/installations/complete` | `{installation_id,code,state}` | Owned installation summary, authorization expiry/status; no tokens |
 | GET `/installations` | None | Owned installation summaries |
+| POST `/installations/{installation_id}/disconnect` | No body | Disconnected installation; saved encrypted credential removed |
 | GET `/installations/{installation_id}/repositories` | None | Currently user/App-authorized selected repositories |
-| POST `/repositories` | `{installation_id,repository_id}` | Explicit owned repository connection |
-| GET `/repositories` | None | Owned connection summaries |
-| POST `/repositories/{connection_id}/sync` | `{commit_sha}` | Immutable partial pinned snapshot and safe references |
-| GET `/repositories/{connection_id}/snapshot?commit_sha=...` | Exact SHA query | Stored snapshot after current access recheck |
-| POST `/repositories/{connection_id}/learning-path` | `{commit_sha}` | Ready/unavailable ungraded cited path/questions |
+| POST `/repositories` | `{installation_id,repository_id}` | Explicit owned connection with connected/disconnected status |
+| GET `/repositories` | None | Owned connection metadata |
+| POST `/repositories/{connection_id}/disconnect` | No body | Inactive connection; history retained |
+| POST `/repositories/{connection_id}/ingest` | `{commit_sha}` | Canonical V2 repository knowledge, catalog, exact sources and coverage |
+| GET `/repositories/{connection_id}/knowledge?commit_sha=...` | Exact SHA query | Saved V2 artifact after current access checks |
+| POST `/repositories/{connection_id}/ask` | `{commit_sha,question,history?}` | Grounded answer, exact quotations and server-created path/line citations |
+| POST `/repositories/{connection_id}/sync` | `{commit_sha}` | Existing V1 changed-file snapshot |
+| GET `/repositories/{connection_id}/snapshot?commit_sha=...` | Exact SHA query | Stored V1 snapshot after access recheck |
+| POST `/repositories/{connection_id}/learning-path` | `{commit_sha}` | Existing ungraded V1 path/questions |
 
-After the explicit authorization and connection flow:
+The current `/projects` journey uses V2 ingest/ask. Its knowledge and answer
+types come from the generated backend schema. After explicit authorization and
+repository selection:
 
 ```ts
 import { githubProjectsApi } from "@/lib/api/github-projects";
 
-// Select these from the authenticated installation/repository responses.
 const connection = await githubProjectsApi.connect(installationId, repositoryId);
-// Obtain the exact 40-character commit SHA from the approved repository.
-const snapshot = await githubProjectsApi.sync(connection.id, commitSha);
-const path = await githubProjectsApi.learningPath(connection.id, snapshot.commit_sha);
+const knowledge = await githubProjectsApi.ingest(connection.id, exactCommitSha);
+const saved = await githubProjectsApi.knowledge(connection.id, knowledge.commit_sha);
+const answer = await githubProjectsApi.ask(connection.id, {
+  commit_sha: saved.commit_sha,
+  question: "Teach me how authentication works in this project.",
+  history: [],
+});
+// Render status, limitations, explanations, citation quotes and exact line spans.
+await githubProjectsApi.disconnect(connection.id);
 ```
 
-Never accept arbitrary callback redirects, filesystem paths or source URLs.
-Installation IDs alone grant no access: the server verifies GitHub user access
-and selected/read-only App permissions. Commit SHA must be forty lowercase hex
-characters. Source blobs are taken from that pinned commit without symlink
-resolution. Responses report partial coverage and omitted files. Native counted
-agent prompt/final blocks are untrusted source material; they cannot establish
-execution or learner correctness. Generated steps cite known reference IDs and
-remain ungraded/unexecuted, with no effect on verified lesson completion.
+`commit_sha` is forty lowercase hexadecimal characters. `question` is at most
+2,000 characters; history is at most four user/assistant entries of 1,600
+characters each, with a 9,000-byte overall question payload. Keep history in the
+current connection/commit context; clear it when switching sources. It is
+untrusted conversational context, not evidence or a source-selection authority.
 
-App credentials are backend process settings only. Exact names:
+`answered` includes bounded cited sections and actual `ai`/`test_fixture`
+provenance. `insufficient_information` and `unavailable` contain no invented
+answer or citations. No relevant sources means abstention without a model call.
+HTTP 200 with unavailable is a failure state, not a successful response to hide
+behind demo text. Handle 401/403/404, expired/replayed authorization 409, input
+422, admission/upstream rate limit 429, dependency 503 and deadline 504 honestly.
+Project operations admit ten calls per account/minute, one active per account
+and two globally. Do not automatically repeat AI/OAuth POSTs or spin on 429.
+
+V2 ingestion inspects metadata and a safe commit-pinned file tree across
+frontend/backend, routes/schemas, models/migrations and documentation. Bounds:
+twenty directory calls, 2,000 inspected tree entries, 240 catalog entries,
+eighteen source blobs of at most 32 KiB, forty source references of at most
+1,800 characters, 48,000 aggregate source bytes, thirty history commits and
+seventy-five pinned changed files. The saved artifact is at most 96 KiB.
+Numeric pagination and coverage flags expose truncation and omitted files; the
+receipt always says `complete_repository:false`. This is not a full repository
+or PR discussion/diff archive. Exclusions cover environment/secret/key files,
+node_modules, build/generated assets, binaries, unsupported/oversized content
+and symlinks; repository code is never executed.
+
+Question retrieval uses at most twelve owned source references. Exact quotations
+must occur in the cited source. Paths and line spans are supplied/computed by
+the server; fabricated citations, filenames, endpoints and free-text line claims
+reject the answer. These controls verify source/quotation integrity, not the
+semantic truth of every model sentence. Omitted behavior stays unknown. All
+advice remains ungraded/unexecuted and cannot complete verified Notes/Tasks.
+
+Native `.claude-logs/*.md` counted prompt/final entries may include original
+session/turn/model/timestamp metadata only when present and valid. Hidden
+reasoning, tools, frontmatter and unknown formats are withheld. Correlation is
+`same_pinned_snapshot_only`; prompt-to-file causation remains `unproven`.
+Existing V1 receipts/hashes stay unchanged; V1 releases now also reject newly
+excluded paths. Generated answers/path wording is ephemeral; saved V2 source
+artifacts are immutable. Private guides use their separate persistence.
+
+App settings are backend-only process variables:
 `TRACE_GITHUB_APP_MODE`, `TRACE_GITHUB_APP_ID`, `TRACE_GITHUB_APP_SLUG`,
 `TRACE_GITHUB_APP_CLIENT_ID`, `TRACE_GITHUB_APP_CLIENT_SECRET`,
 `TRACE_GITHUB_APP_PRIVATE_KEY`, `TRACE_GITHUB_APP_STATE_SIGNING_SECRET`,
-`TRACE_GITHUB_APP_CALLBACK_URL`. The safe template is not automatically loaded;
-do not add these to strict general `backend/.env` or frontend `.env.local`.
-Owner setup uses only Contents/Pull requests/Metadata read permissions and
-selected repositories. No live GitHub App authorization has been completed.
+`TRACE_GITHUB_APP_TOKEN_ENCRYPTION_KEY`, `TRACE_GITHUB_APP_CALLBACK_URL`.
+The safe template is `backend/github.env.example`, not an automatically loaded
+file. Do not add these to strict `backend/.env` or frontend `.env.local`.
+The independent encryption key is a stable private Fernet key: URL-safe base64
+encoding of 32 random bytes. Encrypted owner-bound user authorization survives
+workers/restarts with the same database/key, obeys provider expiry and is capped
+at eight hours. Expiry/key loss requires explicit reconnect; refresh tokens are
+not persisted or used. Installation tokens remain server-memory-only, fresh and
+restricted to one selected repository.
 
-User proof lasts at most five minutes in bounded process memory; expiry, restart
-or another worker requires reconnecting. Owned connection metadata remains
-listable, but snapshot/source content requires current GitHub access. This is
-not distributed OAuth-session persistence. Snapshots cover bounded changed files/PR titles, not
-an entire repository or complete PR history. Generated path wording is currently
-ephemeral; it is not saved course/progress state. Project operations allow ten
-calls per account/minute, one active per account and two globally; handle 429
-without automatic retry loops. See [GitHub App owner setup and limits](github-app-project-learning.md)
-for every permission, callback, lifecycle caveat and manual live acceptance step.
+Local disconnect invalidates in-flight authorization revisions and preserves
+history; installation disconnect also wipes its encrypted credential. It does
+not uninstall the GitHub App or globally revoke the user's GitHub authorization.
+Those actions remain in GitHub settings. Current user/installation access is
+rechecked before source/answer release. Owned connection metadata remains
+listable after disconnect; source content does not.
 
-Optional social-login setup remains documented separately in
-[GitHub social sign-in](github-oauth-setup.md). Supabase GitHub enablement is not
-required for the GitHub App repository flow.
+Owner configuration is still required before live authorization can be accepted.
+Use read-only Contents/Pull requests/Metadata and selected repositories. Local
+frontend/backend URLs are `http://localhost:3000` / `http://localhost:8000`, with
+both App callback and installation setup URL exactly
+`http://localhost:3000/projects/github/callback`. Disable automatic OAuth during
+installation for Trace's two-stage flow; webhooks stay disabled, with no webhook
+URL or secret. Use approved HTTPS addresses for deployment. Migration 0012 adds
+encrypted authorization/disconnect revisions; 0013 archives V2 knowledge without
+rewriting historical V1 receipts. Back up and forward-upgrade each machine's own
+database; populated downgrade is refused. See [App owner setup, contracts and
+manual live acceptance](github-app-project-learning.md) for the exact procedure
+and [the acceptance report](../reports/trace-ai-and-github-acceptance.md) for actual
+validation status. Do not infer live acceptance from fixture tests.
+
+Optional [GitHub social sign-in](github-oauth-setup.md) remains separate and is
+not required for App repository access.
 
 ## Administrative knowledge operations
 

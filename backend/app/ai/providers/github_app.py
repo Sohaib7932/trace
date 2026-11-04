@@ -14,6 +14,8 @@ import httpx
 import jwt
 from pydantic import SecretStr
 
+from app.ai.github_projects import GitHubUserToken
+from app.core.ai_privacy import public_ai_question
 from app.core.errors import ApplicationError
 from app.core.github_errors import unavailable
 from app.core.github_settings import GitHubSettings
@@ -97,6 +99,18 @@ class GitHubAppClient:
                 json=body,
                 timeout=min(5.0, self.remaining_seconds()),
             ) as response:
+                if response.status_code == 429 or (
+                    response.status_code == 403
+                    and (
+                        response.headers.get("X-RateLimit-Remaining") == "0"
+                        or "Retry-After" in response.headers
+                    )
+                ):
+                    raise ApplicationError(
+                        "github_rate_limited",
+                        "GitHub request allowance is exhausted. Try later.",
+                        429,
+                    )
                 if response.status_code not in {200, 201}:
                     raise unavailable()
                 if response.headers.get("Content-Encoding", "identity").lower() != "identity":
@@ -136,6 +150,9 @@ class GitHubAppClient:
             raise unavailable() from None
 
     def exchange(self, code: str) -> SecretStr:
+        return self.exchange_authorization(code).access_token
+
+    def exchange_authorization(self, code: str) -> GitHubUserToken:
         data = self._json(
             "POST",
             "/login/oauth/access_token",
@@ -151,7 +168,10 @@ class GitHubAppClient:
         token = data.get("access_token") if isinstance(data, dict) else None
         if not isinstance(token, str) or not token or len(token) > 512:
             raise unavailable()
-        return SecretStr(token)
+        expiry = data.get("expires_in", 8 * 3600)
+        if type(expiry) is not int or expiry <= 0:
+            raise unavailable()
+        return GitHubUserToken(access_token=SecretStr(token), expires_in=min(expiry, 8 * 3600))
 
     def user_id(self, token: SecretStr) -> int:
         result = self._json("GET", "/user", token)
@@ -180,16 +200,33 @@ class GitHubAppClient:
     def accessible_repositories(
         self, token: SecretStr, installation_id: int
     ) -> list[RepositoryView]:
-        result = self._json(
-            "GET", f"/user/installations/{installation_id}/repositories?per_page=100", token
-        )
-        if not isinstance(result, dict) or not isinstance(result.get("repositories"), list):
+        # Explicit numeric pagination; never follow an upstream Link URL.
+        rows: list[dict[str, Any]] = []
+        total = 0
+        for page in range(1, 5):
+            result = self._json(
+                "GET",
+                f"/user/installations/{installation_id}/repositories?per_page=25&page={page}",
+                token,
+            )
+            if not isinstance(result, dict) or not isinstance(result.get("repositories"), list):
+                raise unavailable()
+            found = result["repositories"]
+            count = result.get("total_count", len(found))
+            if type(count) is not int or not 0 <= count <= 100 or len(found) > 25:
+                raise ApplicationError("github_limit", "Select at most 100 repositories.", 422)
+            if page > 1 and total != count:
+                raise unavailable()
+            total = count
+            rows.extend(found)
+            if len(rows) >= total:
+                break
+            if len(found) < 25:
+                raise unavailable()
+        if len(rows) != total:
             raise unavailable()
-        rows = result["repositories"]
-        total = result.get("total_count", len(rows))
-        if type(total) is not int or not 0 <= total <= 100 or len(rows) > 100:
-            raise ApplicationError("github_limit", "Select at most 100 repositories.", 422)
         repos = []
+        identifiers: set[int] = set()
         for item in rows:
             if not isinstance(item, dict) or not re.fullmatch(
                 r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}",
@@ -198,14 +235,88 @@ class GitHubAppClient:
                 raise unavailable()
             if type(item.get("private")) is not bool:
                 raise unavailable()
+            try:
+                public_ai_question(item["full_name"])
+            except ValueError:
+                raise unavailable() from None
+            identifier = github_id(item.get("id"))
+            if identifier in identifiers:
+                raise unavailable()
+            identifiers.add(identifier)
             repos.append(
                 RepositoryView(
-                    repository_id=github_id(item.get("id")),
+                    repository_id=identifier,
                     full_name=item["full_name"],
                     private=item["private"],
                 )
             )
         return repos
+
+    @staticmethod
+    def _repository_name(full_name: str) -> None:
+        if not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", full_name
+        ):
+            raise unavailable()
+
+    @staticmethod
+    def _sha(sha: str) -> None:
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise unavailable()
+
+    def repository(self, token: SecretStr, full_name: str) -> dict[str, Any]:
+        self._repository_name(full_name)
+        result = self._json("GET", f"/repos/{full_name}", token)
+        if not isinstance(result, dict):
+            raise unavailable()
+        return result
+
+    def tree(self, token: SecretStr, full_name: str, sha: str) -> dict[str, Any]:
+        self._repository_name(full_name)
+        self._sha(sha)
+        # Deliberately nonrecursive: service traverses a bounded safe directory queue.
+        result = self._json("GET", f"/repos/{full_name}/git/trees/{sha}", token)
+        if (
+            not isinstance(result, dict)
+            or result.get("sha") != sha
+            or not isinstance(result.get("tree"), list)
+            or type(result.get("truncated")) is not bool
+        ):
+            raise unavailable()
+        return result
+
+    def history_page(
+        self, token: SecretStr, full_name: str, sha: str, page: int
+    ) -> list[dict[str, Any]]:
+        self._repository_name(full_name)
+        self._sha(sha)
+        if type(page) is not int or not 1 <= page <= 3:
+            raise unavailable()
+        result = self._json(
+            "GET", f"/repos/{full_name}/commits?sha={sha}&per_page=10&page={page}", token
+        )
+        if not isinstance(result, list) or len(result) > 10:
+            raise unavailable()
+        if any(not isinstance(item, dict) for item in result):
+            raise unavailable()
+        return result
+
+    def commit_page(self, token: SecretStr, full_name: str, sha: str, page: int) -> dict[str, Any]:
+        self._repository_name(full_name)
+        self._sha(sha)
+        if type(page) is not int or not 1 <= page <= 3:
+            raise unavailable()
+        result = self._json(
+            "GET", f"/repos/{full_name}/commits/{sha}?per_page=25&page={page}", token
+        )
+        if (
+            not isinstance(result, dict)
+            or result.get("sha") != sha
+            or not isinstance(result.get("files"), list)
+            or len(result["files"]) > 25
+        ):
+            raise unavailable()
+        return result
 
     def repository_token(self, installation_id: int, repository_id: int) -> SecretStr:
         self.validate_installation(installation_id)
@@ -219,7 +330,15 @@ class GitHubAppClient:
             },
         )
         token = result.get("token") if isinstance(result, dict) else None
-        if not isinstance(token, str) or not token or len(token) > 512:
+        # Installation tokens are opaque. GitHub's stateless JWT format is
+        # longer than the former 512-character assumption. Bound the HTTP
+        # header without imposing a provider token grammar or decoding it.
+        if (
+            not isinstance(token, str)
+            or not token
+            or len(token) > 4096
+            or any(not 33 <= ord(character) <= 126 for character in token)
+        ):
             raise unavailable()
         return SecretStr(token)
 

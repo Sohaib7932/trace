@@ -659,9 +659,9 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
         assert reply.availability == "not_supported"
         assert resources.client.transport is None and resources.client.usage_snapshot() == ()
         assert app.openapi() == expected
-        assert len(expected["paths"]) == 41
+        assert len(expected["paths"]) == 46
         assert (
-            sum(not path.startswith("/api/v1/admin/knowledge/") for path in expected["paths"]) == 34
+            sum(not path.startswith("/api/v1/admin/knowledge/") for path in expected["paths"]) == 39
         )
         assert (
             sum(
@@ -670,6 +670,6 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
                 if not name.startswith("/api/v1/admin/knowledge/")
                 for method in path
             )
-            == 38
+            == 43
         )
     assert resources.client.closed

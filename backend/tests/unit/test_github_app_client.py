@@ -246,6 +246,273 @@ def test_compressed_wire_response_is_rejected_before_decompression():
         assert failed.value.code == "github_unavailable"
     finally:
         client.close()
+
+
+@pytest.mark.parametrize("expiry", [None, 300, 100000])
+def test_authorization_metadata_is_private_and_lifetime_is_bounded(expiry):
+    payload = {"access_token": "fixture-user-token"}
+    if expiry is not None:
+        payload["expires_in"] = expiry
+    client = GitHubAppClient(
+        config(), transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    )
+    try:
+        result = client.exchange_authorization("fixture-code")
+        assert result.access_token.get_secret_value() == "fixture-user-token"
+        assert result.expires_in == (8 * 3600 if expiry is None else min(expiry, 8 * 3600))
+        assert "fixture-user-token" not in repr(result)
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("expiry", [0, -1, True, "300", 1.5])
+def test_invalid_authorization_expiry_is_not_coerced(expiry):
+    client = GitHubAppClient(
+        config(),
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200, json={"access_token": "fixture-user-token", "expires_in": expiry}
+            )
+        ),
+    )
+    try:
+        with pytest.raises(ApplicationError):
+            client.exchange_authorization("fixture-code")
+    finally:
+        client.close()
+
+
+def test_selected_repositories_use_bounded_numeric_pages_not_external_links():
+    calls = []
+
+    def handler(request):
+        assert request.url.host == "api.github.com"
+        calls.append(dict(request.url.params))
+        page = int(request.url.params["page"])
+        assert request.url.params["per_page"] == "25"
+        rows = [
+            {"id": identifier, "full_name": f"fixture/repo-{identifier}", "private": True}
+            for identifier in (range(1, 26) if page == 1 else [26])
+        ]
+        return httpx.Response(
+            200,
+            json={"repositories": rows, "total_count": 26},
+            headers={"Link": '<https://evil.test/read-secret>; rel="next"'},
+        )
+
+    client = GitHubAppClient(config(), transport=httpx.MockTransport(handler))
+    try:
+        result = client.accessible_repositories(SecretStr("fixture"), 11)
+        assert len(result) == 26
+        assert [call["page"] for call in calls] == ["1", "2"]
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"total_count": 101, "repositories": []},
+        {"total_count": True, "repositories": []},
+        {"total_count": 30, "repositories": []},
+        {
+            "total_count": 2,
+            "repositories": [
+                {"id": 1, "full_name": "fixture/repo", "private": True},
+                {"id": 1, "full_name": "fixture/repo", "private": True},
+            ],
+        },
+    ],
+)
+def test_selected_repository_bounds_and_duplicate_identity_fail_closed(payload):
+    client = GitHubAppClient(
+        config(), transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    )
+    try:
+        with pytest.raises(ApplicationError):
+            client.accessible_repositories(SecretStr("fixture"), 11)
+    finally:
+        client.close()
+
+
+def test_tree_commit_and_history_read_only_routes_pin_exact_sha_and_page():
+    sha = "a" * 40
+    calls = []
+
+    def handler(request):
+        assert request.method == "GET" and request.url.host == "api.github.com"
+        calls.append(str(request.url))
+        if "/git/trees/" in request.url.path:
+            assert "recursive" not in request.url.params
+            return httpx.Response(200, json={"sha": sha, "tree": [], "truncated": False})
+        if request.url.path == "/repos/fixture/repo":
+            return httpx.Response(200, json={"id": 22})
+        if request.url.params.get("per_page") == "10":
+            assert request.url.params["sha"] == sha and request.url.params["page"] == "2"
+            return httpx.Response(200, json=[])
+        assert request.url.params["page"] == "3" and request.url.params["per_page"] == "25"
+        return httpx.Response(200, json={"sha": sha, "files": []})
+
+    client = GitHubAppClient(config(), transport=httpx.MockTransport(handler))
+    try:
+        token = SecretStr("fixture")
+        assert client.repository(token, "fixture/repo")["id"] == 22
+        assert client.tree(token, "fixture/repo", sha)["truncated"] is False
+        assert client.history_page(token, "fixture/repo", sha, 2) == []
+        assert client.commit_page(token, "fixture/repo", sha, 3)["files"] == []
+        before = len(calls)
+        for bad in ("main", "../file", "a" * 39):
+            with pytest.raises(ApplicationError):
+                client.tree(token, "fixture/repo", bad)
+        for bad in (0, 4, True):
+            with pytest.raises(ApplicationError):
+                client.history_page(token, "fixture/repo", sha, bad)
+        with pytest.raises(ApplicationError):
+            client.repository(token, "../repo")
+        assert len(calls) == before
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "status,headers",
+    [
+        (429, {}),
+        (403, {"X-RateLimit-Remaining": "0"}),
+        (403, {"Retry-After": "60"}),
+    ],
+)
+def test_github_rate_limit_has_honest_sanitized_error_without_retry(status, headers):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(status, headers=headers, text="private-provider-detail")
+
+    client = GitHubAppClient(config(), transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(ApplicationError) as failure:
+            client.repository(SecretStr("fixture"), "fixture/repo")
+        assert failure.value.status_code == 429
+        assert failure.value.code == "github_rate_limited"
+        assert "private-provider-detail" not in str(failure.value)
+        assert len(calls) == 1
+    finally:
+        client.close()
+
+
+def installation_transport(token):
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "id": 11,
+                    "app_id": 123,
+                    "repository_selection": "selected",
+                    "suspended_at": None,
+                    "permissions": {
+                        "contents": "read",
+                        "metadata": "read",
+                        "pull_requests": "read",
+                    },
+                },
+            )
+        assert request.url.path == "/app/installations/11/access_tokens"
+        body = json.loads(request.content)
+        assert body["repository_ids"] == [22]
+        assert body["permissions"] == {
+            "contents": "read",
+            "metadata": "read",
+            "pull_requests": "read",
+        }
+        assert "X-GitHub-Stateless-S2S-Token" not in request.headers
+        return httpx.Response(201, json={"token": token})
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "fixture-install-token",
+        "ghs_" + "a" * 170 + "." + "b" * 170 + "." + "c" * 174,
+        "ghs_" + "a" * 678 + "." + "b" * 678 + "." + "c" * 686,
+        "a" * 4096,
+    ],
+)
+def test_installation_tokens_accept_legacy_and_current_opaque_stateless_formats(
+    signed_settings, token
+):
+    settings, _ = signed_settings
+    client = GitHubAppClient(settings, transport=installation_transport(token))
+    try:
+        result = client.repository_token(11, 22)
+        assert result.get_secret_value() == token
+        assert token not in repr(result)
+        if token.startswith("ghs_"):
+            assert token.count(".") == 2
+            assert len(token) in {520, 2048}
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "a" * 4097,
+        "with space",
+        "with\nnewline",
+        "with\rreturn",
+        "with\ttab",
+        "with\x00null",
+        "with\x7fdelete",
+        "nonascii-é",
+        "",
+    ],
+)
+def test_installation_token_header_bounds_reject_controls_whitespace_and_non_ascii(
+    signed_settings, token
+):
+    settings, _ = signed_settings
+    client = GitHubAppClient(settings, transport=installation_transport(token))
+    try:
+        with pytest.raises(ApplicationError) as failure:
+            client.repository_token(11, 22)
+        assert failure.value.code == "github_unavailable"
+        assert not token or token not in str(failure.value)
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "full_name",
+    [
+        "fixture/ghp_" + "a" * 30,
+        "fixture/AIza" + "a" * 30,
+        "github_pat_" + "a" * 30 + "/repository",
+    ],
+)
+def test_repository_choices_do_not_expose_credentials_in_metadata(full_name):
+    client = GitHubAppClient(
+        config(),
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200,
+                json={
+                    "total_count": 1,
+                    "repositories": [{"id": 22, "full_name": full_name, "private": True}],
+                },
+            )
+        ),
+    )
+    try:
+        with pytest.raises(ApplicationError) as failure:
+            client.accessible_repositories(SecretStr("fixture"), 11)
+        assert failure.value.code == "github_unavailable"
+        assert full_name not in str(failure.value)
+    finally:
+        client.close()
     client = GitHubAppClient(
         config(),
         transport=httpx.MockTransport(

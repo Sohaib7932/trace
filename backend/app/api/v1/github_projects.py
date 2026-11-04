@@ -118,6 +118,23 @@ async def installations(
     )
 
 
+@router.post("/installations/{installation_id}/disconnect", response_model=InstallationView)
+async def disconnect_installation(
+    installation_id: Annotated[int, ApiPath(gt=0, le=2**63 - 1)],
+    request: Request,
+    response: Response,
+    actor: Actor,
+    accounts: Accounts,
+) -> InstallationView:
+    return await run(
+        request,
+        response,
+        actor,
+        accounts,
+        lambda: service(request).disconnect_installation(actor.account.id, installation_id),
+    )
+
+
 @router.get("/installations/{installation_id}/repositories", response_model=list[RepositoryView])
 async def repositories(
     installation_id: Annotated[int, ApiPath(gt=0, le=2**63 - 1)],
@@ -163,6 +180,23 @@ async def connections(
 ) -> tuple[ConnectionView, ...]:
     return await run(
         request, response, actor, accounts, lambda: service(request).connections(actor.account.id)
+    )
+
+
+@router.post("/repositories/{connection_id}/disconnect", response_model=ConnectionView)
+async def disconnect_connection(
+    connection_id: UUID,
+    request: Request,
+    response: Response,
+    actor: Actor,
+    accounts: Accounts,
+) -> ConnectionView:
+    return await run(
+        request,
+        response,
+        actor,
+        accounts,
+        lambda: service(request).disconnect_connection(actor.account.id, connection_id),
     )
 
 

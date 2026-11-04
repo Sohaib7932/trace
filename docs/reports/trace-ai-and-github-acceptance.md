@@ -1,11 +1,319 @@
 # Trace AI and GitHub acceptance audit
 
-Updated 4 November 2026 (Asia/Calcutta); work began 3 November. Branch:
-codex/github-oauth-ai-chatbots. Starting implementation commit:
-0eb1aad733defc398140d14ea4e9584192420e68. Fetched origin/main includes merged
-PR #22 (1aea8b8). Existing user work, logs and historical records were preserved.
-This task has not staged, committed, pushed, merged, deployed or provisioned a
-paid resource.
+Updated 4 November 2026 (Asia/Calcutta). Branch:
+`codex/github-oauth-ai-chatbots`.
+
+## Current critical completion sprint
+
+The owner explicitly authorized publishing the previously validated work before
+starting this sprint. It was committed and pushed normally as
+`8595466b9e05626f1d587a83cca463f015756dbd` —
+`feat(ai): add private guides and GitHub project learning`.
+The remote source branch was verified at that exact SHA and the working tree
+was clean immediately afterward. All five reviewed shared-log files were
+included under the repository policy; the review found no actual credential or
+personal-email publication blocker. This does not certify the small prompt-only
+logs as genuine automatic conversation capture.
+
+**New sprint changes remain uncommitted and unpushed.** No PR, merge, public
+deployment, paid service or billing activation was performed in this sprint.
+The original architecture guard and deterministic learner verification remain.
+
+### Implemented sprint extensions
+
+- GitHub user authorization is now encrypted durably with an independent
+  backend-only Fernet key. Owner, installation, GitHub user and expiry are bound
+  inside the encrypted payload. Access respects provider expiry up to eight
+  hours and survives process/worker replacement. GitHub access tokens never enter public
+  schemas, browser storage, model context or diagnostic output. Refresh tokens
+  are not retained; expiration requires explicit reconnect.
+- Owner-only installation and repository disconnect operations are idempotent.
+  Installation disconnect wipes the stored encrypted user credential. Local
+  disconnect preserves history and does not uninstall the App or globally revoke
+  its GitHub grant. Authorization/connection revision fences reject stale work,
+  including disconnect during source fetch, persistence or AI explanation.
+- A separate immutable V2 knowledge artifact preserves the historical V1
+  schemas and canonical digests. It records pinned repository metadata, safe
+  file catalog, actual code excerpts with exact line ranges and digests,
+  documentation, API/schema/database/migration categories, bounded commit
+  metadata and native prompt/final attribution where available.
+- Repository questions select source excerpts deterministically on the backend.
+  Gemini can explain or abstain. Every delivered section has existing reference
+  IDs and exact source quotations; the server computes citation paths and line
+  numbers. Recognized unsupported path/filename/endpoint forms, invalid quotes
+  and model-written line claims reject the whole response. Every citation is
+  checked mechanically. Exact quotes establish citation
+  integrity; semantic truth of every natural-language interpretation is not
+  mathematically proved. Nothing executes repository code or grades a learner.
+- The existing `/projects` design now supports ingestion, source preview,
+  questions/follow-ups, explicit insufficient/unavailable states and disconnect.
+  Account changes remount private state; repository/SHA changes clear pending
+  questions and replies. Model context excludes unnecessary agent session/turn
+  identifiers. Native logs remain untrusted source claims, with prompt-to-file
+  relationships explicitly unproven.
+  HTTP sign-in, missing-repository, rate-limit and deadline failures have distinct
+  sanitized messages; private upstream errors are withheld and writes are not
+  automatically replayed.
+- Dependency/build/generated/secret/binary exclusions apply to new ingestion
+  and legacy commit sync. Unsafe old receipts are withheld without rewriting
+  their immutable content or digest. Ignore rules now also cover local
+  `backend/*.db.*` backups; this does not remove already tracked upstream data.
+- Installation tokens accept the current longer GitHub format as opaque strings,
+  with a 4,096-character visible-ASCII safety bound and no format-override fallback.
+  User OAuth and vault bounds remain separate. This fixes the old 512-character
+  incompatibility documented in [GitHub's token-format notice](https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/).
+- Secret screening covers filenames, repository/branch metadata and native
+  session/turn/model attribution as well as source bodies. Known credential-shaped
+  metadata is withheld even when the accompanying prompt/final body is harmless.
+
+### Current public contract
+
+The actual generated OpenAPI and frontend declarations now describe **46 paths
+/ 50 operations**. The five new paths are:
+
+| Method and path | Purpose |
+| --- | --- |
+| POST `/api/v1/projects/github/installations/{installation_id}/disconnect` | Stop this owner's Trace installation access |
+| POST `/api/v1/projects/github/repositories/{connection_id}/disconnect` | Disconnect one owned repository locally |
+| POST `/api/v1/projects/github/repositories/{connection_id}/ingest` | Archive bounded repository knowledge at `{commit_sha}` |
+| GET `/api/v1/projects/github/repositories/{connection_id}/knowledge?commit_sha=...` | Read the pinned artifact after current access checks |
+| POST `/api/v1/projects/github/repositories/{connection_id}/ask` | Ask `{commit_sha,question,history?}` using server-selected sources |
+
+Signed-in learner authentication is required. Writes additionally require an
+allowed Origin and `X-Trace-Client: learning-web`. Responses are no-store.
+Existing GitHub ingress, per-account rate and concurrency limits and request
+deadlines cover these paths. There is no automatic AI/OAuth write replay.
+See [the integration handoff](../frontend/trace-platform-handoff.md) and
+[GitHub owner setup](../frontend/github-app-project-learning.md).
+
+### Explicit ingestion scope
+
+Limits are twenty nonrecursive tree requests, 2,000 encountered entries, 240
+catalog entries, eighteen fetched files of at most 32 KiB, four selected
+excerpts per file, forty references, 48,000 UTF-8 source bytes and a 96 KiB
+artifact. Sources are bounded architecture excerpts, not all lines of every
+file. Line endings normalize to LF while physical line numbering is retained.
+Traversal and selection may omit relevant code; unsupported behavior must remain
+unknown. Receipts always report partial coverage.
+
+History contains up to thirty titles/timestamps through three numeric pages.
+Only the pinned commit has changed paths, capped at seventy-five; other history
+commits do not have complete changed-file details. PR titles are available in
+legacy V1, not a complete PR history/diff archive. Excluded directories are
+counted as encountered omissions, not expanded to invent unseen-file counts.
+
+### Configuration and external acceptance
+
+The approved Gemini model remains `gemini-3.5-flash-lite`, loaded through the
+existing explicit free-tier launcher and private `backend/.env.gemini`.
+`GEMINI_API_KEY` stays backend-only. No paid fallback, provider retry or extra
+SDK/provider was introduced. The generic AI mode remains disabled unless
+explicitly activated; frontend fixture modes are labelled and separate.
+
+At the sprint preflight the App was disabled and its process configuration was
+absent. The owner subsequently confirmed setup is underway. Required names:
+`TRACE_GITHUB_APP_MODE`, `TRACE_GITHUB_APP_ID`, `TRACE_GITHUB_APP_SLUG`,
+`TRACE_GITHUB_APP_CLIENT_ID`, `TRACE_GITHUB_APP_CLIENT_SECRET`,
+`TRACE_GITHUB_APP_PRIVATE_KEY`, `TRACE_GITHUB_APP_STATE_SIGNING_SECRET`,
+`TRACE_GITHUB_APP_TOKEN_ENCRYPTION_KEY`, `TRACE_GITHUB_APP_CALLBACK_URL`.
+Configure privately in the backend process/secret manager, not general
+`backend/.env`, frontend settings, Git or chat. The encryption key must remain
+stable across workers/restarts; changing it requires reconnecting old grants.
+
+The owner chooses an App name such as Trace Project Learning. Local callback
+and installation setup URL are both
+`http://localhost:3000/projects/github/callback`; frontend is
+`http://localhost:3000`, backend `http://localhost:8000`. Keep automatic user
+authorization during installation disabled for the explicit two-step flow.
+Use selected repositories and read-only Contents, Pull requests and Metadata.
+Webhooks are disabled; this implementation uses polling/read-time revalidation
+and has no webhook endpoint. Genuine authorization remains unverified until
+the owner-configured App round trip and actual repository ingestion are tested.
+
+### Database and preservation
+
+Additive migrations `0012_github_authorization` and
+`0013_repository_knowledge` preserve V1 receipts and historical learner records.
+After verifying the local backup
+`backend/trace-before-github-sprint-20261103T230810646809.sqlite3`, the development
+database was upgraded from 0011 to 0013. All pre-existing column/row fingerprints
+across 43 tables were preserved; integrity was `ok` and foreign-key violations
+were zero. The private backup is ignored and is not included in Git. No hosted
+PostgreSQL or production migration was performed by this sprint.
+
+### Fresh sprint verification
+
+| Verification | Result |
+| --- | --- |
+| Provider/configuration/production safeguards | Existing focused provider cases passed; the concurrently stale OpenAPI assertion was corrected through regeneration, not relaxed |
+| Combined new backend functionality/security/architecture | 240 passed before the final metadata-screen additions |
+| Authorization, persistence, legacy GitHub and unchanged architecture guard | 71 passed, plus twenty isolated concurrency checks |
+| Final bounded ingestion/provider/metadata privacy plus architecture | 140 passed |
+| Project-question policy and final exact API guards | 43 passed after final metadata schema regeneration; exact API/export equality preserved |
+| New protected repository-question HTTP suite | 10 passed |
+| Legacy exclusion and exact API/export regressions | 14 passed |
+| Final frontend suite | 176 passed across fourteen files in 118.31 seconds, exit 0; Project Learning module 19 passed |
+| Final frontend lint/type checking | Both passed, exit 0, after final type regeneration and safe HTTP error-message updates |
+| Full frozen backend/coverage | 4,617 passed in 1,281.69 seconds (21:21), exit 0; aggregate coverage 94.11% |
+| Ordinary desktop/mobile browser suite | 58 passed; four pre-existing mobile/keyboard exclusions; production build passed with seventeen routes |
+| Final protected AI desktop/mobile browser suite | 16 passed in 1.2 minutes, exit 0; external transports explicitly fixtures, including the GitHub authorization shortcut |
+| Fresh real Gemini tutor/support/guide journeys | Five bounded calls succeeded: actual Notes schema explanation and follow-up, cited Help answer and follow-up, Python list-indexing guide generation |
+| Live provider repository-question contract | One additional bounded call passed using only synthetic frontend/backend authentication sources; two sections, exact citations, no live GitHub authorization claim |
+| Local logging/release guard unit tests | 43 passed |
+| Fresh disposable SQLite upgrade and Alembic metadata comparison | Passed; no new upgrade operations detected |
+| Final Ruff/format/mypy | Passed: 397 Python files formatted, 243 source files type checked |
+
+The initial full attempts exposed stale exact route/export expectations;
+all existing paths, hint checks and disabled-feedback expectations remain, with
+the five actual new paths added explicitly. One run stopped at 294 passed/one
+stale inventory failure. Clean partial runs were also stopped for targeted
+traversal, metadata privacy and contention fixes. No interrupted run is
+represented as a full pass. Source was frozen before the final full execution.
+The final full run completed successfully; its persistent output is
+`backend/.pytest_cache/sprint-frozen-full-20261104.log`. A recorded SHA-256
+manifest of 372 backend app/migration/test Python files remained unchanged
+during that run. The current aggregate coverage is **94.11%, down 0.74
+percentage points from 94.85%**. The measured statement count grew from 12,988
+to 14,058 and branch count from 3,342 to 3,712. The existing 85% gate, baseline
+assertions and security cases were not lowered or skipped. New failure branches
+are not exhaustively covered; no claim that the previous percentage was
+preserved is made.
+The first ordinary browser build mistakenly selected the real AI profile for
+tests that require labelled mocks; it produced fifty passes/eight failures/four
+existing exclusions. It was rebuilt with the intended fixture profile without weakening tests.
+The corrected ordinary run passed. The first protected browser run exposed an
+inaccurate label locator in the new tests, corrected to the actual combobox role.
+A later run had thirteen passes/one timeout in the existing fixture-reset hook;
+the unchanged full rerun passed all fourteen without increasing timeouts or
+weakening assertions.
+After the final UI error-message improvement, another run returned twelve
+passes/two failures: the post-disconnect access assertion received 429 before it
+could reach the expected 404 check. Rate and concurrency admission both use 429;
+the response alone did not establish which limit won. The browser tests now use
+independent accounts for the long question and disconnect/ownership scenarios,
+and wait for the real UI operation/refresh to finish before the readback. Every
+exact 404 and privacy assertion is retained; no limits, sleeps or skips were
+introduced. The final sixteen-test run passed in 1.2 minutes; its persistent
+output is `coverage/acceptance/sprint-ai-release-20261104.log`. These are real
+frontend-to-backend HTTP contract checks with fixture external transports,
+not live GitHub authorization evidence.
+
+### Genuine provider and persistence evidence
+
+The actual signed-in browser and explicit real Gemini launcher were used with
+public/synthetic questions. No fixture transport was injected. The Notes tutor
+correctly explained `NoteCreate(BaseModel)` and `ConfigDict(extra="forbid")`,
+then distinguished this from an ordinary Python class. Help returned the exact
+approved `retrieval-one-seven-days` passage and retained it when asked about the
+second checkpoint. The first checkpoint remains one elapsed day after transfer,
+the second seven; no schedule was changed.
+
+The new Python List Indexing Learning Guide passed the strict private-guide
+schema, saved, opened and reloaded through the authenticated reader. Independent
+database readback confirmed `source: ai`, version 1.0.0, two sections, a matching
+canonical digest, `ungraded: true` and `execution_status: not_executed`. No example
+was executed or graded. Generated educational prose/examples still require
+review; schema validity is not a claim of universal pedagogical or code accuracy.
+The screenshot evidence is private/ignored local material:
+`coverage/acceptance/sprint-live-tutor-support.jpg`,
+`coverage/acceptance/sprint-live-private-guide.jpg` and
+`coverage/acceptance/sprint-live-private-guide-viewport.jpg`.
+
+One additional actual Gemini call exercised `ProjectKnowledgeService.ask` using
+only synthetic frontend/backend authentication code and synthetic authorization
+ports. The strict proposal and release validators accepted two sections, citing
+`frontend/api.ts` lines 1–3 and `backend/auth.py` lines 1–7 with exact quotations.
+It explained bearer transport and JWT signature/audience validation while
+acknowledging absent route-binding/token-creation evidence. The client allowed
+one live attempt, zero retries and zero paid allowance. This is a **live provider
+contract check with synthetic sources**, not real GitHub authorization,
+repository ingestion or a substitute for the required owner round trip.
+
+### Published baseline CI investigation
+
+The initial authorized push triggered repository-managed Actions and a Vercel
+preview check; no production release was performed. Quality
+[run 41733060041](https://github.com/Sohaib7932/trace/actions/runs/41733060041)
+passed frontend but failed Ubuntu with 4,408 passes/one failure:
+`test_concurrent_callback_consumes_state_exactly_once`, SQLite
+`OperationalError: database is locked` while inserting the installation grant.
+The matrix cancelled Windows after Ubuntu failed. The separate PostgreSQL
+[run 41733060053](https://github.com/Sohaib7932/trace/actions/runs/41733060053)
+passed. These are results for 8595466, not the unpushed sprint changes.
+
+The sprint grant binder now starts with a conditional UPDATE before reading or
+inserting, avoiding the SQLite read-lock upgrade cycle. A controlled writer
+contention regression passes this implementation and deterministically fails
+with the old SELECT-first method in a process-only negative control. Twenty
+concurrency checks passed across ten isolated processes, with no sleeps,
+blanket retries, skipped assertions or published-history edits. The repair is
+part of the uncommitted sprint; **new GitHub CI has not verified it yet**.
+
+### Upstream integration and privacy blockers
+
+Fetched `origin/main` is `73e80f7`, including PRs 23–25. It was inspected
+read-only, not merged. PR 25 adds a separate `0010_custom_lessons` migration
+branch, overlapping hub/API/type changes and an AI-answer-key grading flow that
+requires a separate trust classification from verified lessons and private
+ungraded guides. Its private UI also needs account-switch cache review before
+adoption. Do not treat this branch's successful tests as validation of that
+unmerged combination; migration and semantic merge work remains separate.
+
+Upstream also tracks `backend/trace.db.before-0010.bak`. A read-only aggregate
+inspection confirmed private identity, credential-hash and learner-history
+records, with no raw credential found in that inspection. No row values or
+identities were printed. The backup is absent from this branch and was not
+copied or republished. The repository owner must arrange removal from tracked
+source and review Git-history exposure separately; this sprint does not rewrite
+published history or delete user data.
+
+### Submission status and remaining owner actions
+
+| Capability | Status | Evidence and remaining work |
+| --- | --- | --- |
+| LLM provider | **COMPLETE for the three requested local journeys** | Real Gemini tutor/follow-up, approved-source Help/follow-up and private guide save/reopen succeeded. Automated failure and ownership checks passed. This is not deployment or universal answer-quality certification. |
+| GitHub App authorization | **INCOMPLETE** | Durable authorization, selected-repository checks, disconnect and expiry are implemented and locally tested. The owner is still configuring the real App; no genuine installation/user authorization round trip has been accepted. |
+| Repository ingestion | **INCOMPLETE** | Bounded, pinned V2 ingestion, source exclusion, immutable persistence and protected HTTP/browser flows are implemented and tested. Actual ingestion through the owner-authorized App remains unverified. |
+| Grounded Project Learning | **INCOMPLETE** | Source selection, exact citations, bounded follow-ups and safe abstention are implemented. Fixture HTTP/browser checks and one synthetic-source live Gemini call passed. A real authorized repository question remains unverified. |
+
+The next owner action is to finish the private App configuration described in
+[the GitHub setup guide](../frontend/github-app-project-learning.md). The current
+real backend on port 8000 cannot inherit environment variables configured in a
+different terminal. Stop that server before starting the explicit Gemini
+launcher from the privately configured owner terminal, then perform the
+documented installation, selection, ingestion, question and disconnect checks.
+Do not send secrets in chat. No additional broad product decision is needed.
+
+Before integrating current `origin/main`, resolve its migration branch and
+overlapping API/UI changes deliberately and address the separately reported
+tracked database backup. New support copy remains draft until approved; the
+existing approved corpus is the only active support source. Hosted PostgreSQL
+with migrations 0012/0013, production deployment and fresh remote CI for these
+unpublished changes have not been verified. The coverage decrease and remaining
+uncovered failure branches are recorded above.
+
+Final branch is `codex/github-oauth-ai-chatbots`; HEAD and the published source
+branch remain `8595466b9e05626f1d587a83cca463f015756dbd`. The 47 sprint source,
+test, schema and documentation paths listed at the end of this report remain
+local and unstaged. Existing work, shared logs, environment files and database
+backups were preserved. Only the explicitly authorized pre-sprint commit was
+pushed; no sprint commit, PR, merge or deployment was performed.
+Final read-only checks reconfirmed the remote branch SHA, an empty Git index,
+47 local changed/untracked paths, no changed shared logs, and a passing normal
+`git diff --check`. All 372 frozen backend Python digests still match. The
+running application's OpenAPI exactly matches the exported 46-path/50-operation
+schema. The local database remains at 0013 with integrity `ok`, zero foreign-key
+violations and its verified backup present.
+The final read-only review of all 47 sprint paths found no actual credential,
+token or private-email leak. Sensitive-looking test cases use explicit synthetic
+fixtures. No environment/database/log files are included in the sprint diff;
+published migrations 0010/0011 and logging configuration remain unchanged.
+
+## Historical acceptance record published in 8595466
+
+The sections below preserve the pre-sprint implementation and measured evidence.
+Their 41/45 inventory, process-memory GitHub proof and pre-sprint Git status
+describe that earlier commit, not the superseding sprint implementation above.
 
 ## Scope and initial findings
 
@@ -426,3 +734,59 @@ checks are separate from the genuine AI-answer acceptance described above.
 No public hosting, production approval, new administrator role, paid usage or
 automatic candidate publication/learner assignment was activated. The feature
 branch remains uncommitted for review.
+
+<!-- SPRINT_FILES_BEGIN -->
+
+## Exact files changed since 8595466
+
+The following 47 paths are local sprint changes, not a second commit.
+
+- .gitignore
+- backend/alembic/env.py
+- backend/alembic/shared_versions/0012_github_authorization.py
+- backend/alembic/shared_versions/0013_repository_knowledge.py
+- backend/app/ai/github_projects.py
+- backend/app/ai/providers/github_app.py
+- backend/app/api/v1/github_projects.py
+- backend/app/api/v1/project_knowledge.py
+- backend/app/core/github_credentials.py
+- backend/app/core/github_settings.py
+- backend/app/db/github_models.py
+- backend/app/db/github_projects.py
+- backend/app/db/project_knowledge.py
+- backend/app/db/project_knowledge_models.py
+- backend/app/main.py
+- backend/app/repositories/github_projects.py
+- backend/app/repositories/project_knowledge.py
+- backend/app/schemas/github_projects.py
+- backend/app/schemas/project_knowledge.py
+- backend/app/schemas/project_questions.py
+- backend/app/services/github_authorization.py
+- backend/app/services/github_projects.py
+- backend/app/services/project_ingestion.py
+- backend/app/services/project_knowledge.py
+- backend/github.env.example
+- backend/openapi.json
+- backend/tests/fixtures/live_ai_e2e_server.py
+- backend/tests/integration/test_ai_lifecycle.py
+- backend/tests/integration/test_api.py
+- backend/tests/integration/test_evidence_feedback_lifecycle.py
+- backend/tests/integration/test_github_authorization.py
+- backend/tests/integration/test_github_projects.py
+- backend/tests/integration/test_learner_feedback.py
+- backend/tests/integration/test_legacy_project_source_policy.py
+- backend/tests/integration/test_project_knowledge_http.py
+- backend/tests/integration/test_repository_knowledge_persistence.py
+- backend/tests/unit/test_github_app_client.py
+- backend/tests/unit/test_project_ingestion.py
+- backend/tests/unit/test_project_questions.py
+- docs/frontend/github-app-project-learning.md
+- docs/frontend/trace-platform-handoff.md
+- docs/reports/trace-ai-and-github-acceptance.md
+- src/components/projects/github-projects.tsx
+- src/lib/api/github-projects.ts
+- src/lib/api/schema.d.ts
+- tests/ai-e2e/live-ai.spec.ts
+- tests/components/github-projects.test.tsx
+
+<!-- SPRINT_FILES_END -->

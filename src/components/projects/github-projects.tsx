@@ -5,11 +5,13 @@ import Link from "next/link";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { ApiError } from "@/lib/api/client";
-import { githubAuthorizationUrl, githubProjectsApi, saveGitHubAuthorization, type GitHubRepository, type ProjectLearningPath, type ProjectSnapshot } from "@/lib/api/github-projects";
+import { githubAuthorizationUrl, githubProjectsApi, saveGitHubAuthorization, type GitHubRepository, type ProjectLearningPath, type ProjectSnapshot, type RepositoryKnowledge, type ProjectAnswer } from "@/lib/api/github-projects";
 
 export function GitHubProjects() {
   const [client] = useState(() => new QueryClient());
-  return <QueryClientProvider client={client}><GitHubProjectContent /></QueryClientProvider>;
+  const auth = useAuth();
+  const identity = auth.status === "signed-in" ? auth.userId : auth.status;
+  return <QueryClientProvider client={client}><GitHubProjectContent key={identity} /></QueryClientProvider>;
 }
 
 function GitHubProjectContent() {
@@ -26,18 +28,31 @@ function GitHubProjectContent() {
   const [sha, setSha] = useState("");
   const [snapshot, setSnapshot] = useState<{ owner: string | undefined; value: ProjectSnapshot } | null>(null);
   const [path, setPath] = useState<{ owner: string | undefined; value: ProjectLearningPath } | null>(null);
+  const [knowledge, setKnowledge] = useState<{ owner: string | undefined; value: RepositoryKnowledge } | null>(null);
+  const [question, setQuestion] = useState("");
+  const [answers, setAnswers] = useState<{ owner: string | undefined; connection: string; sha: string; turns: { question: string; answer: ProjectAnswer }[] } | null>(null);
+  function clearContent() { setSnapshot(null); setPath(null); setKnowledge(null); setAnswers(null); setQuestion(""); }
   async function action(work: () => Promise<void>) {
     setBusy(true); setError("");
     try { await work(); } catch (failure) {
-      setError(failure instanceof ApiError && failure.status === 409
-        ? "Repository authorization needs renewing. Connect the GitHub App again."
-        : "Project Learning is unavailable or its GitHub App is not configured. No repository connection or AI result is assumed. Try again after setup.");
+      const statusMessages: Partial<Record<number, string>> = {
+        401: "Your sign-in needs renewing. Sign in again before continuing with Project Learning.",
+        404: "This repository is unavailable or does not belong to your account. Select an available connection.",
+        409: "Repository authorization needs renewing. Connect the GitHub App again.",
+        429: "Project Learning request limit reached. Wait before trying again.",
+        504: "Project Learning took too long. The result is unconfirmed; check the current state before trying again.",
+      };
+      setError((failure instanceof ApiError ? statusMessages[failure.status] : undefined)
+        ?? "Project Learning is unavailable or its GitHub App is not configured. No repository connection or AI result is assumed. Try again after setup.");
     } finally { setBusy(false); }
   }
   if (auth.status === "loading") return <p role="status">Checking sign-in…</p>;
   if (!enabled) return <section><h1 className="type-h2">Learn from a project</h1><p className="mt-4">Sign in to connect selected repositories privately.</p><Link href="/sign-in?next=%2Fprojects" className="mt-4 inline-block underline">Sign in</Link></section>;
   const activeSnapshot = snapshot && snapshot.owner === owner && snapshot.value.connection_id === connectionId && snapshot.value.commit_sha === sha ? snapshot.value : null;
   const activePath = path && path.owner === owner && activeSnapshot && path.value.snapshot_digest === activeSnapshot.digest ? path.value : null;
+  const activeKnowledge = knowledge && knowledge.owner === owner && knowledge.value.connection_id === connectionId && knowledge.value.commit_sha === sha ? knowledge.value : null;
+  const activeAnswers = answers && answers.owner === owner && answers.connection === connectionId && answers.sha === sha ? answers.turns : [];
+  const connected = connections.data?.find((item) => item.id === connectionId && item.status !== "disconnected");
   return <section className="max-w-3xl">
     <h1 className="type-h2">Project Learning</h1>
     <p className="mt-4 text-secondary">Connect a GitHub App with selected-repository, read-only access. This is separate from signing in with GitHub. External app configuration is required.</p>
@@ -50,18 +65,61 @@ function GitHubProjectContent() {
     })}>Connect GitHub App</button>
     {(error || connections.error || installations.error) && <p role="alert" className="mt-4">{error || "GitHub App is not available. Ask the owner to configure it; no live repository access has been verified."}</p>}
     {installations.data?.map((installation) => <div key={installation.installation_id} className="mt-4">
-      <button disabled={busy} className="min-h-11 underline" onClick={() => void action(async () => setChoices({ owner, installation: installation.installation_id, repositories: await githubProjectsApi.choices(installation.installation_id) }))}>Choose an allowed repository from installation {installation.installation_id}</button>
+      <p className="text-sm">Installation {installation.installation_id}: {installation.status === "disconnected" ? "disconnected" : installation.status === "reauthorization_required" ? "reconnect required" : "authorized"}</p>
+      <button disabled={busy || installation.status === "disconnected" || installation.status === "reauthorization_required"} className="min-h-11 underline disabled:opacity-50" onClick={() => void action(async () => setChoices({ owner, installation: installation.installation_id, repositories: await githubProjectsApi.choices(installation.installation_id) }))}>Choose an allowed repository from installation {installation.installation_id}</button>
+      <button disabled={busy || installation.status === "disconnected"} className="ml-4 min-h-11 underline disabled:opacity-50" onClick={() => void action(async () => {
+        await githubProjectsApi.disconnectInstallation(installation.installation_id); clearContent(); setChoices(null); setConnectionId("");
+        await queries.invalidateQueries({ queryKey: ["github-installations", owner] });
+        await queries.invalidateQueries({ queryKey: ["github-connections", owner] });
+      })}>Disconnect installation from Trace</button>
     </div>)}
     {choices && choices.owner === owner && choices.repositories.map((repo) => <div key={repo.repository_id} className="mt-2 flex flex-wrap items-center gap-4"><span>{repo.full_name} ({repo.private ? "private" : "public"})</span><button disabled={busy} className="min-h-11 underline" onClick={() => void action(async () => {
-      const connected = await githubProjectsApi.connect(choices.installation, repo.repository_id); setConnectionId(connected.id);
+      const connected = await githubProjectsApi.connect(choices.installation, repo.repository_id); setConnectionId(connected.id); clearContent();
       await queries.invalidateQueries({ queryKey: ["github-connections", owner] });
     })}>Use repository</button></div>)}
     <h2 className="type-h4 mt-10">Your connected repositories</h2>
     {connections.isLoading && <p role="status">Loading connections…</p>}
     {connections.data?.length === 0 && <p className="mt-3">No repositories connected.</p>}
-    <label className="mt-4 block">Repository<select className="mt-2 block min-h-11 w-full rounded-lg border border-border p-2" value={connectionId} onChange={(event) => { setConnectionId(event.target.value); setSnapshot(null); setPath(null); }}><option value="">Select a repository</option>{connections.data?.map((repo) => <option value={repo.id} key={repo.id}>{repo.full_name}</option>)}</select></label>
-    <label className="mt-4 block">Exact commit SHA<input value={sha} maxLength={40} onChange={(event) => { setSha(event.target.value.trim()); setSnapshot(null); setPath(null); }} placeholder="40 lowercase hexadecimal characters" className="mt-2 block min-h-11 w-full rounded-lg border border-border p-2 font-mono" /></label>
+    <label className="mt-4 block">Repository<select className="mt-2 block min-h-11 w-full rounded-lg border border-border p-2" value={connectionId} onChange={(event) => { setConnectionId(event.target.value); clearContent(); }}><option value="">Select a repository</option>{connections.data?.filter((repo) => repo.status !== "disconnected").map((repo) => <option value={repo.id} key={repo.id}>{repo.full_name}</option>)}</select></label>
+    {connected && <button disabled={busy} className="mt-2 min-h-11 underline" onClick={() => void action(async () => {
+      await githubProjectsApi.disconnect(connectionId); clearContent(); setConnectionId("");
+      await queries.invalidateQueries({ queryKey: ["github-connections", owner] });
+    })}>Disconnect this repository from Trace</button>}
+    <label className="mt-4 block">Exact commit SHA<input value={sha} maxLength={40} onChange={(event) => { setSha(event.target.value.trim()); clearContent(); }} placeholder="40 lowercase hexadecimal characters" className="mt-2 block min-h-11 w-full rounded-lg border border-border p-2 font-mono" /></label>
+    <p className="mt-2 text-sm text-secondary">Copy the full commit SHA from GitHub. Source references stay pinned to that exact revision. Disconnect stops Trace access and preserves private history; it does not uninstall the GitHub App.</p>
     <button disabled={busy || !connectionId || !/^[0-9a-f]{40}$/.test(sha)} className="mt-4 min-h-11 rounded-lg border px-4 disabled:opacity-50" onClick={() => void action(async () => { setSnapshot({ owner, value: await githubProjectsApi.sync(connectionId, sha) }); setPath(null); })}>Read this commit</button>
+    <button disabled={busy || !connected || !/^[0-9a-f]{40}$/.test(sha)} className="mt-4 ml-3 min-h-11 rounded-lg bg-foreground px-4 text-white disabled:opacity-50" onClick={() => void action(async () => {
+      clearContent(); setKnowledge({ owner, value: await githubProjectsApi.ingest(connectionId, sha) });
+    })}>Read repository for questions</button>
+    {activeKnowledge && <section className="mt-6 rounded-xl border border-border p-4">
+      <h2 className="type-h4">Repository knowledge</h2>
+      <p className="mt-2">{activeKnowledge.catalog.length} catalog entries · {activeKnowledge.coverage.fetched_files} files read · {activeKnowledge.references.length} source excerpts · {activeKnowledge.commits?.length ?? 0} commits</p>
+      <p className="mt-2 text-sm text-secondary">Bounded, partial coverage. {activeKnowledge.coverage.omitted_files} files omitted. {activeKnowledge.coverage.reasons?.join(", ") || "Full repository understanding is not assumed."}</p>
+      <details className="mt-3"><summary>Review pinned source material before sending it to Gemini</summary>
+        <ul>{activeKnowledge.references.map((reference) => <li key={reference.reference_id} className="mt-3"><strong>{reference.path}:{reference.line_start}–{reference.line_end}</strong>
+          {reference.agent && <p className="text-sm">Agent log · {reference.agent.model ?? "model unknown"} · {reference.agent.timestamp ?? "timestamp unknown"} · prompt-to-file relationship unproven</p>}
+          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-sm">{reference.text}</pre></li>)}</ul>
+      </details>
+      <form className="mt-5" onSubmit={(event) => { event.preventDefault(); if (!question.trim() || busy) return; void action(async () => {
+        const submitted = question.trim();
+        const history = activeAnswers.filter((turn) => turn.answer.status === "answered").slice(-2).flatMap((turn) => [
+          { role: "user" as const, text: turn.question.slice(0, 1600) },
+          { role: "assistant" as const, text: turn.answer.sections.map((section) => section.explanation).join("\n").slice(0, 1600) },
+        ]);
+        const answer = await githubProjectsApi.ask(connectionId, { commit_sha: sha, question: submitted, history });
+        setAnswers({ owner, connection: connectionId, sha, turns: [...activeAnswers, { question: submitted, answer }].slice(-6) }); setQuestion("");
+      }); }}>
+        <label className="block">Ask about this project<textarea value={question} maxLength={2000} onChange={(event) => setQuestion(event.target.value)} placeholder="Teach me how authentication works in this project." className="mt-2 min-h-24 w-full rounded-lg border border-border p-3" /></label>
+        <p className="mt-2 text-sm text-secondary">Only retrieved excerpts are sent to Gemini. Answers are ungraded explanations with exact source citations; repository code is never executed.</p>
+        <button disabled={busy || !question.trim()} className="mt-3 min-h-11 rounded-lg bg-foreground px-4 text-white disabled:opacity-50">Ask grounded question</button>
+      </form>
+      <div aria-live="polite">{activeAnswers.map((turn, index) => <article key={index} className="mt-6 border-t border-border pt-4"><h3 className="font-medium">{turn.question}</h3>
+        {turn.answer.status !== "answered" ? <p className="mt-2">{turn.answer.status === "insufficient_information" ? "The ingested sources do not provide enough information for this question." : "Gemini could not return a validated grounded answer. No answer was invented."}</p> : <>
+          <p className="mt-2 text-sm text-secondary">{turn.answer.source === "test_fixture" ? "Test fixture" : "AI-generated"} · Ungraded · Not executed</p>
+          {turn.answer.sections.map((section, sectionIndex) => <div key={sectionIndex} className="mt-3"><p className="whitespace-pre-wrap">{section.explanation}</p><ul className="mt-2 text-sm">{section.citations.map((citation, citationIndex) => <li key={citationIndex} className="mt-2"><strong>{citation.path}:{citation.line_start}–{citation.line_end}</strong><blockquote className="mt-1 whitespace-pre-wrap break-words border-l-2 border-border pl-3">{citation.quote}</blockquote></li>)}</ul></div>)}
+        </>}
+      </article>)}</div>
+    </section>}
     {activeSnapshot && <section className="mt-6 rounded-xl border border-border p-4"><h2 className="type-h4">Pinned snapshot</h2><p className="mt-2 break-all font-mono text-sm">{activeSnapshot.commit_sha}</p><p className="mt-2">{activeSnapshot.references.length} references; {activeSnapshot.omitted_files} omitted files. This is not a complete repository analysis.</p>
       <p className="mt-3 text-secondary">Generating sends the filtered references below to Gemini. Do not connect a repository containing material you cannot share with the approved provider.</p>
       <details className="mt-3"><summary>Review source excerpts</summary><ul>{activeSnapshot.references.map((reference) => <li key={reference.reference_id} className="mt-3"><strong>{reference.path}</strong><pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-sm">{reference.text}</pre></li>)}</ul></details>

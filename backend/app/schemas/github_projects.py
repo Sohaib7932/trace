@@ -53,6 +53,9 @@ class InstallationView(Value):
     installation_id: GitHubId
     repository_selection: Literal["selected"] = "selected"
     authorization_expires_at: datetime | None = None
+    status: Literal["authorized", "reauthorization_required", "disconnected"] = (
+        "reauthorization_required"
+    )
 
 
 class RepositoryChoice(Value):
@@ -69,6 +72,7 @@ class RepositoryView(Value):
 class ConnectionView(RepositoryView):
     id: VersionId
     installation_id: GitHubId
+    status: Literal["connected", "disconnected"] = "connected"
 
 
 class SnapshotCreate(Value):

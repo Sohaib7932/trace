@@ -19,6 +19,7 @@ from app.api.v1.knowledge_admin import router as knowledge_admin_router
 from app.api.v1.knowledge_indexes import router as knowledge_indexes_router
 from app.api.v1.learning import router as learning_router
 from app.api.v1.private_guides import router as private_guides_router
+from app.api.v1.project_knowledge import router as project_knowledge_router
 from app.api.v1.router import router
 from app.api.v1.support import router as support_router
 from app.api.v1.tutoring import router as tutor_router
@@ -43,6 +44,7 @@ from app.db.github_projects import SqlGitHubProjectRepository
 from app.db.knowledge import SqlKnowledgeRepository
 from app.db.migrations import expected_heads
 from app.db.private_guides import SqlPrivateGuideRepository
+from app.db.project_knowledge import SqlProjectKnowledgeRepository
 from app.db.session import Database
 from app.domain.clock import Clock, utc_now
 from app.services.candidate_generation import CandidateGenerationService
@@ -51,6 +53,7 @@ from app.services.candidate_validation import CandidateValidationService
 from app.services.feedback_operations import FeedbackOperations, SharedIngressJobs
 from app.services.github_projects import GitHubProjectService
 from app.services.private_guides import PrivateGuideService
+from app.services.project_knowledge import ProjectKnowledgeService
 from app.support.database import DatabaseSupportKnowledge
 from app.support.semantic import SemanticRetrievalSettings, SemanticSupportKnowledge
 from app.verification.candidate_runtime import IsolatedCandidateRuntime
@@ -295,6 +298,9 @@ def create_app(
                 ai.client,
                 clock=clock,
             )
+            app.state.project_knowledge = ProjectKnowledgeService(
+                app.state.github_projects, SqlProjectKnowledgeRepository(resource), ai.client, clock
+            )
             app.state.guide_service = PrivateGuideService(
                 SqlPrivateGuideRepository(resource),
                 BoundedGuideGenerator(ai.client),
@@ -467,6 +473,7 @@ def create_app(
     app.include_router(support_router)
     app.include_router(private_guides_router)
     app.include_router(github_projects_router)
+    app.include_router(project_knowledge_router)
     app.include_router(knowledge_admin_router)
     app.include_router(knowledge_indexes_router)
     # Request context wraps feedback ingress, CORS and generic limit handling.

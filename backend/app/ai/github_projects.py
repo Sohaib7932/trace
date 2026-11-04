@@ -1,6 +1,7 @@
 """Read-only repository-provider port; no SDK, HTTP or persistence dependencies."""
 
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from pydantic import SecretStr
@@ -8,10 +9,17 @@ from pydantic import SecretStr
 from app.schemas.github_projects import RepositoryView
 
 
+@dataclass(frozen=True)
+class GitHubUserToken:
+    access_token: SecretStr
+    expires_in: int
+
+
 class GitHubProjectClient(Protocol):
     def deadline(self, remaining: float) -> AbstractContextManager[None]: ...
     def remaining_seconds(self) -> float: ...
     def exchange(self, code: str) -> SecretStr: ...
+    def exchange_authorization(self, code: str) -> GitHubUserToken: ...
     def user_id(self, token: SecretStr) -> int: ...
     def validate_installation(self, installation_id: int) -> None: ...
     def accessible_repositories(
@@ -23,3 +31,11 @@ class GitHubProjectClient(Protocol):
     def content(
         self, token: SecretStr, full_name: str, path: str, sha: str, *, blob_sha: str
     ) -> str: ...
+    def repository(self, token: SecretStr, full_name: str) -> dict[str, Any]: ...
+    def tree(self, token: SecretStr, full_name: str, sha: str) -> dict[str, Any]: ...
+    def history_page(
+        self, token: SecretStr, full_name: str, sha: str, page: int
+    ) -> list[dict[str, Any]]: ...
+    def commit_page(
+        self, token: SecretStr, full_name: str, sha: str, page: int
+    ) -> dict[str, Any]: ...

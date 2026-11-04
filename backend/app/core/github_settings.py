@@ -3,6 +3,7 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
+from cryptography.fernet import Fernet
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,7 @@ class GitHubSettings(BaseSettings):
     client_secret: SecretStr = Field(default=SecretStr(""), repr=False)
     private_key: SecretStr = Field(default=SecretStr(""), repr=False)
     state_signing_secret: SecretStr = Field(default=SecretStr(""), repr=False)
+    token_encryption_key: SecretStr = Field(default=SecretStr(""), repr=False)
     callback_url: str = "http://localhost:3000/projects/github/callback"
 
     @model_validator(mode="after")
@@ -49,6 +51,12 @@ class GitHubSettings(BaseSettings):
             and self.client_secret.get_secret_value()
             and self.private_key.get_secret_value()
             and len(self.state_signing_secret.get_secret_value()) >= 32
+            and self.token_encryption_key.get_secret_value()
         ):
             raise ValueError("Enabled GitHub App requires private owner configuration")
+        if self.token_encryption_key.get_secret_value():
+            try:
+                Fernet(self.token_encryption_key.get_secret_value().encode("ascii"))
+            except Exception:
+                raise ValueError("Configure a valid private GitHub token encryption key") from None
         return self

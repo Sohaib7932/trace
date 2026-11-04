@@ -2,30 +2,41 @@
 
 import argparse
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Annotated
 
 import uvicorn
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from pydantic import SecretStr
 
 from alembic import command
 from app.ai.client import AITransportError
 from app.ai.providers.bounded_support import BoundedSupportAssistant
-from app.api.dependencies import get_http_support_service
+from app.api.dependencies import current_account, get_http_support_service
 from app.core.ai_settings import AIClientSettings
 from app.core.settings import Settings
+from app.db.github_projects import SqlGitHubProjectRepository
 from app.db.learning import SqlLearningRepository
 from app.db.migrations import migration_config
+from app.db.project_knowledge import SqlProjectKnowledgeRepository
 from app.db.session import Database
+from app.domain.accounts import AuthenticatedAccount
 from app.main import create_app
 from app.repositories.support_knowledge import ApprovedSupportKnowledge
 from app.schemas.ai_client import TransportCompletion
+from app.schemas.github_projects import InstallationComplete, RepositoryView
 from app.schemas.support import SupportDocument
 from app.services.catalog import seed_first_lesson, seed_transfer_lesson
+from app.services.github_projects import GitHubProjectService
+from app.services.project_knowledge import ProjectKnowledgeService
 from app.services.support import SupportService
 from app.support.knowledge import load_corpus_package
 from scripts import auth_fixture
+from tests.integration.test_github_projects import FakeGitHub
+from tests.integration.test_github_projects import config as github_settings
+from tests.unit.test_project_ingestion import SHA, FixtureRepository
 
 API = "http://127.0.0.1:8100"
 AUTH = "http://127.0.0.1:8101"
@@ -62,12 +73,62 @@ class BrowserFixtureTransport:
             from tests.integration.test_private_guides import content
 
             text = json.dumps(content())
+        elif json.loads(request.data_json).get("operation") == "project-question-v1":
+            data = json.loads(request.data_json)
+            reference = next(
+                item for item in data["untrusted_sources"] if item["path"] == "backend/identity.py"
+            )
+            text = json.dumps(
+                {
+                    "schema_version": "project-answer-v1",
+                    "status": "answered",
+                    "sections": [
+                        {
+                            "explanation": "The supplied backend helper returns its subject. "
+                            "The excerpt does not prove other authentication behavior.",
+                            "citations": [
+                                {
+                                    "reference_id": reference["reference_id"],
+                                    "quote": "return subject",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
         else:
             text = '{"guidance_id":"extra-fields"}'
         return TransportCompletion(text=text, input_tokens=100, output_tokens=30, cost_microusd=0)
 
     def close(self):
         pass
+
+
+class BrowserFixtureGitHub(FakeGitHub):
+    """Every external App/repository operation is synthetic; HTTP auth stays real."""
+
+    def __init__(self, settings):
+        super().__init__(settings)
+        self.fixture_repository = FixtureRepository()
+
+    def accessible_repositories(self, token, installation_id):
+        super().accessible_repositories(token, installation_id)
+        return [RepositoryView(repository_id=22, full_name="fixture/architecture", private=True)]
+
+    def repository(self, token, name):
+        return self.fixture_repository.repository(token, name)
+
+    def tree(self, token, name, sha):
+        return self.fixture_repository.tree(token, name, sha)
+
+    def commit_page(self, token, name, sha, page):
+        return self.fixture_repository.commit_page(token, name, sha, page)
+
+    def history_page(self, token, name, sha, page):
+        return self.fixture_repository.history_page(token, name, sha, page)
+
+    def content(self, token, name, path, sha, *, blob_sha):
+        return self.fixture_repository.content(token, name, path, sha, blob_sha=blob_sha)
 
 
 def main():
@@ -116,6 +177,55 @@ def main():
                 ai_settings=AIClientSettings(_env_file=None, mode="mock"),
                 ai_transport_factory=lambda: transport,
             )
+            original_lifespan = app.router.lifespan_context
+
+            @asynccontextmanager
+            async def fixture_lifespan(application):
+                async with original_lifespan(application):
+                    config = github_settings(callback_url=FRONT + "/projects/github/callback")
+                    github = BrowserFixtureGitHub(config)
+                    projects = GitHubProjectService(
+                        SqlGitHubProjectRepository(database),
+                        config,
+                        github,
+                        application.state.ai_resources.client,
+                    )
+                    application.state.github_projects = projects
+                    application.state.project_knowledge = ProjectKnowledgeService(
+                        projects,
+                        SqlProjectKnowledgeRepository(database),
+                        application.state.ai_resources.client,
+                    )
+                    try:
+                        yield
+                    finally:
+                        github.close()
+
+            app.router.lifespan_context = fixture_lifespan
+
+            @app.post("/__fixture__/github/connect")
+            def prepare_github(
+                auth: Annotated[AuthenticatedAccount, Depends(current_account)],
+            ):
+                # Test-only shortcut for the EXTERNAL OAuth screen, not for Trace
+                # identity, ownership, state consumption or repository authorization.
+                auth.account.require_role("learner")
+                projects = app.state.github_projects
+                start = projects.start(auth.account.id)
+                projects.complete(
+                    auth.account.id,
+                    InstallationComplete(
+                        installation_id=11, state=start.state, code="synthetic-browser-code"
+                    ),
+                )
+                connected = projects.connect(auth.account.id, 11, 22)
+                return {
+                    "connection_id": connected.id,
+                    "commit_sha": SHA,
+                    "source": "test_fixture",
+                    "live_github_authorization": False,
+                }
+
             # Explicit fixture provenance, including the public-document inputs.
             documents = tuple(
                 SupportDocument(

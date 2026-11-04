@@ -379,6 +379,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/github/installations/{installation_id}/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disconnect Installation */
+        post: operations["disconnect_installation_api_v1_projects_github_installations__installation_id__disconnect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/github/installations/{installation_id}/repositories": {
         parameters: {
             query?: never;
@@ -408,6 +425,74 @@ export interface paths {
         put?: never;
         /** Connect */
         post: operations["connect_api_v1_projects_github_repositories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/github/repositories/{connection_id}/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask Repository */
+        post: operations["ask_repository_api_v1_projects_github_repositories__connection_id__ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/github/repositories/{connection_id}/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disconnect Connection */
+        post: operations["disconnect_connection_api_v1_projects_github_repositories__connection_id__disconnect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/github/repositories/{connection_id}/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest Repository */
+        post: operations["ingest_repository_api_v1_projects_github_repositories__connection_id__ingest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/github/repositories/{connection_id}/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Repository Knowledge */
+        get: operations["repository_knowledge_api_v1_projects_github_repositories__connection_id__knowledge_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -756,6 +841,42 @@ export interface components {
              */
             user_id: string;
         };
+        /** AgentLogMetadata */
+        AgentLogMetadata: {
+            /**
+             * Correlation
+             * @default same_pinned_snapshot_only
+             * @constant
+             */
+            correlation: "same_pinned_snapshot_only";
+            /** Entry Number */
+            entry_number: number;
+            /**
+             * Format
+             * @default native_cohort
+             * @constant
+             */
+            format: "native_cohort";
+            /** Model */
+            model?: string | null;
+            /**
+             * Prompt To File Relationship
+             * @default unproven
+             * @constant
+             */
+            prompt_to_file_relationship: "unproven";
+            /** Session Id */
+            session_id: string;
+            timestamp?: components["schemas"]["SourceTimestamp"] | null;
+            /**
+             * Timestamp Source
+             * @default unknown
+             * @enum {string}
+             */
+            timestamp_source: "hook.timestamp" | "hook_capture_time_utc" | "unknown";
+            /** Turn Id */
+            turn_id?: string | null;
+        };
         /**
          * ApprovedSupportPassageVersion
          * @description Identity of exact approved text, independent of an index's stored text.
@@ -910,6 +1031,12 @@ export interface components {
             /** Private */
             private: boolean;
             repository_id: components["schemas"]["GitHubId"];
+            /**
+             * Status
+             * @default connected
+             * @enum {string}
+             */
+            status: "connected" | "disconnected";
         };
         /** Contract */
         Contract: Record<string, never>;
@@ -1266,6 +1393,12 @@ export interface components {
              * @constant
              */
             repository_selection: "selected";
+            /**
+             * Status
+             * @default reauthorization_required
+             * @enum {string}
+             */
+            status: "authorized" | "reauthorization_required" | "disconnected";
         };
         Items_ApprovedSupportPassageVersion__MaxLen_max_length_8_: components["schemas"]["ApprovedSupportPassageVersion"][];
         Items_ApprovedSupportPassageVersion__MinLen_min_length_1_: components["schemas"]["ApprovedSupportPassageVersion"][];
@@ -1276,17 +1409,26 @@ export interface components {
         Items_GuideTitle__MinLen_min_length_1_: components["schemas"]["GuideTitle"][];
         Items_KnowledgeEvent__MinLen_min_length_1_: components["schemas"]["KnowledgeEvent"][];
         Items_LessonAlias__MaxLen_max_length_5_: components["schemas"]["LessonAlias"][];
+        Items_Literal__excluded_path____unsupported_type____file_size____invalid_content____tree_budget____catalog_budget____file_budget____source_budget____history_budget____changed_files_budget____request_deadline_budget____truncated_tree____unsupported_agent_format____MaxLen_max_length_14_: ("excluded_path" | "unsupported_type" | "file_size" | "invalid_content" | "tree_budget" | "catalog_budget" | "file_budget" | "source_budget" | "history_budget" | "changed_files_budget" | "request_deadline_budget" | "truncated_tree" | "unsupported_agent_format")[];
+        Items_ProjectAnswerCitation__MinLen_min_length_1_: components["schemas"]["ProjectAnswerCitation"][];
+        Items_ProjectAnswerSection__MaxLen_max_length_5_: components["schemas"]["ProjectAnswerSection"][];
         Items_ProjectLearningStep__MinLen_min_length_1_: components["schemas"]["ProjectLearningStep"][];
         Items_ProjectReference__MaxLen_max_length_40_: components["schemas"]["ProjectReference"][];
         Items_PublicFeedbackSection__MaxLen_max_length_4_: components["schemas"]["PublicFeedbackSection"][];
         Items_PublicFeedbackStatement__MinLen_min_length_1_: components["schemas"]["PublicFeedbackStatement"][];
         Items_PublicLessonCitation__MaxLen_max_length_5_: components["schemas"]["PublicLessonCitation"][];
         Items_PublicVerificationCheck__MaxLen_max_length_5_: components["schemas"]["PublicVerificationCheck"][];
+        Items_RepositoryCommit__MaxLen_max_length_30_: components["schemas"]["RepositoryCommit"][];
+        Items_RepositoryPath__MaxLen_max_length_75_: components["schemas"]["RepositoryPath"][];
+        Items_RepositorySourceReference__MinLen_min_length_1_: components["schemas"]["RepositorySourceReference"][];
+        Items_RepositoryTreeEntry__MaxLen_max_length_240_: components["schemas"]["RepositoryTreeEntry"][];
         Items_SupportHistoryMessage__MaxLen_max_length_4_: components["schemas"]["SupportHistoryMessage"][];
         Items_SupportPassage__MinLen_min_length_1_: components["schemas"]["SupportPassage"][];
         Items_SupportReference__MaxLen_max_length_3_: components["schemas"]["SupportReference"][];
+        Items_TutorHistoryMessage__MaxLen_max_length_4_: components["schemas"]["TutorHistoryMessage"][];
         Items_TutorHistoryMessage__MaxLen_max_length_6_: components["schemas"]["TutorHistoryMessage"][];
         Items_VersionId__MinLen_min_length_1_: components["schemas"]["VersionId"][];
+        Items_str__MaxLen_max_length_5_: string[];
         /** JourneyResponse */
         JourneyResponse: {
             /** Checkpoints */
@@ -1609,6 +1751,23 @@ export interface components {
             /** Verifications */
             verifications: components["schemas"]["RunResponse"][];
         };
+        /** ProjectAnswerCitation */
+        ProjectAnswerCitation: {
+            /** Line End */
+            line_end: number;
+            /** Line Start */
+            line_start: number;
+            /** Path */
+            path: string;
+            /** Quote */
+            quote: string;
+            reference_id: components["schemas"]["Digest"];
+        };
+        /** ProjectAnswerSection */
+        ProjectAnswerSection: {
+            citations: components["schemas"]["Items_ProjectAnswerCitation__MinLen_min_length_1_"];
+            explanation: components["schemas"]["ProjectExplanation"];
+        };
         ProjectExplanation: components["schemas"]["ProjectText"];
         /** ProjectLearningContent */
         ProjectLearningContent: {
@@ -1662,6 +1821,60 @@ export interface components {
             question: components["schemas"]["ProjectExplanation"];
             reference_ids: components["schemas"]["Items_Digest__MinLen_min_length_1_"];
             title: components["schemas"]["ProjectExplanation"];
+        };
+        /** ProjectQuestionAnswer */
+        ProjectQuestionAnswer: {
+            /**
+             * Can Complete Lesson
+             * @default false
+             * @constant
+             */
+            can_complete_lesson: false;
+            commit_sha: components["schemas"]["CommitSha"];
+            /**
+             * Execution Status
+             * @default not_executed
+             * @constant
+             */
+            execution_status: "not_executed";
+            /**
+             * Grading
+             * @default ungraded
+             * @constant
+             */
+            grading: "ungraded";
+            /** @default [] */
+            limitations: components["schemas"]["Items_str__MaxLen_max_length_5_"];
+            /**
+             * Schema Version
+             * @default project-question-v1
+             * @constant
+             */
+            schema_version: "project-question-v1";
+            /** @default [] */
+            sections: components["schemas"]["Items_ProjectAnswerSection__MaxLen_max_length_5_"];
+            /** Selected References */
+            selected_references: number;
+            snapshot_digest: components["schemas"]["Digest"];
+            /**
+             * Source
+             * @default none
+             * @enum {string}
+             */
+            source: "ai" | "test_fixture" | "none";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "answered" | "insufficient_information" | "unavailable";
+        };
+        /** ProjectQuestionCreate */
+        ProjectQuestionCreate: {
+            commit_sha: components["schemas"]["CommitSha"];
+            /** @default [] */
+            history: components["schemas"]["Items_TutorHistoryMessage__MaxLen_max_length_4_"];
+            /** Question */
+            question: string;
         };
         /** ProjectReference */
         ProjectReference: {
@@ -1820,6 +2033,170 @@ export interface components {
             installation_id: components["schemas"]["GitHubId"];
             repository_id: components["schemas"]["GitHubId"];
         };
+        /** RepositoryCommit */
+        RepositoryCommit: {
+            /** @default [] */
+            changed_files: components["schemas"]["Items_RepositoryPath__MaxLen_max_length_75_"];
+            /**
+             * Changed Files Complete
+             * @default false
+             */
+            changed_files_complete: boolean;
+            commit_sha: components["schemas"]["CommitSha"];
+            timestamp?: components["schemas"]["SourceTimestamp"] | null;
+            /** Title */
+            title: string;
+        };
+        /** RepositoryIngestionCoverage */
+        RepositoryIngestionCoverage: {
+            /** Catalog Entries */
+            catalog_entries: number;
+            /** Changed Files Complete */
+            changed_files_complete: boolean;
+            /** Fetched Files */
+            fetched_files: number;
+            /** History Complete */
+            history_complete: boolean;
+            /**
+             * Max Artifact Bytes
+             * @default 98304
+             * @constant
+             */
+            max_artifact_bytes: 98304;
+            /**
+             * Max Catalog Entries
+             * @default 240
+             * @constant
+             */
+            max_catalog_entries: 240;
+            /**
+             * Max Changed Files
+             * @default 75
+             * @constant
+             */
+            max_changed_files: 75;
+            /**
+             * Max Fetched Files
+             * @default 18
+             * @constant
+             */
+            max_fetched_files: 18;
+            /**
+             * Max File Bytes
+             * @default 32768
+             * @constant
+             */
+            max_file_bytes: 32768;
+            /**
+             * Max History Commits
+             * @default 30
+             * @constant
+             */
+            max_history_commits: 30;
+            /**
+             * Max References
+             * @default 40
+             * @constant
+             */
+            max_references: 40;
+            /**
+             * Max Source Bytes
+             * @default 48000
+             * @constant
+             */
+            max_source_bytes: 48000;
+            /**
+             * Max Tree Requests
+             * @default 20
+             * @constant
+             */
+            max_tree_requests: 20;
+            /** Omitted Files */
+            omitted_files: number;
+            /** @default [] */
+            reasons: components["schemas"]["Items_Literal__excluded_path____unsupported_type____file_size____invalid_content____tree_budget____catalog_budget____file_budget____source_budget____history_budget____changed_files_budget____request_deadline_budget____truncated_tree____unsupported_agent_format____MaxLen_max_length_14_"];
+            /**
+             * Status
+             * @default partial
+             * @constant
+             */
+            status: "partial";
+            /** Tree Complete */
+            tree_complete: boolean;
+        };
+        /** RepositoryKnowledgeMetadata */
+        RepositoryKnowledgeMetadata: {
+            /** Default Branch */
+            default_branch: string;
+            /** Full Name */
+            full_name: string;
+            /** Private */
+            private: boolean;
+            repository_id: components["schemas"]["GitHubId"];
+        };
+        /** RepositoryKnowledgeSnapshot */
+        RepositoryKnowledgeSnapshot: {
+            catalog: components["schemas"]["Items_RepositoryTreeEntry__MaxLen_max_length_240_"];
+            commit_sha: components["schemas"]["CommitSha"];
+            /** @default [] */
+            commits: components["schemas"]["Items_RepositoryCommit__MaxLen_max_length_30_"];
+            /**
+             * Complete Repository
+             * @default false
+             * @constant
+             */
+            complete_repository: false;
+            connection_id: components["schemas"]["VersionId"];
+            coverage: components["schemas"]["RepositoryIngestionCoverage"];
+            digest: components["schemas"]["Digest"];
+            references: components["schemas"]["Items_RepositorySourceReference__MinLen_min_length_1_"];
+            repository: components["schemas"]["RepositoryKnowledgeMetadata"];
+            /**
+             * Schema Version
+             * @default project-repository-v2
+             * @constant
+             */
+            schema_version: "project-repository-v2";
+        };
+        RepositoryPath: string;
+        /** RepositorySourceReference */
+        RepositorySourceReference: {
+            agent?: components["schemas"]["AgentLogMetadata"] | null;
+            blob_sha: components["schemas"]["CommitSha"];
+            category: components["schemas"]["SourceCategory"];
+            digest: components["schemas"]["Digest"];
+            /**
+             * Kind
+             * @default source
+             * @enum {string}
+             */
+            kind: "source" | "agent_prompt" | "agent_response";
+            /** Line End */
+            line_end: number;
+            /** Line Start */
+            line_start: number;
+            path: components["schemas"]["RepositoryPath"];
+            reference_id: components["schemas"]["Digest"];
+            text: components["schemas"]["SourceText"];
+        };
+        /** RepositoryTreeEntry */
+        RepositoryTreeEntry: {
+            blob_sha: components["schemas"]["CommitSha"];
+            category: components["schemas"]["SourceCategory"];
+            /**
+             * Content Included
+             * @default false
+             */
+            content_included: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "file" | "directory";
+            path: components["schemas"]["RepositoryPath"];
+            /** Size */
+            size?: number | null;
+        };
         /** RepositoryView */
         RepositoryView: {
             /** Full Name */
@@ -1968,6 +2345,10 @@ export interface components {
         SnapshotCreate: {
             commit_sha: components["schemas"]["CommitSha"];
         };
+        /** @enum {string} */
+        SourceCategory: "frontend" | "backend" | "api_schema" | "database" | "migration" | "documentation" | "source" | "agent_log";
+        SourceText: string;
+        SourceTimestamp: string;
         Summary: string;
         /** SupportAskCreate */
         SupportAskCreate: {
@@ -4260,6 +4641,118 @@ export interface operations {
             };
         };
     };
+    disconnect_installation_api_v1_projects_github_installations__installation_id__disconnect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                installation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     repositories_api_v1_projects_github_installations__installation_id__repositories_get: {
         parameters: {
             query?: never;
@@ -4502,6 +4995,464 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConnectionView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    ask_repository_api_v1_projects_github_repositories__connection_id__ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectQuestionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectQuestionAnswer"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    disconnect_connection_api_v1_projects_github_repositories__connection_id__disconnect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    ingest_repository_api_v1_projects_github_repositories__connection_id__ingest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnapshotCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryKnowledgeSnapshot"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    repository_knowledge_api_v1_projects_github_repositories__connection_id__knowledge_get: {
+        parameters: {
+            query: {
+                commit_sha: components["schemas"]["CommitSha"];
+            };
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryKnowledgeSnapshot"];
                 };
             };
             /** @description Unauthorized */

@@ -9,6 +9,7 @@ from app.db import (
     guide_models,  # noqa: F401 -- private instructional guide metadata
     knowledge_models,  # noqa: F401 -- register additive archive metadata
     models,  # noqa: F401 -- register mapped product tables for migration metadata
+    project_knowledge_models,  # noqa: F401 -- immutable bounded repository source artifacts
 )
 from app.db.base import Base
 from app.db.session import Database

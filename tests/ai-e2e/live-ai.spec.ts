@@ -13,6 +13,24 @@ async function signUp(page: Page, request: APIRequestContext) {
   const mail = await request.get(`http://127.0.0.1:8101/fixture/mail?email=${encodeURIComponent(email)}`);
   await page.goto((await mail.json()).link);
   await expect(page).toHaveURL(/\/account$/);
+  return email;
+}
+
+async function prepareFixtureProject(email: string, request: APIRequestContext) {
+  // Real loopback auth/JWT and owned SQL records; only GitHub/AI providers are fixtures.
+  const login = await request.post("http://127.0.0.1:8101/auth/v1/token?grant_type=password", {
+    data: { email, password: "Controlled-browser-fixture-47" },
+    timeout: 10_000,
+  });
+  expect(login.status()).toBe(200);
+  const token = (await login.json()).access_token as string;
+  const headers = { Authorization: `Bearer ${token}`, Origin: "http://127.0.0.1:3200", "X-Trace-Client": "learning-web" };
+  const prepared = await request.post(`${API}/__fixture__/github/connect`, { headers, timeout: 10_000 });
+  expect(prepared.status()).toBe(200);
+  const project = await prepared.json() as { connection_id: string; commit_sha: string; source: string; live_github_authorization: boolean };
+  expect(project.source).toBe("test_fixture");
+  expect(project.live_github_authorization).toBe(false);
+  return { ...project, headers };
 }
 
 test.beforeEach(async ({ page, request }) => {
@@ -170,4 +188,112 @@ test("a guide provider timeout persists only an unavailable request and never in
   await expect(page.getByRole("link", { name: "Open your guide" })).toHaveCount(0);
   await page.getByRole("link", { name: "View saved request", exact: true }).click();
   await expect(page.getByRole("heading", { name: "This guide is unavailable" })).toBeVisible();
+});
+
+test("fixture repository questions use exact cited sources and bounded follow-ups", async ({ page, request }, testInfo) => {
+  test.setTimeout(60_000);
+  page.setDefaultTimeout(10_000);
+  const email = await signUp(page, request);
+  const prepared = await prepareFixtureProject(email, request);
+  await page.goto("/projects");
+  await expect(page.getByRole("combobox", { name: "Repository", exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption(prepared.connection_id);
+  await page.getByLabel("Exact commit SHA", { exact: true }).fill(prepared.commit_sha);
+  const ingestResponse = page.waitForResponse((r) => r.url().endsWith("/ingest") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Read repository for questions", exact: true }).click();
+  const ingested = await ingestResponse;
+  expect(ingested.status()).toBe(200);
+  expect(ingested.headers()["cache-control"]).toBe("no-store");
+  const knowledge = await ingested.json();
+  expect(knowledge.schema_version).toBe("project-repository-v2");
+  expect(knowledge.complete_repository).toBe(false);
+  await expect(page.getByRole("heading", { name: "Repository knowledge", exact: true })).toBeVisible();
+  const question = "Teach me how authentication works in this project.";
+  await page.getByLabel("Ask about this project", { exact: true }).fill(question);
+  const answerResponse = page.waitForResponse((r) => r.url().endsWith("/ask") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Ask grounded question", exact: true }).click();
+  const answer = await answerResponse;
+  expect(answer.status()).toBe(200);
+  expect(answer.headers()["cache-control"]).toBe("no-store");
+  const content = await answer.json();
+  expect(content).toMatchObject({ status: "answered", source: "test_fixture", grading: "ungraded", execution_status: "not_executed", can_complete_lesson: false });
+  expect(content.sections[0].citations[0]).toMatchObject({ path: "backend/identity.py", line_start: 2, line_end: 2, quote: "return subject" });
+  const first = page.getByRole("article").filter({ has: page.getByRole("heading", { name: question, exact: true }) });
+  await expect(first.getByText("Test fixture · Ungraded · Not executed", { exact: true })).toBeVisible();
+  await expect(first.getByText("backend/identity.py:2–2", { exact: true })).toBeVisible();
+  await expect(first.getByText("return subject", { exact: true })).toBeVisible();
+  await page.getByLabel("Ask about this project", { exact: true }).fill("Explain that return value.");
+  const followUpResponse = page.waitForResponse((r) => r.url().endsWith("/ask") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Ask grounded question", exact: true }).click();
+  const followUp = await followUpResponse;
+  expect((await followUp.json()).status).toBe("answered");
+  expect(followUp.request().postDataJSON().history.map((item: { role: string }) => item.role)).toEqual(["user", "assistant"]);
+  await page.getByLabel("Ask about this project", { exact: true }).fill("Forecast Jupiter weather.");
+  await page.getByRole("button", { name: "Ask grounded question", exact: true }).click();
+  await expect(page.getByText("The ingested sources do not provide enough information for this question.", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("project-question-fixture.png"), fullPage: true });
+});
+
+test("fixture repository disconnect withholds owned and foreign source access", async ({ page, request }) => {
+  test.setTimeout(60_000);
+  page.setDefaultTimeout(10_000);
+  // This independent owner keeps authorization checks separate from the longer question journey.
+  const email = await signUp(page, request);
+  const prepared = await prepareFixtureProject(email, request);
+  await page.goto("/projects");
+  await expect(page.getByRole("combobox", { name: "Repository", exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption(prepared.connection_id);
+  await page.getByLabel("Exact commit SHA", { exact: true }).fill(prepared.commit_sha);
+  const ingestResponse = page.waitForResponse((r) => r.url().endsWith("/ingest") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Read repository for questions", exact: true }).click();
+  expect((await ingestResponse).status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Repository knowledge", exact: true })).toBeVisible();
+  await page.getByLabel("Ask about this project", { exact: true }).fill("Teach me how authentication works in this project.");
+  const answerResponse = page.waitForResponse((r) => r.url().endsWith("/ask") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Ask grounded question", exact: true }).click();
+  const answer = await answerResponse;
+  expect(answer.status()).toBe(200);
+  expect(await answer.json()).toMatchObject({ status: "answered", source: "test_fixture" });
+  await expect(page.getByText("Test fixture · Ungraded · Not executed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect GitHub App", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Disconnect this repository from Trace", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Repository knowledge", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ask grounded question", exact: true })).toHaveCount(0);
+  // Content clears before the awaited connection refresh; wait for the complete UI operation.
+  await expect(page.getByRole("button", { name: "Connect GitHub App", exact: true })).toBeEnabled();
+  await expect(page.getByText("Working… This may return unavailable.", { exact: true })).toHaveCount(0);
+  const knowledgePath = `/api/v1/projects/github/repositories/${prepared.connection_id}/knowledge?commit_sha=${prepared.commit_sha}`;
+  const withheld = await request.get(`${API}${knowledgePath}`, { headers: prepared.headers, timeout: 10_000 });
+  const withheldBody = await withheld.json();
+  const safeErrorCode = typeof withheldBody.error?.code === "string" ? withheldBody.error.code.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) : "unspecified";
+  expect(withheld.status(), `Owned knowledge read after disconnect: HTTP ${withheld.status()}, code ${safeErrorCode}`).toBe(404);
+  await page.context().clearCookies();
+  const otherEmail = await signUp(page, request);
+  const otherLogin = await request.post("http://127.0.0.1:8101/auth/v1/token?grant_type=password", { data: { email: otherEmail, password: "Controlled-browser-fixture-47" }, timeout: 10_000 });
+  const otherToken = (await otherLogin.json()).access_token;
+  const foreign = await request.get(`${API}${knowledgePath}`, { headers: { ...prepared.headers, Authorization: `Bearer ${otherToken}` }, timeout: 10_000 });
+  expect(foreign.status()).toBe(404);
+  await page.goto("/projects");
+  await expect(page.getByText("No repositories connected.", { exact: true })).toBeVisible();
+});
+
+test("repository provider timeout has no invented answer or source citations", async ({ page, request }) => {
+  test.setTimeout(60_000);
+  page.setDefaultTimeout(10_000);
+  const email = await signUp(page, request);
+  const prepared = await prepareFixtureProject(email, request);
+  await page.goto("/projects");
+  await expect(page.getByRole("combobox", { name: "Repository", exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption(prepared.connection_id);
+  await page.getByLabel("Exact commit SHA", { exact: true }).fill(prepared.commit_sha);
+  await page.getByRole("button", { name: "Read repository for questions", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Repository knowledge", exact: true })).toBeVisible();
+  await request.post(`${API}/__fixture__/ai-outcome/timeout`);
+  await page.getByLabel("Ask about this project", { exact: true }).fill("Explain authentication");
+  const result = page.waitForResponse((r) => r.url().endsWith("/ask") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Ask grounded question", exact: true }).click();
+  expect(await (await result).json()).toMatchObject({ status: "unavailable", source: "none", sections: [] });
+  await expect(page.getByText("Gemini could not return a validated grounded answer. No answer was invented.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Test fixture · Ungraded · Not executed", { exact: true })).toHaveCount(0);
 });
