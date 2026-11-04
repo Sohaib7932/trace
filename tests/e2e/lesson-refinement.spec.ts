@@ -178,6 +178,7 @@ test("guests only get demos: lessons ask for sign-in and no learner request is m
 test("signing in from a lesson's gate returns to that lesson", async ({ page, request }) => {
   test.setTimeout(90_000);
   const email = await signUp(page, request);
+  await page.goto("/account?tab=settings");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.goto("/learn/fastapi-payload-mismatch");
   await page.getByRole("region", { name: "Sign in to start this lesson" }).getByRole("link", { name: "Sign in", exact: true }).click();

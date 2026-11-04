@@ -8,7 +8,7 @@ import { ApiError, customLessonsApi, type CustomLessonRequest } from "@/lib/api/
 import {
   activeStep, canRetry, describeCustomLessonError, estimatedWait, isTerminal, nextPollDelay, statusCopy, TRACKER_STEPS,
 } from "@/lib/learning/custom-lessons";
-import { refreshNavSignals } from "@/lib/learning/nav-signals";
+import { notifyCustomLessonsChanged } from "@/lib/learning/custom-lesson-events";
 import { useAuth } from "@/lib/supabase/use-auth";
 
 /**
@@ -36,7 +36,7 @@ function AccountGenerationTracker({ requestId }: { requestId: string }) {
       const next = await customLessonsApi.status(requestId, signal);
       setRequest(next);
       // A finished lesson changes the navbar count of My lessons.
-      if (next.status === "ready") refreshNavSignals();
+      if (next.status === "ready") notifyCustomLessonsChanged();
       setError(null);
       return next;
     } catch (failure) {

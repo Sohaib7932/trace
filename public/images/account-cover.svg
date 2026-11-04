@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171b24"/>
+      <stop offset="0.55" stop-color="#14181f"/>
+      <stop offset="1" stop-color="#1c1620"/>
+    </linearGradient>
+    <radialGradient id="gOrange" cx="0.22" cy="0.95" r="0.55">
+      <stop offset="0" stop-color="#ff8139" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ff8139" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gPlum" cx="0.95" cy="0.9" r="0.5">
+      <stop offset="0" stop-color="#b9506b" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#b9506b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gAmber" cx="0.9" cy="0.05" r="0.4">
+      <stop offset="0" stop-color="#eba45e" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#eba45e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#262033"/>
+      <stop offset="1" stop-color="#1a1d29"/>
+    </linearGradient>
+    <linearGradient id="hot" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffb27a"/>
+      <stop offset="1" stop-color="#ff7a2e"/>
+    </linearGradient>
+    <linearGradient id="trace" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff8139" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ff8139" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ff8139" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.4" fill="#fff" fill-opacity="0.2"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="520" fill="url(#bg)"/>
+  <rect width="1600" height="520" fill="url(#gOrange)"/>
+  <rect width="1600" height="520" fill="url(#gPlum)"/>
+  <rect width="1600" height="520" fill="url(#gAmber)"/>
+
+  <!-- soft shapes -->
+  <circle cx="150" cy="40" r="170" fill="#ff8139" fill-opacity="0.07"/>
+  <circle cx="1500" cy="30" r="190" fill="#b9506b" fill-opacity="0.1"/>
+  <rect x="96" y="96" width="156" height="104" fill="url(#dots)"/>
+  <path d="M1030 520 C 1180 410 1400 360 1600 350" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="2"/>
+
+  <!-- the signal across the banner -->
+  <path d="M0 330 C 260 330 330 250 560 250 S 900 330 1100 280 S 1420 210 1600 230" fill="none" stroke="url(#trace)" stroke-width="2.5"/>
+  <g fill="#ff8139">
+    <circle cx="560" cy="250" r="5"/><circle cx="1100" cy="280" r="5"/>
+    <circle cx="560" cy="250" r="12" fill-opacity="0.2"/><circle cx="1100" cy="280" r="12" fill-opacity="0.2"/>
+  </g>
+
+  <!-- left tiles -->
+  <g transform="rotate(-8 190 190)">
+    <rect x="140" y="140" width="100" height="100" rx="22" fill="url(#tile)" stroke="#fff" stroke-opacity="0.14"/>
+    <text x="190" y="202" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="38" font-weight="700" fill="#fff" fill-opacity="0.85">&lt;/&gt;</text>
+  </g>
+  <g transform="rotate(10 330 150)">
+    <rect x="280" y="100" width="100" height="100" rx="22" fill="url(#tile)" stroke="#fff" stroke-opacity="0.14"/>
+    <text x="330" y="164" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="40" font-weight="700" fill="#ffb27a">&gt;_</text>
+  </g>
+  <g transform="rotate(-4 300 290)">
+    <rect x="250" y="240" width="100" height="100" rx="22" fill="url(#tile)" stroke="#ff8139" stroke-opacity="0.35"/>
+    <text x="300" y="304" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="800" fill="#ffb27a">JS</text>
+  </g>
+
+  <!-- laptop -->
+  <g>
+    <polygon points="430,230 800,190 830,400 450,424" fill="url(#screen)" stroke="#ff8139" stroke-opacity="0.35" stroke-width="2"/>
+    <polygon points="450,424 830,400 1010,452 400,470" fill="#1b2030" stroke="#fff" stroke-opacity="0.12"/>
+    <circle cx="462" cy="250" r="5" fill="#ff5f57"/><circle cx="480" cy="248" r="5" fill="#febc2e"/><circle cx="498" cy="246" r="5" fill="#28c840"/>
+    <g stroke-linecap="round" stroke-width="9" fill="none">
+      <path d="M470 282 L560 276" stroke="#ff8139"/><path d="M572 275 L600 272" stroke="#fff" stroke-opacity="0.35"/>
+      <path d="M490 308 L560 303" stroke="#ffb27a"/><path d="M572 302 L690 292" stroke="#fff" stroke-opacity="0.4"/>
+      <path d="M490 332 L540 329" stroke="#b9506b"/><path d="M552 328 L650 321" stroke="#fff" stroke-opacity="0.3"/><path d="M662 320 L730 314" stroke="#ffb27a" stroke-opacity="0.7"/>
+      <path d="M510 356 L590 351" stroke="#ff8139" stroke-opacity="0.8"/><path d="M602 350 L700 343" stroke="#fff" stroke-opacity="0.35"/>
+      <path d="M490 380 L580 374" stroke="#eba45e"/><path d="M592 373 L640 369" stroke="#fff" stroke-opacity="0.3"/>
+    </g>
+  </g>
+
+  <!-- right tiles -->
+  <g transform="rotate(9 1450 150)">
+    <rect x="1400" y="100" width="100" height="100" rx="22" fill="#ff8139"/>
+    <text x="1450" y="165" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="800" fill="#14181f">TS</text>
+  </g>
+  <g transform="rotate(-6 1330 250)">
+    <rect x="1280" y="200" width="100" height="100" rx="22" fill="url(#tile)" stroke="#fff" stroke-opacity="0.14"/>
+    <g fill="none" stroke="#fff" stroke-opacity="0.85" stroke-width="4" stroke-linecap="round">
+      <circle cx="1310" cy="226" r="6"/><circle cx="1310" cy="276" r="6"/><circle cx="1352" cy="244" r="6"/>
+      <path d="M1310 232 V270"/><path d="M1310 258 C1310 248 1352 258 1352 250"/>
+    </g>
+  </g>
+  <g transform="rotate(5 1460 330)">
+    <rect x="1410" y="280" width="100" height="100" rx="22" fill="url(#tile)" stroke="#ff8139" stroke-opacity="0.35"/>
+    <circle cx="1460" cy="330" r="24" fill="none" stroke="url(#hot)" stroke-width="4"/>
+    <path d="M1448 331 l9 9 l17 -19" fill="none" stroke="#ffb27a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="1040" y="340" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="120" font-weight="300" fill="#fff" fill-opacity="0.07">{ }</text>
+
+  <!-- layered glass panels, bottom right -->
+  <g>
+    <polygon points="1210,520 1280,452 1600,430 1600,520" fill="#ff8139" fill-opacity="0.16" stroke="#ff8139" stroke-opacity="0.3"/>
+    <polygon points="1290,520 1340,470 1600,452 1600,520" fill="#b9506b" fill-opacity="0.2" stroke="#b9506b" stroke-opacity="0.35"/>
+  </g>
+</svg>

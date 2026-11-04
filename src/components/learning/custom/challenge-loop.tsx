@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, CornerDownLeft, Lightbulb, Lock, PencilLine, RotateCcw } from "lucide-react";
+import { CornerDownLeft, Lightbulb, Lock, PencilLine, RotateCcw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { CodeWindow } from "@/components/code/code-window";
 import { CodeRow, indentOf } from "@/components/code/code-lines";
@@ -8,9 +8,11 @@ import { CodeText } from "@/components/code/code-line";
 import { ApiError, customLessonsApi, type CustomAnswerResult, type CustomChallenge } from "@/lib/api/client";
 import { describeCustomLessonError } from "@/lib/learning/custom-lessons";
 import {
-  HINT_SLOTS, LOOP_STEPS, currentStep, isWritten, loadLocal, loopState, saveLocal, stepStatus,
+  HINT_SLOTS, currentStep, isWritten, loadLocal, loopState, saveLocal,
   type LineEdit, type LocalChallenge, type LoopStep,
 } from "@/lib/learning/custom-loop";
+import { StatusBadge } from "@/components/ui/labels";
+import { AttemptCard, EvidenceCard, HintNote, LessonWindow, LockedCard, NotYet, OptionCard, Staggered, StepHeading, WhyList, darkButton, pillButton } from "../lesson-window";
 import { VerificationBadge } from "../verification-badge";
 
 const kindLabels: Record<CustomChallenge["kind"], string> = {
@@ -20,7 +22,6 @@ const kindLabels: Record<CustomChallenge["kind"], string> = {
   explain: "Explain in your words",
 };
 const letter = (index: number) => String.fromCharCode(65 + index);
-const darkButton = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-foreground px-5 font-medium text-white transition-colors hover:bg-foreground/85 disabled:cursor-not-allowed disabled:opacity-45";
 
 export type LoopControls = { local: LocalChallenge; showHint: () => void; step: string };
 
@@ -30,8 +31,9 @@ export type LoopControls = { local: LocalChallenge; showHint: () => void; step: 
  * with the lesson's answer key). A wrong answer goes back to Change with the prediction kept.
  * Completion comes only from the server's record of answers.
  */
-export function ChallengeLoop({ lessonId, challenge, number, highlight, account, onAnswered, onControls, completion, sharedCode }: {
+export function ChallengeLoop({ lessonId, lessonTitle, challenge, number, highlight, account, onAnswered, onControls, completion, sharedCode }: {
   lessonId: string;
+  lessonTitle: string;
   challenge: CustomChallenge;
   number: number;
   highlight?: string;
@@ -51,7 +53,6 @@ export function ChallengeLoop({ lessonId, challenge, number, highlight, account,
   const source = challenge.code ?? shared?.code ?? null;
   const lines = source ? source.split("\n") : [];
   const [local, setLocal] = useState<LocalChallenge>(() => loadLocal(account, challenge.id));
-  const [read, setRead] = useState(() => local.prediction !== null || challenge.attempts > 0);
   const [choice, setChoice] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [draft, setDraft] = useState(() => local.prediction?.text ?? "");
@@ -69,10 +70,10 @@ export function ChallengeLoop({ lessonId, challenge, number, highlight, account,
 
   const state = loopState(challenge, local);
   const viewingResult = result !== null || state === "completed";
-  const step: LoopStep = viewingResult ? "verify" : currentStep(state, read);
+  const step: LoopStep = viewingResult ? "verify" : currentStep(state);
   // Without code there is nothing to edit: step 3 is choosing (or revising) the answer to check.
   const hasCode = lines.length > 0;
-  const changeTitle = hasCode ? "Change" : written ? "Revise" : "Choose";
+  const changeTitle = hasCode ? "Modify" : written ? "Revise" : "Choose";
   const stepLabel = viewingResult ? "Check the result" : step === "read" ? (hasCode ? "Read the code" : "Read the question") : step === "predict" ? (written ? "Write your explanation" : "Predict the result") : hasCode ? "Try a change" : written ? "Revise your explanation" : "Choose your answer";
 
   function update(next: LocalChallenge) { setLocal(next); saveLocal(account, challenge.id, next); }
@@ -148,230 +149,175 @@ export function ChallengeLoop({ lessonId, challenge, number, highlight, account,
   const shownEdit = result ? lastAttempt?.edit ?? null : edit;
   const hintsAvailable = Math.min(HINT_SLOTS, challenge.hints.length);
 
+  const railCurrent = step === "predict" ? 1 : step === "change" ? 2 : 3;
+  const optionText = (index: number) => challenge.options[index] ?? "";
+  const lockedText = local.prediction ? (local.prediction.option !== null ? `${letter(local.prediction.option)} · ${optionText(local.prediction.option)}` : local.prediction.text ?? "") : "";
+  const announcement = viewingResult && shownResult ? (shownResult.correct === true ? "Your answer matches the answer key." : shownResult.correct === false ? "Your answer doesn't match the answer key." : "Compare your explanation with the lesson's example.") : "";
+
+  const codePane = lines.length > 0 ? (
+    <CodeWindow
+      flat
+      file={`challenge-${shared ? shared.from : number}`}
+      lang={highlight ?? "code"}
+      plain={!highlight}
+      wrap
+      lines={lines}
+      copy={!editing}
+      meta={shared ? `from challenge ${shared.from} · AI-generated · not run` : "AI-generated · not run"}
+      body={(editing || shownEdit) ? (
+        <EditableRows lines={lines} edit={shownEdit} editing={editing && !viewingResult} onPick={(line) => setEdit({ line, text: lines[line - 1] })} onChange={(text) => setEdit((current) => current && { ...current, text })} onEnter={() => void check()} onReset={() => { setEdit(null); firstPick.current?.focus(); }} inputRef={editInput} firstPick={firstPick} />
+      ) : undefined}
+      note={editing && !viewingResult ? (edit ? "Your line replaces the original. Press Enter to check." : "Click the line you want to change.") : undefined}
+    />
+  ) : (
+    <div className="px-5 py-6 sm:px-7">
+      <p className="type-label text-secondary">Question</p>
+      <p className="mt-2 text-[1.0625rem] leading-relaxed font-medium whitespace-pre-wrap">{challenge.prompt}</p>
+    </div>
+  );
+
   return (
-    <section aria-labelledby={`${ids}-title`} className="loop-card">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id={`${ids}-title`} className="font-mono text-[0.75rem] tracking-[0.04em] text-secondary uppercase">Challenge {number} · {kindLabels[challenge.kind]}</h3>
-        <VerificationBadge mode={challenge.verification_mode} />
-      </div>
-      <Stepper current={step} state={viewingResult && state !== "completed" ? "ready_for_attempt" : state} written={written} changeLabel={changeTitle} />
-      <p className="mt-4 text-[1.0625rem] leading-relaxed font-medium whitespace-pre-wrap">{challenge.prompt}</p>
-
-      <div className={`mt-5 grid gap-5 ${lines.length ? "lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start" : ""}`}>
-        {lines.length > 0 && (
-          <CodeWindow
-            file={`challenge-${shared ? shared.from : number}`}
-            lang={highlight ?? "code"}
-            plain={!highlight}
-            wrap
-            lines={lines}
-            copy={!editing}
-            meta={shared ? `from challenge ${shared.from} · AI-generated · not run` : "AI-generated · not run"}
-            body={(editing || shownEdit) ? (
-              <EditableRows lines={lines} edit={shownEdit} editing={editing && !viewingResult} onPick={(line) => setEdit({ line, text: lines[line - 1] })} onChange={(text) => setEdit((current) => current && { ...current, text })} onEnter={() => void check()} onReset={() => setEdit(null)} inputRef={editInput} firstPick={firstPick} />
-            ) : undefined}
-            note={editing && !viewingResult ? (edit ? "Your line replaces the original. Press Enter to check." : "Click the line you want to change.") : undefined}
-          />
-        )}
-
-        <div className="min-w-0">
-          <p role="status" className="sr-only">{viewingResult && shownResult ? (shownResult.correct === true ? "Your answer matches the answer key." : shownResult.correct === false ? "Your answer doesn't match the answer key." : "Compare your explanation with the example.") : `Step: ${stepLabel}`}</p>
-          {step === "read" && (
-            <StepPanel n={1} title="Read" headingRef={headingRef}>
-              <p className="text-[0.9375rem] leading-relaxed text-secondary">{lines.length ? "Read the code and the question. What will it do?" : "Read the question and think about your answer."}</p>
-              <button type="button" className={`${darkButton} mt-5`} onClick={() => setRead(true)}>I&apos;ve read it<ArrowRight aria-hidden="true" className="size-4" strokeWidth={1.8} /></button>
-            </StepPanel>
-          )}
-
-          {step === "predict" && (
-            <StepPanel n={2} title={written ? "Explain" : "Predict"} headingRef={headingRef}>
-              {written ? (
-                <label className="block text-[0.875rem] font-medium">Your explanation
-                  <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} maxLength={2000} className="fine-input mt-1.5" />
+    <section aria-label={`Challenge ${number}: ${kindLabels[challenge.kind]}`}>
+      <LessonWindow
+        crumb={`${lessonTitle} · Challenge ${number}`}
+        current={railCurrent}
+        done={state === "completed" && step === "verify"}
+        badge={<VerificationBadge mode={challenge.verification_mode} />}
+        code={codePane}
+        announcement={announcement}
+        footer={`${written ? "Practice only: you compare your words with the lesson's example." : "Answer-key check: your answer is compared with the lesson's answer key."}${hasCode ? " Your code isn't run." : ""}`}
+      >
+        {step === "predict" && (
+          <div>
+            <StepHeading headingRef={headingRef} step={1} title={written ? "Explain" : "Predict"} />
+            {written ? (
+              <label className="block text-[0.9375rem] leading-relaxed font-medium">{challenge.prompt}
+                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} maxLength={2000} placeholder="Your explanation" className="fine-input mt-3 font-normal" />
+              </label>
+            ) : (
+              <fieldset>
+                <legend className="text-[0.9375rem] leading-relaxed font-medium text-foreground whitespace-pre-wrap">{challenge.prompt}</legend>
+                <div className="mt-4 grid gap-2">
+                  {challenge.options.map((option, index) => (
+                    <OptionCard key={option} name={`${ids}-predict`} selected={choice === index} onSelect={() => setChoice(index)} chip={letter(index)} title={option} />
+                  ))}
+                </div>
+                <label className="mt-4 block text-[0.875rem] font-medium">Why? <span className="font-normal text-secondary">(optional)</span>
+                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={2} maxLength={2000} className="fine-input mt-1.5" />
                 </label>
-              ) : (
-                <fieldset>
-                  <legend className="text-[0.9375rem] text-secondary">Choose what you think happens. You can&apos;t change it after you lock it.</legend>
-                  <div className="mt-3 grid gap-2">
-                    {challenge.options.map((option, index) => (
-                      <label key={option} className="answer-option" data-checked={choice === index ? "" : undefined}>
-                        <input type="radio" name={`${ids}-predict`} className="sr-only" checked={choice === index} onChange={() => setChoice(index)} />
-                        <span aria-hidden="true" className="answer-letter">{letter(index)}</span>
-                        <span className="min-w-0 break-words">{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <label className="mt-4 block text-[0.875rem] font-medium">Why? <span className="font-normal text-secondary">(optional)</span>
-                    <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={2} maxLength={2000} className="fine-input mt-1.5" />
-                  </label>
-                </fieldset>
-              )}
-              <button type="button" className={`${darkButton} mt-5`} disabled={written ? !draft.trim() : choice === null} onClick={lock}>
+              </fieldset>
+            )}
+            <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button type="button" className={darkButton} disabled={written ? !draft.trim() : choice === null} onClick={lock}>
                 <Lock aria-hidden="true" className="size-4" strokeWidth={1.8} />{written ? "Lock it in" : "Lock prediction"}
               </button>
-            </StepPanel>
-          )}
+              <p className="text-[0.8125rem] text-secondary">{(written ? draft.trim() : choice !== null) ? "Locked predictions can't be changed." : written ? "Write a few words to continue." : "Choose one to continue."}</p>
+            </div>
+          </div>
+        )}
 
-          {step === "change" && (
-            <StepPanel n={3} title={changeTitle} headingRef={headingRef}>
-              <LockedPrediction challenge={challenge} local={local} />
-              {state === "needs_revision" && (
-                <p className="mt-4 text-[0.9375rem]">{challenge.attempts} {challenge.attempts === 1 ? "attempt" : "attempts"} so far didn&apos;t match. Try a different answer.</p>
-              )}
-              {lines.length > 0 && !editing && (
-                <button type="button" onClick={tryChange} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-border-strong px-4 font-medium hover:bg-surface-muted">
-                  <PencilLine aria-hidden="true" className="size-4" strokeWidth={1.8} />Try a change in the code
+        {step === "change" && (
+          <div>
+            <StepHeading headingRef={headingRef} step={2} title={changeTitle} />
+            {local.prediction && <LockedCard>{lockedText}</LockedCard>}
+            {state === "needs_revision" && (
+              <p className="mt-4 text-[0.9375rem]">{challenge.attempts} {challenge.attempts === 1 ? "attempt" : "attempts"} so far didn&apos;t match. Try a different answer.</p>
+            )}
+            {lines.length > 0 && !editing && (
+              <button type="button" onClick={tryChange} className={`${pillButton} mt-5`}>
+                <PencilLine aria-hidden="true" className="size-4" strokeWidth={1.8} />Try a change in the code
+              </button>
+            )}
+            {written ? (
+              <label className="mt-5 block text-[0.875rem] font-medium">Your explanation
+                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} maxLength={2000} className="fine-input mt-1.5" />
+              </label>
+            ) : (
+              <fieldset className="mt-5">
+                <legend className="text-[0.875rem] font-medium">Answer to check</legend>
+                <div className="mt-2 grid gap-2">
+                  {challenge.options.map((option, index) => (
+                    <OptionCard key={option} name={`${ids}-answer`} selected={answer === index} onSelect={() => setAnswer(index)} disabled={pending} chip={letter(index)} title={option} tried={local.attempts.some((attempt) => attempt.option === index && attempt.correct === false)} />
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button type="button" className={darkButton} disabled={pending || (written ? !draft.trim() : answer === null)} onClick={() => void check()}>
+                {pending ? "Checking…" : edit ? "Check my change" : "Check my answer"}
+                {!pending && <kbd className="hidden items-center gap-1 rounded border border-white/20 px-1.5 font-mono text-[0.6875rem] font-normal sm:inline-flex"><CornerDownLeft aria-hidden="true" className="size-3" />Enter</kbd>}
+              </button>
+              {local.hintsShown < hintsAvailable && (
+                <button type="button" onClick={showHint} className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[0.875rem] font-medium text-secondary transition-colors hover:bg-foreground/5 hover:text-foreground">
+                  <Lightbulb aria-hidden="true" className="size-4" strokeWidth={1.8} />Show a hint
                 </button>
               )}
-              {written ? (
-                <label className="mt-4 block text-[0.875rem] font-medium">Your explanation
-                  <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} maxLength={2000} className="fine-input mt-1.5" />
-                </label>
-              ) : (
-                <fieldset className="mt-4">
-                  <legend className="text-[0.875rem] font-medium">Answer to check</legend>
-                  <div className="mt-2 grid gap-2">
-                    {challenge.options.map((option, index) => {
-                      const tried = local.attempts.some((attempt) => attempt.option === index && attempt.correct === false);
-                      return (
-                        <label key={option} className="answer-option" data-checked={answer === index ? "" : undefined} data-tried={tried ? "" : undefined}>
-                          <input type="radio" name={`${ids}-answer`} className="sr-only" checked={answer === index} onChange={() => setAnswer(index)} disabled={pending} />
-                          <span aria-hidden="true" className="answer-letter">{letter(index)}</span>
-                          <span className="min-w-0 break-words">{option}{tried && <span className="ml-2 text-[0.8125rem] text-secondary">tried</span>}</span>
-                        </label>
-                      );
-                    })}
+            </div>
+            {local.hintsShown > 0 && (
+              <ol className="mt-5 grid gap-2" aria-label="Hints">
+                {challenge.hints.slice(0, local.hintsShown).map((hint, index) => <li key={hint}><HintNote index={index + 1}>{hint}</HintNote></li>)}
+              </ol>
+            )}
+            {error ? <div role="alert" className="mt-4"><NotYet>{describeCustomLessonError(error).title} {describeCustomLessonError(error).detail}</NotYet></div> : null}
+          </div>
+        )}
+
+        {step === "verify" && (
+          <div>
+            <StepHeading headingRef={headingRef} step={3} title="Verify" />
+            <Staggered>
+              {local.prediction && (
+                <EvidenceCard title={written ? "Your first explanation" : "Your prediction"}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[0.9375rem] font-medium break-words whitespace-pre-wrap">{lockedText}</p>
+                    {predictionVerdict === "matched" ? <StatusBadge status="match">Prediction matched</StatusBadge> : predictionVerdict === "differed" ? <StatusBadge status="differs">Prediction differed</StatusBadge> : null}
                   </div>
-                </fieldset>
+                </EvidenceCard>
               )}
-              <div className="mt-5 flex flex-wrap items-center gap-2">
-                <button type="button" className={darkButton} disabled={pending || (written ? !draft.trim() : answer === null)} onClick={() => void check()}>
-                  {pending ? "Checking…" : edit ? "Check my change" : "Check my answer"}
-                  {!pending && <kbd className="hidden items-center gap-1 rounded border border-white/20 px-1.5 font-mono text-[0.6875rem] font-normal sm:inline-flex"><CornerDownLeft aria-hidden="true" className="size-3" />Enter</kbd>}
-                </button>
-                {local.hintsShown < hintsAvailable && (
-                  <button type="button" onClick={showHint} className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[0.875rem] font-medium text-secondary hover:bg-foreground/5 hover:text-foreground">
-                    <Lightbulb aria-hidden="true" className="size-4" strokeWidth={1.8} />Show a hint
-                  </button>
-                )}
-              </div>
-              <Hints hints={challenge.hints.slice(0, local.hintsShown)} />
-              {error ? <p role="alert" className="mt-4 rounded-xl border border-error/20 bg-error-soft px-4 py-3 text-[0.875rem]">{describeCustomLessonError(error).title} {describeCustomLessonError(error).detail}</p> : null}
-              <p className="mt-6 text-[0.8125rem] leading-5 text-secondary">
-                {written ? "Practice only: you'll compare your words with the lesson's example." : "Answer-key check: your answer is compared with the lesson's answer key."}{hasCode ? " Your code isn't run." : ""}
-              </p>
-            </StepPanel>
-          )}
-
-          {step === "verify" && (
-            <StepPanel n={4} title="Verify" headingRef={headingRef}>
-              <dl className="grid gap-3">
-                {local.prediction && (
-                  <Evidence title={written ? "Your first explanation" : "Your prediction"} badge={predictionVerdict === "matched" ? <Badge tone="success">Prediction matched</Badge> : predictionVerdict === "differed" ? <Badge tone="neutral">Prediction differed</Badge> : null}>
-                    {written ? <span className="whitespace-pre-wrap">{local.prediction.text}</span> : <><span className="font-medium">{letter(local.prediction.option ?? 0)}.</span> {challenge.options[local.prediction.option ?? 0]}</>}
-                  </Evidence>
-                )}
-                {shownEdit && (
-                  <Evidence title={`Your change · line ${shownEdit.line}`} badge={<Badge tone="neutral">Not run</Badge>}>
-                    <code className="font-mono text-[0.8125rem] break-words whitespace-pre-wrap">{shownEdit.text}</code>
-                  </Evidence>
-                )}
-                {shownResult && (
-                  <Evidence title={written ? "Practice only" : "Answer-key check"}>
-                    {shownResult.correct === true ? <p className="flex items-center gap-2 font-semibold text-success"><Check aria-hidden="true" className="size-4" strokeWidth={2.4} />Your answer matches the lesson&apos;s answer key.</p>
-                      : shownResult.correct === false ? <p className="font-semibold">Your answer doesn&apos;t match the lesson&apos;s answer key.</p>
-                        : <p className="font-semibold">Compare your explanation with the lesson&apos;s example.</p>}
-                    <p className="mt-1 text-[0.8125rem] text-secondary">This result comes from the lesson, not from running your code.</p>
-                  </Evidence>
-                )}
-                {shownResult?.model_answer && <Evidence title="The lesson's example"><span className="whitespace-pre-wrap">{shownResult.model_answer}</span></Evidence>}
-                {shownResult && (showWhy ? (
-                  <Evidence title="Why"><span className="whitespace-pre-wrap">{shownResult.explanation}</span></Evidence>
-                ) : (
-                  <button type="button" onClick={() => setShowWhy(true)} className="min-h-11 justify-self-start text-[0.875rem] font-medium underline underline-offset-4">Show why (gives away the answer)</button>
-                ))}
-              </dl>
+              {shownEdit && (
+                <EvidenceCard title={`Your change · line ${shownEdit.line}`} tag="Not run">
+                  <code className="font-mono text-[0.8125rem] break-words whitespace-pre-wrap">{shownEdit.text}</code>
+                </EvidenceCard>
+              )}
+              {shownResult && (
+                <EvidenceCard title={written ? "Practice only" : "Answer-key check"} tag="Lesson">
+                  {shownResult.correct === true ? <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[0.9375rem] font-medium">Your answer matches the lesson&apos;s answer key.</p><StatusBadge status="pass">Matched</StatusBadge></div>
+                    : shownResult.correct === false ? <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[0.9375rem] font-medium">Your answer doesn&apos;t match the lesson&apos;s answer key.</p><StatusBadge status="differs">Not a match</StatusBadge></div>
+                      : <p className="text-[0.9375rem] font-medium">Compare your explanation with the lesson&apos;s example.</p>}
+                  <p className="mt-1 text-[0.75rem] text-secondary">This result comes from the lesson, not from running your code.</p>
+                </EvidenceCard>
+              )}
+              {shownResult?.model_answer && <EvidenceCard title="The lesson's example"><p className="text-[0.875rem] leading-relaxed whitespace-pre-wrap">{shownResult.model_answer}</p></EvidenceCard>}
+              {shownResult && (showWhy ? (
+                <WhyList lines={shownResult.explanation.split(/\n{2,}/).filter(Boolean)} title="Why" />
+              ) : (
+                <button type="button" onClick={() => setShowWhy(true)} className="min-h-11 justify-self-start text-[0.875rem] font-medium underline underline-offset-4">Show why (gives away the answer)</button>
+              ))}
+              {shownResult && (
+                <AttemptCard badges={<>
+                  {predictionVerdict && <StatusBadge status={predictionVerdict === "matched" ? "match" : "differs"}>{predictionVerdict === "matched" ? "Prediction correct" : "Prediction differed"}</StatusBadge>}
+                  <StatusBadge status={local.hintsShown > 0 ? "hint" : "neutral"}>{local.hintsShown > 0 ? "Hint used" : "No hint"}</StatusBadge>
+                  {shownResult.correct === true && <StatusBadge status="pass">{challenge.attempts <= 1 ? "Matched on first try" : `Matched on try ${challenge.attempts}`}</StatusBadge>}
+                  {shownResult.correct === false && <StatusBadge status="neutral">{challenge.attempts} {challenge.attempts === 1 ? "attempt" : "attempts"} so far</StatusBadge>}
+                </>} />
+              )}
               {local.attempts.length > 0 && (
-                <ol className="mt-4 grid gap-1 text-[0.8125rem] text-secondary" aria-label="Your attempts">
+                <ol className="grid gap-1 text-[0.8125rem] text-secondary" aria-label="Your attempts">
                   {challenge.attempts > local.attempts.length && <li>{challenge.attempts - local.attempts.length} earlier {challenge.attempts - local.attempts.length === 1 ? "attempt" : "attempts"} on another device</li>}
                   {local.attempts.map((attempt) => (
-                    <li key={attempt.number}>Attempt {attempt.number} · {attempt.option !== null ? `${letter(attempt.option)}` : "your explanation"}{attempt.edit ? ` · changed line ${attempt.edit.line}` : ""} · {attempt.correct === true ? "matched" : attempt.correct === false ? "didn't match" : "compared"}</li>
+                    <li key={attempt.number}>Attempt {attempt.number} · {attempt.option !== null ? `${letter(attempt.option)}` : "your explanation"}{attempt.edit ? ` · changed line ${attempt.edit.line}` : ""} · {attempt.correct === true ? "matched" : attempt.correct === false ? "didn't match" : "compared with the example"}</li>
                   ))}
                 </ol>
               )}
               {state === "completed" ? completion : (
-                <button type="button" className={`${darkButton} mt-5`} onClick={tryAgain}><RotateCcw aria-hidden="true" className="size-4" strokeWidth={1.8} />Try another change</button>
+                <button type="button" className={pillButton} onClick={tryAgain}><RotateCcw aria-hidden="true" className="size-4" strokeWidth={1.8} />Try another change</button>
               )}
-            </StepPanel>
-          )}
-        </div>
-      </div>
+            </Staggered>
+          </div>
+        )}
+      </LessonWindow>
     </section>
   );
-}
-
-function Stepper({ current, state, written, changeLabel }: { current: LoopStep; state: ReturnType<typeof loopState>; written: boolean; changeLabel: string }) {
-  return (
-    <ol className="loop-stepper mt-4" aria-label="Steps">
-      {LOOP_STEPS.map((step, index) => {
-        const status = stepStatus(step.id, current, state);
-        const label = step.id === "change" ? changeLabel : written && step.id === "predict" ? "Explain" : written && step.id === "verify" ? "Compare" : step.label;
-        return (
-          <li key={step.id} data-status={status} aria-current={status === "current" ? "step" : undefined}>
-            <span aria-hidden="true" className="loop-stepper-dot">{status === "done" ? <Check className="size-3" strokeWidth={2.6} /> : index + 1}</span>
-            {label}<span className="sr-only">{status === "done" ? " (done)" : status === "current" ? " (current step)" : ""}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function StepPanel({ n, title, headingRef, children }: { n: number; title: string; headingRef: React.RefObject<HTMLHeadingElement | null>; children: React.ReactNode }) {
-  return (
-    <div className="loop-step">
-      <h4 ref={headingRef} tabIndex={-1} className="flex items-baseline gap-3 outline-none">
-        <span className="font-mono text-[0.875rem] text-primary-ink">{String(n).padStart(2, "0")}</span>
-        <span className="text-[1.375rem] font-semibold tracking-[-0.02em]">{title}</span>
-      </h4>
-      <div className="mt-3">{children}</div>
-    </div>
-  );
-}
-
-function LockedPrediction({ challenge, local }: { challenge: CustomChallenge; local: LocalChallenge }) {
-  if (!local.prediction) return null;
-  return (
-    <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
-      <p className="flex items-center gap-1.5 text-[0.75rem] font-medium tracking-[0.04em] text-secondary uppercase"><Lock aria-hidden="true" className="size-3" strokeWidth={2} />Your prediction · locked</p>
-      <p className="mt-1 text-[0.9375rem] font-medium break-words whitespace-pre-wrap">{local.prediction.option !== null ? `${letter(local.prediction.option)}. ${challenge.options[local.prediction.option]}` : local.prediction.text}</p>
-      {local.prediction.reason && <p className="mt-1 text-[0.875rem] text-secondary whitespace-pre-wrap">{local.prediction.reason}</p>}
-    </div>
-  );
-}
-
-function Hints({ hints }: { hints: string[] }) {
-  if (!hints.length) return null;
-  return (
-    <ol className="mt-4 grid gap-2" aria-label="Hints">
-      {hints.map((hint, index) => (
-        <li key={hint} className="rounded-xl border border-warning/25 bg-warning-soft px-4 py-3 text-[0.875rem] leading-relaxed"><span className="font-medium text-warning">Hint {index + 1} · </span>{hint}</li>
-      ))}
-    </ol>
-  );
-}
-
-function Evidence({ title, badge, children }: { title: string; badge?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border bg-surface px-4 py-3">
-      <dt className="flex flex-wrap items-center justify-between gap-2 text-[0.75rem] font-medium tracking-[0.04em] text-secondary uppercase">{title}{badge}</dt>
-      <dd className="mt-1.5 text-[0.9375rem] leading-relaxed">{children}</dd>
-    </div>
-  );
-}
-
-function Badge({ tone, children }: { tone: "success" | "neutral"; children: React.ReactNode }) {
-  return <span className={`rounded-full px-2 py-0.5 text-[0.75rem] font-medium tracking-normal normal-case ${tone === "success" ? "bg-success-soft text-success" : "bg-surface-muted text-secondary"}`}>{children}</span>;
 }
 
 /** The code with one line the learner can pick and rewrite in place (shown as a small diff). */

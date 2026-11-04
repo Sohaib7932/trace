@@ -295,7 +295,9 @@ test("My lessons lists the learner's real lessons (AI-created, with progress)", 
 
 test("My lessons: delete asks in a dialog, then removes the card and keeps focus on the list", async () => {
   const user = userEvent.setup();
-  fx.api.list.mockResolvedValue({ items: [lesson, { ...lesson, id: "lesson-2", title: "Second lesson" }] });
+  const second = { ...lesson, id: "lesson-2", title: "Second lesson" };
+  // After the delete the server lists one lesson (the page reads the list again).
+  fx.api.list.mockResolvedValueOnce({ items: [lesson, second] }).mockResolvedValue({ items: [second] });
   fx.api.remove.mockResolvedValue(undefined);
   render(<MyLessons />);
   const card = await screen.findByRole("article", { name: "Request validation" });

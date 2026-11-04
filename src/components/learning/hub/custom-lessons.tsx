@@ -8,7 +8,7 @@ import { useDialog } from "@/components/ai/use-dialog";
 import { examplePrompts } from "@/lib/learning/composer";
 import { formatWhen } from "@/lib/learning/journey";
 import { filterLessons, lessonStatus, statusLabels, type LessonStatus, type StatusFilter } from "@/lib/learning/library";
-import { refreshNavSignals } from "@/lib/learning/nav-signals";
+import { notifyCustomLessonsChanged, useCustomLessonsChanged } from "@/lib/learning/custom-lesson-events";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { VerificationBadge } from "../verification-badge";
 
@@ -53,11 +53,13 @@ function AccountLessons() {
       .catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [signedIn, attempt]);
+  // Another view (or tab) created, answered or deleted a lesson: read the list again.
+  useCustomLessonsChanged(() => setAttempt((value) => value + 1));
 
   function removed(lesson: CustomLessonSummary) {
     setRemoving(lesson.id);
     setAnnounce(`Deleted “${lesson.title}”.`);
-    refreshNavSignals();
+    notifyCustomLessonsChanged();
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? true;
     window.setTimeout(() => {
       setItems((all) => all?.filter((item) => item.id !== lesson.id) ?? null);

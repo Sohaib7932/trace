@@ -111,10 +111,10 @@ export function DeviceSequence() {
             // Phase A: rise while the tilt begins to relax
             tl.fromTo(
               frame,
-              { rotateX: 52, rotateZ: -4, scale: () => fit() * 1.08, y: () => vh() * 0.08 + centreY(fit() * 1.08) },
+              { rotateX: 50, rotateZ: 0, scale: () => fit() * 1.08, y: () => vh() * 0.08 + centreY(fit() * 1.08) },
               {
                 rotateX: 24,
-                rotateZ: -2,
+                rotateZ: 0,
                 scale: () => fit() * 1.04,
                 y: () => vh() * 0.03 + centreY(fit() * 1.04),
                 duration: 0.25,

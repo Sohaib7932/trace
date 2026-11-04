@@ -9,6 +9,7 @@ import { accountApi, customLessonsApi, learningApi, retryOnInfrastructure } from
 import { ClaimGate } from "@/components/account/claim-gate";
 import { ErrorNotice } from "@/components/learning/error-notice";
 import { continueLesson } from "@/lib/learning/library";
+import { customLessonKeys, useCustomLessonsChanged } from "@/lib/learning/custom-lesson-events";
 import { completedCount, hasAnyHistory, latestSession, lessonViews, sessionStep } from "@/lib/learning/journey";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { LessonCard, type CardAction } from "./lesson-card";
@@ -51,12 +52,13 @@ function Hub({ heading }: { heading?: React.ReactNode }) {
   });
   // Saved custom lessons, only to offer "Continue" when one is unfinished.
   const custom = useQuery({
-    queryKey: ["custom-lessons", auth.status === "signed-in" ? auth.userId : null],
+    queryKey: customLessonKeys.list(auth.status === "signed-in" ? auth.userId : null),
     enabled: signedIn,
     queryFn: () => customLessonsApi.list(),
     retry: false,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["hub"] });
+  useCustomLessonsChanged(() => void queryClient.invalidateQueries({ queryKey: customLessonKeys.all }));
   const header = (chip?: React.ReactNode, hint?: string | null) => <LessonsHeader current="trace" heading={heading} line={LINE} chip={chip} hint={hint} />;
 
   if (auth.status === "loading") return <>{header()}<CardsSkeleton /></>;

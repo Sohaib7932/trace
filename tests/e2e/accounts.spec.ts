@@ -17,10 +17,14 @@ async function register(page: Page, request: APIRequestContext, email: string) {
   expect(new URL(link).origin).toBe("http://127.0.0.1:3100");
   await page.goto(link);
   await expect(page).toHaveURL(/\/account$/);
-  await expect(page.getByRole("heading", { name: /^Hi, / })).toBeVisible();
-  // Technical details are collapsed by default; open them to read the account email.
-  await page.getByText("Account details", { exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Trace learner" })).toBeVisible();
+  // The header shows the confirmed email to its owner.
   await expect(page.getByText(email, { exact: true })).toBeVisible();
+}
+/** Settings tab, with the collapsed "For support" row opened. */
+async function openSupportId(page: Page) {
+  await page.goto("/account?tab=settings");
+  await page.getByText("For support", { exact: true }).click();
 }
 async function login(page: Page, email: string, value = password) {
   await page.goto("/sign-in");
@@ -33,9 +37,9 @@ test("registration, verified account, authenticated learning, refresh and logout
   test.setTimeout(90_000);
   const email = `learner-${crypto.randomUUID()}@example.test`;
   await register(page, request, email);
-  await expect(page.getByText("learner", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("account.png"), fullPage: true });
+  await openSupportId(page);
   const userId = (await page.locator("dd.font-mono").textContent())!;
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
@@ -50,7 +54,7 @@ test("registration, verified account, authenticated learning, refresh and logout
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   // Sign-in lands on the lessons hub by default.
   await expect(page).toHaveURL(/\/learn$/);
-  await page.goto("/account");
+  await openSupportId(page);
   await expect(page.locator("dd.font-mono")).toHaveText(userId);
   const after = await (await request.get("http://127.0.0.1:8001/fixture/stats")).json() as { refreshes: number };
   expect(after.refreshes).toBeGreaterThan(before.refreshes);
@@ -63,7 +67,7 @@ test("registration, verified account, authenticated learning, refresh and logout
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText("authenticated learner preserves");
-  await page.goto("/account");
+  await openSupportId(page);
   await expect(page.locator("dd.font-mono")).toHaveText(userId);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
@@ -82,6 +86,7 @@ test("explicit guest claim preserves a real session and rejects a second account
   await page.getByRole("button", { name: "Confirm history claim" }).click();
   await expect(page.getByText(/Every session is preserved/)).toBeVisible();
   expect((await context.cookies()).some((cookie) => cookie.name === "trace_learner")).toBe(false);
+  await page.goto("/account?tab=history");
   await expect(page.getByRole("heading", { name: "How you learned" })).toBeVisible();
   await expect(page.getByText("The request will be rejected").first()).toBeVisible();
   await page.goto("/learn/fastapi-payload-mismatch");
@@ -102,7 +107,7 @@ test("explicit guest claim preserves a real session and rejects a second account
     });
     expect(response.status()).toBe(401);
     await second.reload();
-    await expect(second.getByText("Your account is ready.", { exact: false })).toBeVisible();
+    await expect(second.getByRole("heading", { level: 1, name: "Trace learner" })).toBeVisible();
   } finally { await other.close(); }
 });
 
@@ -110,6 +115,7 @@ test("recovery links change the provider password and invalid callbacks stay saf
   test.setTimeout(90_000);
   const email = `recovery-${crypto.randomUUID()}@example.test`;
   await register(page, request, email);
+  await page.goto("/account?tab=settings");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto("/forgot-password");
@@ -126,7 +132,7 @@ test("recovery links change the provider password and invalid callbacks stay saf
   await expect(page).toHaveURL(/\/sign-in$/);
   await login(page, email, replacement);
   await expect(page).toHaveURL(/\/learn$/);
-  await page.goto("/account");
+  await page.goto("/account?tab=settings");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   // Provider errors map to fixed messages; provider text and query `next` are ignored.

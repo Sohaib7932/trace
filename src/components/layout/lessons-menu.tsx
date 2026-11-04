@@ -28,6 +28,15 @@ export function LessonsMenu() {
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const leaveTimer = useRef<number | undefined>(undefined);
+  // Opens when a mouse rests on the button or the menu; a short delay keeps it open while the
+  // pointer crosses the gap. Touch and keyboard still use click, Enter and Space.
+  function hover(event: React.PointerEvent, enter: boolean) {
+    if (event.pointerType !== "mouse") return;
+    window.clearTimeout(leaveTimer.current);
+    if (enter) setOpen(true);
+    else leaveTimer.current = window.setTimeout(() => setOpen(false), 180);
+  }
   const current = useLessonSection();
   const { myLessons } = useNavSignals();
 
@@ -72,6 +81,8 @@ export function LessonsMenu() {
   return (
     <div
       className="relative"
+      onPointerEnter={(event) => hover(event, true)}
+      onPointerLeave={(event) => hover(event, false)}
       onBlur={(event) => { if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false); }}
     >
       <button
@@ -80,7 +91,7 @@ export function LessonsMenu() {
         aria-expanded={open}
         aria-controls={listId}
         data-current={current ? "" : undefined}
-        onClick={() => setOpen((value) => !value)}
+        onClick={(event) => setOpen((value) => (event.detail === 0 ? !value : (event.nativeEvent as PointerEvent).pointerType === "mouse" ? true : !value))}
         onKeyDown={onTriggerKey}
         className="nav-trigger inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-[0.875rem] font-medium tracking-[-0.01em] text-secondary transition-colors duration-150 hover:text-foreground"
       >

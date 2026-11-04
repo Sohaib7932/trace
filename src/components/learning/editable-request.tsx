@@ -39,6 +39,7 @@ export function EditableRequest({ file, lines, family, value, onChange, editing,
   );
   return (
     <CodeWindow
+      flat
       file={file}
       lang="Python"
       lines={lines}

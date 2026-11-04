@@ -46,6 +46,8 @@ function wrap(node: React.ReactNode, client = new QueryClient({ defaultOptions: 
 beforeEach(() => {
   vi.clearAllMocks();
   fixture.auth = { status: "guest" };
+  // Account tabs live in the URL; every test starts on the default tab.
+  window.history.replaceState(null, "", "/account");
   fixture.identity.mockResolvedValue({ learner_id: "guest", expires_at: now });
   fixture.lesson.mockImplementation(async (id: string) => ({ ...lesson, id, title: id === lesson.id ? "Follow the note" : "The Nested Payload Problem" }));
   fixture.journey.mockResolvedValue(journeyWith({}));
@@ -202,11 +204,12 @@ test("after the last lesson the panel explains when the first follow-up opens", 
 test("account: no learner yet means no learning history is read (keeps guest claim possible)", async () => {
   fixture.me.mockResolvedValue({ ...account, anonymous_history_available: true });
   wrap(<AccountDashboard />);
-  expect(await screen.findByRole("heading", { name: "Hi, learner." })).toBeVisible();
+  expect(await screen.findByRole("heading", { level: 1, name: "Trace learner" })).toBeVisible();
   expect(screen.getByRole("heading", { name: "This browser has guest progress" })).toBeVisible();
   expect(fixture.journey).not.toHaveBeenCalled();
 });
 test("account: the timeline shows real predictions, attempts and observed results", async () => {
+  window.history.replaceState(null, "", "/account?tab=history");
   fixture.me.mockResolvedValue({ ...account, learner_id: "learner" });
   fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("done", "completed")], attempt_count: 2 }, { available: true }));
   const passed = { ...failedRun, id: "passed", attempt_id: "attempt-2", status: "passed" as const, checks: [{ ...failedRun.checks![0], observed: "201" }, { ...failedRun.checks![1], observed: "1" }] };
@@ -222,6 +225,7 @@ test("account: the timeline shows real predictions, attempts and observed result
   expect(screen.queryByText(/%/)).toBeNull();
 });
 test("account: follow-ups live here (moved from /learn), from the real journey", async () => {
+  window.history.replaceState(null, "", "/account?tab=follow-ups");
   fixture.me.mockResolvedValue({ ...account, learner_id: "learner" });
   const due = { id: "c1", ordinal: 1, status: "due" as const, due_at: now, completed_at: null, attempt_count: 0, transfer_session_id: "t" };
   const later = { ...due, id: "c2", ordinal: 2, status: "upcoming" as const };
@@ -231,7 +235,7 @@ test("account: follow-ups live here (moved from /learn), from the real journey",
   const heading = await screen.findByRole("heading", { name: "Follow-ups" });
   const section = heading.closest("section")!;
   expect(section).toHaveAttribute("id", "follow-ups");
-  const cards = within(section).getAllByRole("listitem");
+  const cards = await within(section).findAllByRole("listitem");
   expect(cards).toHaveLength(2);
   expect(cards[0]).toHaveTextContent("Follow-up 1");
   expect(cards[1]).toHaveTextContent("Follow-up 2");
@@ -256,11 +260,13 @@ test("account: a successful claim is confirmed", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Confirm history claim" }));
   expect(await screen.findByText(/Every session is preserved/)).toBeVisible();
 });
-test("account: details are collapsed and sign-out clears session links", async () => {
+test("account: the support id is collapsed and sign-out clears session links", async () => {
+  window.history.replaceState(null, "", "/account?tab=settings");
   localStorage.setItem("trace.session.fixture", "non-secret-session-id");
   wrap(<AccountDashboard />);
-  const summary = await screen.findByText("Account details");
+  const summary = await screen.findByText("For support");
   expect(summary.closest("details")).not.toHaveAttribute("open");
+  expect(screen.getByText("Only you can see your lessons and answers. Your email is shown only on this page.")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
   expect(fixture.signOut).toHaveBeenCalled();
   expect(localStorage.getItem("trace.session.fixture")).toBeNull();

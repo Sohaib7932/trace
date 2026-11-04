@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavSignals } from "@/lib/learning/nav-signals";
+import { LeaderboardLink } from "./leaderboard-link";
 import { lessonIcons, useLessonSection } from "./lessons-menu";
 import { createCta, lessonLinks, navLinks } from "./nav-links";
 
@@ -129,6 +130,7 @@ export function MobileNav() {
               })}
             </ul>
           </li>
+          <li><LeaderboardLink mobile onNavigate={() => setOpen(false)} /></li>
           <li>
             <a
               href={createCta.href}

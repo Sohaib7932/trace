@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AmbientPage } from "@/components/layout/ambient-page";
 import { SiteHeader } from "@/components/layout/site-header";
 import { LessonsHub } from "@/components/learning/hub/lessons-hub";
 import { SplitHeading } from "@/components/motion/split-heading";
@@ -10,12 +11,12 @@ export const metadata: Metadata = {
 
 export default function LessonsPage() {
   return (
-    <>
+    <AmbientPage>
       {/* Each lesson card has its own primary action. */}
       <SiteHeader cta={null} />
       <main id="main" className="shell">
         <LessonsHub heading={<SplitHeading as="h1" mode="load" baseDelay={80} className="type-h2 text-foreground" segments={["Trace ", { accent: "lessons" }]} />} />
       </main>
-    </>
-  );
+    </AmbientPage>
+ );
 }

@@ -35,10 +35,17 @@ const layers = [
   { blur: 4, bars: makeBars(18, 37, [6, 14], [0.35, 0.7]), drift: false },
 ];
 
-export function LightStreaks() {
+// App pages use a lighter band: two layers, fewer bars, fainter (the hero keeps all three).
+const lightLayers = [
+  { blur: 12, bars: makeBars(7, 5, [40, 70], [0.14, 0.26]), drift: true },
+  { blur: 6, bars: makeBars(9, 9, [10, 26], [0.16, 0.3]), drift: false },
+];
+
+export function LightStreaks({ variant = "hero" }: { variant?: "hero" | "ambient" } = {}) {
+  const set = variant === "ambient" ? lightLayers : layers;
   return (
-    <div aria-hidden="true" className="streaks">
-      {layers.map((layer, layerIndex) => (
+    <div aria-hidden="true" className={variant === "ambient" ? "streaks streaks-ambient" : "streaks"}>
+      {set.map((layer, layerIndex) => (
         <div
           key={layerIndex}
           className={`streak-layer ${layer.drift ? "streak-drift" : ""}`}

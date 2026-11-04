@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AmbientPage } from "@/components/layout/ambient-page";
 import { SiteHeader } from "@/components/layout/site-header";
 import { createCta } from "@/components/layout/nav-links";
 import { SplitHeading } from "@/components/motion/split-heading";
@@ -14,7 +15,7 @@ async function Tracker({ params }: { params: Promise<{ id: string }> }) {
 
 export default function LessonRequestPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <>
+    <AmbientPage calm>
       <SiteHeader cta={createCta} />
       <main id="main" className="shell">
         <header className="mx-auto max-w-[880px] pt-[clamp(32px,5vw,64px)] pb-[clamp(20px,3vw,32px)]">
@@ -27,6 +28,6 @@ export default function LessonRequestPage({ params }: { params: Promise<{ id: st
           <Tracker params={params} />
         </Suspense>
       </main>
-    </>
-  );
+    </AmbientPage>
+ );
 }

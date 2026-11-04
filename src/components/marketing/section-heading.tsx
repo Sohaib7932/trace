@@ -9,16 +9,18 @@ export function SectionHeading({
   title,
   children,
   tone = "light",
+  wide = false,
 }: {
   id: string;
   eyebrow: string;
   title: HeadingSegment[];
   children?: ReactNode;
   tone?: "light" | "dark";
+  wide?: boolean;
 }) {
   const dark = tone === "dark";
   return (
-    <div className="max-w-[44rem]">
+    <div className={wide ? "max-w-none" : "max-w-[44rem]"}>
       <Reveal variant="fade">
         <p
           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.75rem] font-medium ${

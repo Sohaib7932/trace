@@ -8,6 +8,7 @@ import { findLanguageById } from "@/content/lesson-languages";
 import { customLessonsApi, type CustomLesson } from "@/lib/api/client";
 import { describeCustomLessonError } from "@/lib/learning/custom-lessons";
 import { resumeIndex, serverCompleted, tutorContextFor } from "@/lib/learning/custom-loop";
+import { notifyCustomLessonsChanged } from "@/lib/learning/custom-lesson-events";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { ChallengeLoop, type LoopControls } from "./challenge-loop";
 import { CustomTutor } from "./custom-tutor";
@@ -56,7 +57,7 @@ function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
 
   async function remove() {
     setDeleting(true);
-    try { await customLessonsApi.remove(lessonId); router.push("/learn/my"); }
+    try { await customLessonsApi.remove(lessonId); notifyCustomLessonsChanged(); router.push("/learn/my"); }
     catch (failure) { setError(failure); setDeleting(false); }
   }
 
@@ -150,12 +151,13 @@ function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
             <ChallengeLoop
               key={`${account}:${challenge.id}`}
               lessonId={lesson.id}
+              lessonTitle={lesson.title}
               challenge={challenge}
               number={index + 1}
               highlight={language?.id}
               sharedCode={challenge.code ? null : sharedCodeFor(lesson.challenges, index)}
               account={account}
-              onAnswered={load}
+              onAnswered={() => { void load(); notifyCustomLessonsChanged(); }}
               onControls={setControls}
               completion={
                 <div className="mt-5 rounded-xl border border-success/25 bg-success-soft px-4 py-4">
