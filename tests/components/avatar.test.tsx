@@ -28,7 +28,9 @@ test("the set is original, sized 12 to 16, and the default is deterministic and 
 });
 
 test("an id outside the allowlist is ignored on read and write", async () => {
-  expect(isAvatarId("apricot-round")).toBe(true);
+  expect(isAvatarId("orb-sunset")).toBe(true);
+  expect(isAvatarId("apricot-round")).toBe(false);
+  expect(resolveAvatarId("apricot-round", "seed")).toBe("orb-sunset"); // an older saved id still maps to its new design
   for (const bad of ["../../etc", "<svg onload=1>", "", null, 5, "https://evil.example/a.png"]) expect(isAvatarId(bad)).toBe(false);
   expect(resolveAvatarId("not-an-avatar", "seed")).toBe(defaultAvatarId("seed"));
   render(<Avatar avatarId="<script>" seed="seed" />);
@@ -87,10 +89,10 @@ test("if the account can't be updated the choice stays on this device and the di
   const user = userEvent.setup();
   fx.updateUser.mockResolvedValue({ error: { message: "network" } });
   render(<AvatarPicker userId="user-2" current="apricot-round" onClose={vi.fn()} />);
-  await user.click(screen.getByRole("button", { name: "Sage leaf" }));
+  await user.click(screen.getByRole("button", { name: "Teal planet" }));
   await user.click(screen.getByRole("button", { name: "Save avatar" }));
   expect(await screen.findByText("Saved on this device. Your account couldn't be updated right now.")).toBeVisible();
-  expect(JSON.parse(localStorage.getItem("trace.avatar.user-2")!)).toEqual({ id: "sage-leaf", onlyHere: true });
+  expect(JSON.parse(localStorage.getItem("trace.avatar.user-2")!)).toEqual({ id: "planet-teal", onlyHere: true });
   fx.updateUser.mockRejectedValue(new Error("offline"));
   await user.click(screen.getByRole("button", { name: "Save avatar" }));
   expect(await screen.findByText(/Saved on this device/)).toBeVisible();

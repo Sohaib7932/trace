@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -69,6 +69,7 @@ test("the chip's options are exactly body and content", async () => {
 // ---------- Tutor: context line, collapse, history ----------
 test("tutor context line names the lesson and follows the real step", () => {
   const { rerender } = render(<TutorPanel lessonId="fastapi-payload-mismatch" lessonTitle="The Payload Mismatch" progress={at("awaiting_prediction")} hint={{ request: vi.fn(), pending: false, available: false }} />);
+  fireEvent.click(screen.getByRole("button", { name: /Lesson tutor/ }));
   const line = () => document.querySelector("[data-tutor-context]")!;
   expect(line()).toHaveTextContent("Lesson: The Payload Mismatch. Step: Predict the result");
   rerender(<TutorPanel lessonId="fastapi-payload-mismatch" lessonTitle="The Payload Mismatch" progress={at("needs_revision")} hint={{ request: vi.fn(), pending: false, available: true }} />);
@@ -81,18 +82,16 @@ test("tasks lesson asks to run the original request until a real failed run exis
   expect(stepLabel(at("completed"), "fastapi-payload-mismatch")).toBe("Review the evidence");
 });
 
-test("the docked tutor collapses to a rail and back; focus follows and chat history is kept", async () => {
+test("the tutor is a bottom bar with a drawer; chat history is kept when the drawer is closed and reopened", async () => {
   const user = userEvent.setup();
   render(<TutorPanel lessonId="fastapi-payload-mismatch" lessonTitle="The Payload Mismatch" progress={at("needs_revision")} hint={{ request: vi.fn(), pending: false, available: true }} />);
+  await user.click(screen.getByRole("button", { name: /Lesson tutor/ }));
   await user.click(screen.getByRole("button", { name: "Explain this concept" }));
   await waitFor(() => expect(screen.getAllByText(/AI explanation \(demo\)/).length).toBe(1));
-  await user.click(screen.getByRole("button", { name: "Collapse the lesson tutor" }));
-  const expand = screen.getByRole("button", { name: "Expand the lesson tutor" });
-  expect(expand).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Close lesson tutor" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("button", { name: "Explain this concept" })).toBeNull();
-  expect(localStorage.getItem("trace.tutor.collapsed")).toBe("1");
-  await user.click(expand);
-  expect(screen.getByRole("button", { name: "Collapse the lesson tutor" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: /Lesson tutor/ }));
   expect(screen.getAllByText(/AI explanation \(demo\)/)).toHaveLength(1);
 });
 

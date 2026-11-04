@@ -1,8 +1,7 @@
 "use client";
 
 import { Check, Lock } from "lucide-react";
-import { motion } from "motion/react";
-import { Children, type ReactNode, type Ref } from "react";
+import { Children, type CSSProperties, type ReactNode, type Ref } from "react";
 import { TraceMark } from "@/components/brand/trace-mark";
 
 /**
@@ -11,7 +10,6 @@ import { TraceMark } from "@/components/brand/trace-mark";
  * time on the right, and a plain-language note along the bottom.
  */
 
-const ease = [0.2, 0.8, 0.2, 1] as const;
 export const RAIL_STEPS = ["Read", "Predict", "Modify", "Verify", "Revisit"] as const;
 
 export const darkButton =
@@ -50,9 +48,7 @@ export function LessonWindow({ crumb, current, done, badge, code, footer, announ
         <div className="code-surface code-light flex min-w-0 flex-col">{code}</div>
         <div className="relative flex min-w-0 flex-col border-t border-border lg:border-t-0 lg:border-l">
           <div className="flex-1 px-5 py-6 sm:px-7 sm:py-7">
-            <motion.div key={current} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26, ease }}>
-              {children}
-            </motion.div>
+            <div key={current} className="step-in">{children}</div>
           </div>
         </div>
       </div>
@@ -110,7 +106,7 @@ export function OptionCard({ name, selected, onSelect, chip, title, detail, disa
       </span>
       <span className="min-w-0">
         <span className="flex items-start gap-2">
-          {chip && <span className="shrink-0 rounded-md bg-surface-muted px-1.5 py-px font-mono text-[0.75rem] font-medium">{chip}</span>}
+          {chip && <span aria-hidden="true" className="shrink-0 rounded-md bg-surface-muted px-1.5 py-px font-mono text-[0.75rem] font-medium">{chip}</span>}
           <span className="min-w-0 text-[0.875rem] font-medium break-words">{title}{tried && <span className="ml-2 text-[0.8125rem] font-normal text-secondary">tried</span>}</span>
         </span>
         {detail && <span className="mt-0.5 block text-[0.8125rem] leading-5 text-secondary">{detail}</span>}
@@ -146,15 +142,15 @@ export function EvidenceCard({ title, tag, children }: { title: string; tag?: Re
   );
 }
 
-/** Children arrive one after another; false/empty children are skipped. */
+/** Children arrive one after another (CSS only, so they are in the page from the start); false/empty children are skipped. */
 export function Staggered({ children }: { children: ReactNode }) {
   const items = Children.toArray(children);
   return (
-    <motion.div className="mt-5 grid gap-3" initial="hidden" animate="shown" variants={{ shown: { transition: { staggerChildren: 0.09 } } }}>
+    <div className="mt-5 grid gap-3">
       {items.map((child, index) => (
-        <motion.div key={index} variants={{ hidden: { opacity: 0, y: 8 }, shown: { opacity: 1, y: 0 } }} transition={{ duration: 0.32, ease }}>{child}</motion.div>
+        <div key={index} className="stagger-in" style={{ "--sd": `${index * 90}ms` } as CSSProperties}>{child}</div>
       ))}
-    </motion.div>
+    </div>
   );
 }
 

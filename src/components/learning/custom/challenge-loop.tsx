@@ -192,7 +192,7 @@ export function ChallengeLoop({ lessonId, lessonTitle, challenge, number, highli
             <StepHeading headingRef={headingRef} step={1} title={written ? "Explain" : "Predict"} />
             {written ? (
               <label className="block text-[0.9375rem] leading-relaxed font-medium">{challenge.prompt}
-                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} maxLength={2000} placeholder="Your explanation" className="fine-input mt-3 font-normal" />
+                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} maxLength={2000} placeholder="Your explanation" aria-label="Your explanation" className="fine-input mt-3 font-normal" />
               </label>
             ) : (
               <fieldset>
