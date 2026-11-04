@@ -95,7 +95,7 @@ test("support chat: answers with real help-set sources, no human option unless c
   await user.click(within(dialog).getByRole("button", { name: "How do follow-ups work?" }));
   expect(await within(dialog).findByText("Sources")).toBeVisible();
   const link = within(dialog).getByRole("link", { name: "How follow-ups work" });
-  expect(link).toHaveAttribute("href", "/learn#follow-ups");
+  expect(link).toHaveAttribute("href", "/account#follow-ups");
   expect(within(dialog).queryByRole("link", { name: "Talk to a human" })).toBeNull();
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).toBeNull();

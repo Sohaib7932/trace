@@ -47,16 +47,15 @@ test("hub to composer to tracker to lesson to a server-checked answer, then My l
   test.setTimeout(120_000);
   const { errors, keyLeaks } = guard(page);
   await signUp(page, request);
-  await page.goto("/learn");
-  await expect(page.getByRole("heading", { name: "My lessons" })).toBeVisible();
-  await expect(page.getByText("You haven't created a lesson yet.")).toBeVisible();
-  await page.getByRole("link", { name: /^Create a lesson/ }).last().click();
+  await page.goto("/learn/my");
+  await expect(page.getByRole("heading", { name: "No lessons yet" })).toBeVisible();
+  await page.getByRole("link", { name: /^Create your first lesson/ }).click();
   await expect(page).toHaveURL(/\/learn\/new$/);
   await compose(page, "Teach me how FastAPI validates a request body, with predict-and-fix exercises.");
   await expect(page.getByRole("heading", { name: "Your lesson is ready" })).toBeVisible({ timeout: 20_000 });
   await page.getByRole("link", { name: "Open your lesson" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Reading code carefully");
-  await expect(page.getByText("AI-generated").first()).toBeVisible();
+  await expect(page.getByText("AI-created").first()).toBeVisible();
   await expect(page.getByText("Checked against an answer key").first()).toBeVisible();
   await expect(page.getByText("Practice only").first()).toBeVisible();
   await expect(page.getByText(/Checked on a real server/)).toHaveCount(0);
@@ -75,13 +74,22 @@ test("hub to composer to tracker to lesson to a server-checked answer, then My l
   await third.getByRole("button", { name: "Compare with an example" }).click();
   await expect(third.getByText(/Example answer:/)).toBeVisible();
 
+  // Saved on the server: still listed after a full reload, with its progress.
+  // Saved on the server: offered on /learn, and still listed on /learn/my after a full reload.
   await page.goto("/learn");
-  await expect(page.getByRole("link", { name: /Reading code carefully/ })).toBeVisible();
-  await page.getByRole("link", { name: /Reading code carefully/ }).click();
-  await page.getByRole("button", { name: "Delete lesson" }).click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page).toHaveURL(/\/learn$/);
-  await expect(page.getByText("You haven't created a lesson yet.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Continue" }).getByRole("link", { name: /^Continue Reading code carefully/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Lesson library" }).getByRole("link", { name: "My lessons" }).click();
+  await expect(page).toHaveURL(/\/learn\/my$/);
+  await page.reload();
+  const card = page.getByRole("article").filter({ hasText: "Reading code carefully" });
+  await expect(card).toContainText("In progress · 2 of 3 challenges");
+  await card.getByRole("link", { name: /^Open Reading code carefully/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Reading code carefully");
+  await page.goto("/learn/my");
+  await card.getByRole("button", { name: /^More actions for/ }).click();
+  await card.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("dialog", { name: "Delete this lesson?" }).getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No lessons yet" })).toBeVisible();
   await noOverflow(page);
   expect(keyLeaks).toEqual([]);
   expect(errors).toEqual([]);

@@ -53,10 +53,12 @@ export function LessonComposer() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  // Autosave, lightly debounced. Only after the restore, so it never overwrites a saved draft.
+  // Autosave, lightly debounced. Only after the restore, so it never overwrites a saved draft,
+  // and never after the request was sent (a pending save would bring the sent draft back).
+  const sent = useRef(false);
   useEffect(() => {
     if (!restored.current) return;
-    const timer = window.setTimeout(() => setSaved(saveDraft(draft) ? "saved" : "unavailable"), 400);
+    const timer = window.setTimeout(() => { if (!sent.current) setSaved(saveDraft(draft) ? "saved" : "unavailable"); }, 400);
     return () => window.clearTimeout(timer);
   }, [draft]);
 
@@ -97,6 +99,7 @@ export function LessonComposer() {
     setError(null);
     try {
       const created = await customLessonsApi.create(body, keyFor.current.key);
+      sent.current = true;
       clearDraft();
       router.push(`/learn/requests/${created.id}`);
     } catch (failed) {
@@ -269,7 +272,7 @@ function Preview({ draft }: { draft: ComposerDraft }) {
       <p className="flex items-center gap-2 text-[0.75rem] font-semibold tracking-[0.06em] text-secondary uppercase"><span aria-hidden="true" className="live-dot" />Live preview</p>
       <h2 id="preview-title" className="mt-3 text-[1.1875rem] leading-snug font-semibold tracking-[-0.015em] break-words">{previewTitle(draft.prompt)}</h2>
       <ul className="mt-3 flex flex-wrap gap-1.5 text-[0.8125rem]" aria-label="Lesson details">
-        <li className="rounded-full bg-primary-soft px-2.5 py-1 font-medium text-primary-ink">AI-generated</li>
+        <li className="rounded-full bg-primary-soft px-2.5 py-1 font-medium text-primary-ink">AI-created</li>
         <li className="rounded-full border border-border bg-surface px-2.5 py-1 font-medium">{heard ?? "Language: not mentioned yet"}</li>
         <li className="rounded-full border border-border bg-surface px-2.5 py-1">{levelLabels[draft.level]}</li>
         <li className="rounded-full border border-border bg-surface px-2.5 py-1">{draft.lessonCount === 1 ? "1 lesson" : `${draft.lessonCount} lessons`}</li>

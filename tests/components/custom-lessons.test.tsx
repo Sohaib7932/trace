@@ -101,7 +101,7 @@ test("tracker for a missing or foreign request explains and offers a way back", 
   fx.api.status.mockRejectedValue(new ApiError(404, "Lesson request not found.", "not_found"));
   render(<GenerationTracker requestId="req-x" />);
   expect(await screen.findByRole("heading", { name: "We couldn't find this." })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Back to lessons" })).toHaveAttribute("href", "/learn");
+  expect(screen.getByRole("link", { name: "Back to my lessons" })).toHaveAttribute("href", "/learn/my");
 });
 
 // ---------- Viewer ----------
@@ -143,17 +143,73 @@ test("viewer delete asks first, then removes and returns to the library", async 
   expect(fx.api.remove).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Delete" }));
   expect(fx.api.remove).toHaveBeenCalledWith("lesson-1");
-  await waitFor(() => expect(fx.push).toHaveBeenCalledWith("/learn"));
+  await waitFor(() => expect(fx.push).toHaveBeenCalledWith("/learn/my"));
 });
 
-test("My lessons lists the learner's real lessons (AI-generated, with progress)", async () => {
+test("My lessons lists the learner's real lessons (AI-created, with progress)", async () => {
   fx.api.list.mockResolvedValue({ items: [{ ...lesson, completed_challenges: 1 }] });
   render(<MyLessons />);
-  const link = await screen.findByRole("link", { name: /Request validation/ });
-  expect(link).toHaveAttribute("href", "/learn/custom/lesson-1");
-  expect(link).toHaveTextContent("AI-generated");
-  expect(link).toHaveTextContent("1 of 2 challenges");
-  expect(screen.getByRole("link", { name: /^Create a lesson/ })).toHaveAttribute("href", "/learn/new");
+  const card = await screen.findByRole("article", { name: "Request validation" });
+  expect(within(card).getByRole("link", { name: "Open Request validation" })).toHaveAttribute("href", "/learn/custom/lesson-1");
+  expect(card).toHaveTextContent("AI-created");
+  expect(card).toHaveTextContent("In progress · 1 of 2 challenges");
+  expect(within(card).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
+  expect(card).toHaveTextContent("Checked against an answer key");
+  expect(card).not.toHaveTextContent(/real server/i);
+  // One primary action on the screen, and no search below the threshold.
+  expect(screen.getAllByRole("link", { name: /^Create a lesson/ })).toHaveLength(1);
+  expect(screen.queryByRole("search")).toBeNull();
+});
+
+test("My lessons: delete asks in a dialog, then removes the card and keeps focus on the list", async () => {
+  const user = userEvent.setup();
+  fx.api.list.mockResolvedValue({ items: [lesson, { ...lesson, id: "lesson-2", title: "Second lesson" }] });
+  fx.api.remove.mockResolvedValue(undefined);
+  render(<MyLessons />);
+  const card = await screen.findByRole("article", { name: "Request validation" });
+  const more = within(card).getByRole("button", { name: "More actions for Request validation" });
+  await user.click(more);
+  expect(more).toHaveAttribute("aria-expanded", "true");
+  await user.keyboard("{Escape}");
+  expect(more).toHaveFocus();
+  await user.click(more);
+  await user.click(within(card).getByRole("button", { name: "Delete" }));
+  const dialog = screen.getByRole("dialog", { name: "Delete this lesson?" });
+  await user.click(within(dialog).getByRole("button", { name: "Keep it" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(fx.api.remove).not.toHaveBeenCalled();
+
+  await user.click(more);
+  await user.click(within(card).getByRole("button", { name: "Delete" }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+  expect(fx.api.remove).toHaveBeenCalledWith("lesson-1");
+  await waitFor(() => expect(screen.queryByRole("article", { name: "Request validation" })).toBeNull());
+  expect(screen.getByRole("article", { name: "Second lesson" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "1 saved lesson" })).toHaveFocus();
+  expect(screen.getByText("Deleted “Request validation”.")).toBeInTheDocument();
+});
+
+test("My lessons: search and the status filter appear from four lessons", async () => {
+  const user = userEvent.setup();
+  fx.api.list.mockResolvedValue({ items: [
+    { ...lesson, id: "a", title: "Express routes", language: "JavaScript" },
+    { ...lesson, id: "b", title: "FastAPI bodies", completed_challenges: 1 },
+    { ...lesson, id: "c", title: "SQL joins", language: "SQL", completed_challenges: 2 },
+    { ...lesson, id: "d", title: "Go handlers", language: "Go" },
+  ] });
+  render(<MyLessons />);
+  await screen.findByRole("article", { name: "Express routes" });
+  await user.type(screen.getByRole("searchbox", { name: "Search" }), "sql");
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(screen.getByText("Showing 1 of 4")).toBeVisible();
+  await user.clear(screen.getByRole("searchbox", { name: "Search" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "Status" }), "completed");
+  expect(screen.getAllByRole("article").map((card) => card.getAttribute("aria-labelledby"))).toEqual(["lesson-c"]);
+  await user.selectOptions(screen.getByRole("combobox", { name: "Status" }), "not_started");
+  await user.type(screen.getByRole("searchbox", { name: "Search" }), "nothing like this");
+  expect(screen.getByText("No lessons match.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Clear search and filter" }));
+  expect(screen.getAllByRole("article")).toHaveLength(4);
 });
 
 

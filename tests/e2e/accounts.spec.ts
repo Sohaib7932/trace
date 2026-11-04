@@ -56,7 +56,7 @@ test("registration, verified account, authenticated learning, refresh and logout
   expect(after.refreshes).toBeGreaterThan(before.refreshes);
   // Sign-in landed on /learn, which already started this account's learning record.
   await page.goto("/learn");
-  await page.getByRole("link", { name: "Start lesson 1", exact: true }).click();
+  await page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true }).click();
   await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await page.getByLabel("The request will be rejected", { exact: true }).check();
   await page.getByLabel("Why do you expect that?").fill("The authenticated learner preserves this prediction after reload.");

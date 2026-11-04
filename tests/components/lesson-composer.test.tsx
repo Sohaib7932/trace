@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { LessonComposer } from "@/components/learning/composer/lesson-composer";
 import { HowItWorks } from "@/components/learning/how-it-works";
-import { StartHere } from "@/components/learning/hub/custom-lessons";
 import { VerificationBadge } from "@/components/learning/verification-badge";
 import { detectStack, lessonLanguages } from "@/content/lesson-languages";
 import { ApiError } from "@/lib/api/client";
@@ -203,8 +202,3 @@ test("How it works explains both lesson kinds and every check, and closes with E
   expect(trigger).toHaveFocus();
 });
 
-test("Start here gives three steps, each with its own next action", () => {
-  render(<StartHere firstLessonHref="/learn/fastapi-payload-mismatch" />);
-  expect(screen.getByRole("link", { name: "Open lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
-  expect(screen.getByRole("link", { name: "Open the composer" })).toHaveAttribute("href", "/learn/new");
-});

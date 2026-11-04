@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { CreateCustomLesson, YourLessons } from "@/components/learning/hub/custom-lessons";
+import { CreateCustomLesson, YourLessons } from "@/components/learning/hub/private-guide-hub";
 import { GuideReader } from "@/components/learning/guides/guide-reader";
 import { ApiError } from "@/lib/api/client";
 import { learningGuidesApi, type GuideDetail } from "@/lib/api/learning-guides";
@@ -36,11 +36,11 @@ test("a signed-in learner creates a private guide with goals and sees its real s
   await user.type(screen.getByLabelText("Learning goals (optional)"), "Understand assignment");
   await user.type(screen.getByLabelText("Explanation preferences (optional)"), "Short examples");
   await user.selectOptions(screen.getByLabelText("Target level"), "advanced");
-  await user.click(screen.getByRole("button", { name: "Create guide" }));
-  expect(await screen.findByText("Your private guide is ready to read.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Create lesson" }));
+  expect(await screen.findByText("Your lesson is ready.")).toBeVisible();
   expect(create.mock.calls[0][0]).toEqual({ topic: "Python variables", start_level: "beginner", target_level: "advanced", practical: true, goals: "Understand assignment", preferences: "Short examples" });
   expect(create.mock.calls[0][1]).toMatch(/^[0-9a-f-]{36}$/);
-  expect(screen.getByRole("link", { name: "Open your guide" })).toHaveAttribute("href", `/learn/guides/${guide.id}`);
+  expect(screen.getByRole("link", { name: "Open your lesson" })).toHaveAttribute("href", `/learn/guides/${guide.id}`);
   expect(screen.getByText("Test fixture content · This is not a live Gemini result.")).toBeVisible();
 });
 
@@ -49,11 +49,11 @@ test("an uncertain create retains the exact idempotency key and does not fabrica
   const user = userEvent.setup();
   hub(<CreateCustomLesson />);
   await user.type(screen.getByLabelText("What do you want to learn?"), "Python variables");
-  await user.click(screen.getByRole("button", { name: "Create guide" }));
+  await user.click(screen.getByRole("button", { name: "Create lesson" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("same request");
-  expect(screen.queryByRole("link", { name: "Open your guide" })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Create guide" }));
-  await screen.findByRole("link", { name: "Open your guide" });
+  expect(screen.queryByRole("link", { name: "Open your lesson" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Create lesson" }));
+  await screen.findByRole("link", { name: "Open your lesson" });
   expect(create.mock.calls[0][1]).toBe(create.mock.calls[1][1]);
   expect(create.mock.calls[0][0]).toEqual(create.mock.calls[1][0]);
 });
@@ -64,12 +64,15 @@ test("unavailable generation and in-flight work remain honest and non-reentrant"
   const user = userEvent.setup();
   hub(<CreateCustomLesson />);
   await user.type(screen.getByLabelText("What do you want to learn?"), "Python variables");
-  await user.click(screen.getByRole("button", { name: "Create guide" }));
-  expect(screen.getByRole("button", { name: "Creating guide…" })).toBeDisabled();
-  expect(screen.getByText("Waiting for the backend. Your guide is not ready yet.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Create lesson" }));
+  expect(screen.getByRole("button", { name: "Creating lesson…" })).toBeDisabled();
+  expect(screen.getByText("Creating your lesson. It isn't ready yet.")).toBeVisible();
   finish({ ...guide, status: "unavailable", content: null, source: null });
-  expect(await screen.findByText("Gemini could not create a valid guide. No lesson was completed or published.")).toBeVisible();
-  expect(screen.queryByRole("link", { name: "Open your guide" })).toBeNull();
+  expect(await screen.findByText("No lesson was created this time.")).toBeVisible();
+  expect(screen.getByText(/Nothing was published or graded\. Try again in a few minutes/)).toBeVisible();
+  expect(screen.getByText("Support details")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Your request" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Open your lesson" })).toBeNull();
   expect(create).toHaveBeenCalledOnce();
 });
 
@@ -80,7 +83,7 @@ test("guest, account change and credential-like input do not expose or submit a 
   const user = userEvent.setup();
   const view = hub(<><YourLessons /><CreateCustomLesson /></>);
   await user.type(screen.getByLabelText("What do you want to learn?"), "Python variables");
-  expect(screen.getByRole("button", { name: "Create guide" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Create lesson" })).toBeDisabled();
   expect(list).not.toHaveBeenCalled();
   expect(create).not.toHaveBeenCalled();
   view.unmount();
@@ -88,7 +91,7 @@ test("guest, account change and credential-like input do not expose or submit a 
   hub(<CreateCustomLesson />);
   await user.type(screen.getByLabelText("What do you want to learn?"), "api_key=synthetic-private-canary");
   expect(screen.getByRole("alert")).toHaveTextContent("Remove passwords");
-  expect(screen.getByRole("button", { name: "Create guide" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Create lesson" })).toBeDisabled();
   expect(create).not.toHaveBeenCalled();
 });
 
@@ -105,14 +108,14 @@ test("the saved guide reader labels unexecuted practice and never interprets gen
   expect(screen.getByLabelText("Your private scratch notes (not saved or sent)")).toBeVisible();
   state.auth = { status: "guest" };
   view.rerender(<GuideReader guideId={guide.id} />);
-  expect(screen.getByRole("heading", { name: "Sign in to read your private guide" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Sign in to open your lesson" })).toBeVisible();
   expect(screen.queryByRole("heading", { name: "Naming Python values" })).toBeNull();
 });
 
 test("foreign or missing guide errors reveal no saved content and offer only a safe retry", async () => {
   vi.spyOn(learningGuidesApi, "get").mockRejectedValue(new ApiError(404, "Not found."));
   render(<GuideReader guideId="foreign-or-missing" />);
-  expect(await screen.findByRole("alert")).toHaveTextContent("unavailable or does not belong");
+  expect(await screen.findByRole("alert")).toHaveTextContent("unavailable or doesn't belong");
   expect(screen.queryByText("Naming Python values")).toBeNull();
   expect(screen.getByRole("button", { name: "Try opening again" })).toBeVisible();
 });
@@ -120,7 +123,7 @@ test("foreign or missing guide errors reveal no saved content and offer only a s
 test("list and read remain owner-scoped, and ready guides open without implying verified completion", async () => {
   const list = vi.spyOn(learningGuidesApi, "list").mockResolvedValue([guide]);
   const view = hub(<YourLessons />);
-  expect(await screen.findByRole("link", { name: "Open guide" })).toHaveAttribute("href", `/learn/guides/${guide.id}`);
+  expect(await screen.findByRole("link", { name: "Open lesson" })).toHaveAttribute("href", `/learn/guides/${guide.id}`);
   expect(screen.getByText("Version 1.0.0 · Ungraded practice")).toBeVisible();
   state.auth = { status: "signed-in", userId: "synthetic-other-owner" };
   list.mockResolvedValue([]);

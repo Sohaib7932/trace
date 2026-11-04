@@ -119,36 +119,41 @@ test("tutor: context line, collapse at desktop, drawer below 1280px", async ({ p
   expect(errors).toEqual([]);
 });
 
-test("library: verified Trace lessons and private-guide creation stay gated for guests", async ({ page }) => {
+test("my lessons and saved lessons stay gated for guests, with no request", async ({ page }) => {
   const errors = guard(page);
   const requests: string[] = [];
   page.on("request", (request) => { if (/\/api\/v1\/(?:learning-guides|custom-lessons|lessons\/custom)/.test(request.url())) requests.push(request.url()); });
-  await page.goto("/learn");
-  await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
-  await expect(page.getByText("Private guides you create will appear here.")).toBeVisible();
+  await page.goto("/learn/my");
+  await expect(page.getByRole("heading", { name: "Sign in to see your lessons" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Lesson library" }).getByRole("link", { name: "My lessons" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/learn/guides");
+  await expect(page.getByText("Lessons you create will appear here.")).toBeVisible();
   await page.getByRole("textbox", { name: "What do you want to learn?", exact: true }).fill("FastAPI authentication");
-  const create = page.getByRole("button", { name: "Create guide" });
+  const create = page.getByRole("button", { name: "Create lesson" });
   await expect(create).toBeDisabled();
-  await expect(page.getByText("Sign in to create a private guide.")).toBeVisible();
+  await expect(page.getByText("Sign in to create a lesson.")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText(/\bguides?\b/i);
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test("library: Trace lessons, an empty My lessons, and the way into the composer", async ({ page }) => {
+test("library: the switcher moves between Trace lessons and My lessons; the old tab URL redirects", async ({ page, request }) => {
   const errors = guard(page);
+  await signUp(page, request);
   const requests: string[] = [];
-  page.on("request", (request) => { if (/\/api\/v1\/(?:learning-guides|custom-lessons|lessons\/custom)/.test(request.url())) requests.push(request.url()); });
+  page.on("request", (request) => { if (/\/api\/v1\/(?:learning-guides|custom-lessons|lessons\/custom)/.test(request.url()) && request.method() !== "GET") requests.push(request.url()); });
   await page.goto("/learn");
   await expect(page.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "My lessons" })).toBeVisible();
-  await expect(page.getByText("You haven't created a lesson yet.")).toBeVisible();
+  await page.getByRole("navigation", { name: "Lesson library" }).getByRole("link", { name: "My lessons" }).click();
+  await expect(page).toHaveURL(/\/learn\/my$/);
+  await expect(page.getByRole("heading", { name: "No lessons yet" })).toBeVisible();
   await expect(page.getByText(/Coming soon/i)).toHaveCount(0);
+  await page.goto("/learn?tab=my");
+  await expect(page).toHaveURL(/\/learn\/my(?:\?|$)/);
   await page.getByRole("link", { name: "SQL duplicate rows" }).click();
   await expect(page).toHaveURL(/\/learn\/new$/);
   await expect(page.getByRole("textbox", { name: "What do you want to learn?", exact: true })).toHaveValue(/SQL joins/);
-  // Guests are asked to sign in before anything is created or sent.
-  await expect(page.getByRole("link", { name: "Sign in to create this lesson" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create lesson" })).toHaveCount(0);
+  // The example only fills the composer; nothing is created or sent.
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -164,9 +169,8 @@ test("guests only get demos: lessons ask for sign-in and no learner request is m
     await expect(page.getByRole("button", { name: "Start lesson" })).toHaveCount(0);
   }
   await page.goto("/learn");
-  await expect(page.getByRole("heading", { name: "Sign in to start the lessons" })).toBeVisible();
-  await page.getByRole("region", { name: "Sign in to start the lessons" }).getByRole("link", { name: "Try the demo" }).click();
-  await expect(page).toHaveURL(/\/#demo$/);
+  await page.getByRole("link", { name: "Sign in to start Follow the note" }).click();
+  await expect(page).toHaveURL(/\/sign-in\?next=%2Flearn%2Ffastapi-payload-mismatch$/);
   expect(learnerCalls).toEqual([]);
   expect(errors).toEqual([]);
 });

@@ -50,7 +50,7 @@ function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
 
   async function remove() {
     setDeleting(true);
-    try { await customLessonsApi.remove(lessonId); router.push("/learn"); }
+    try { await customLessonsApi.remove(lessonId); router.push("/learn/my"); }
     catch (failure) { setError(failure); setDeleting(false); }
   }
 
@@ -71,7 +71,7 @@ function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
         <section role="alert" className="hub-card mx-auto mt-8 max-w-[44rem] p-6 sm:p-8">
           <h1 className="type-h3">{info.title}</h1>
           <p className="mt-2 text-secondary">{info.detail}</p>
-          <Link href="/learn" className="mt-5 inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white">Back to lessons</Link>
+          <Link href="/learn/my" className="mt-5 inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 font-medium text-white">Back to my lessons</Link>
         </section>
       );
     }
@@ -84,9 +84,9 @@ function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
   return (
     <article className="mx-auto max-w-[880px] pb-[clamp(64px,8vw,120px)]">
       <header className="pt-[clamp(20px,3vw,40px)]">
-        <Link href="/learn" className="inline-flex min-h-11 items-center text-[0.875rem] font-medium text-secondary hover:text-foreground">← Back to lessons</Link>
+        <Link href="/learn/my" className="inline-flex min-h-11 items-center text-[0.875rem] font-medium text-secondary hover:text-foreground">← Back to my lessons</Link>
         <ul className="mt-4 flex flex-wrap gap-1.5 text-[0.8125rem]" aria-label="Lesson details">
-          <li className="rounded-full bg-primary-soft px-2.5 py-1 font-medium text-primary-ink">AI-generated</li>
+          <li className="rounded-full bg-primary-soft px-2.5 py-1 font-medium text-primary-ink">AI-created</li>
           <li className="rounded-full border border-border bg-surface px-2.5 py-1 font-medium">{lesson.language}</li>
           <li className="rounded-full border border-border bg-surface px-2.5 py-1 capitalize">{lesson.level}</li>
           <li className="rounded-full border border-border bg-surface px-2.5 py-1">Lesson {lesson.position}</li>
@@ -129,7 +129,7 @@ function AccountCustomLessonView({ lessonId }: { lessonId: string }) {
               Next lesson<ArrowRight aria-hidden="true" className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={1.8} />
             </Link>
           ) : (
-            <Link href="/learn" className={`inline-flex min-h-11 items-center rounded-[11px] px-5 font-medium ${allDone ? "bg-foreground text-white hover:bg-foreground/85" : "border border-border-strong bg-surface hover:bg-surface-muted"}`}>Back to lessons</Link>
+            <Link href="/learn/my" className={`inline-flex min-h-11 items-center rounded-[11px] px-5 font-medium ${allDone ? "bg-foreground text-white hover:bg-foreground/85" : "border border-border-strong bg-surface hover:bg-surface-muted"}`}>Back to my lessons</Link>
           )}
           {supportEmail && <a href={`mailto:${supportEmail}?subject=${encodeURIComponent("Problem with an AI-generated lesson")}`} className="min-h-11 content-center text-[0.875rem] underline underline-offset-4">Report a problem with this lesson</a>}
         </div>

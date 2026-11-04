@@ -81,52 +81,67 @@ test("post-sign-in destinations are limited to a same-origin allowlist", () => {
 });
 
 // ---------- Lessons hub ----------
-test("hub: a guest sees the lesson library and sign-in prompts, and no learner request is made", async () => {
+test("hub: a guest sees the two lessons with sign-in buttons, the switcher, and no learner request", async () => {
   wrap(<LessonsHub />);
-  expect(await screen.findByRole("heading", { name: "Sign in to start the lessons" })).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Trace lessons" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Sign in to start Follow the note" })).toHaveAttribute("href", "/sign-in?next=%2Flearn%2Ffastapi-payload-mismatch");
+  expect(await screen.findByRole("link", { name: "Sign in to start Follow the note" })).toHaveAttribute("href", "/sign-in?next=%2Flearn%2Ffastapi-payload-mismatch");
   expect(screen.getByRole("link", { name: "Sign in to start The nested payload" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Try the demo" })).toHaveAttribute("href", "/#demo");
-  expect(screen.queryByText(/lessons completed/)).toBeNull();
-  expect(screen.getByText("Private guides you create will appear here.")).toBeVisible();
-  expect(screen.getByText("You haven't created a lesson yet.")).toBeVisible();
+  expect(screen.getAllByRole("article")).toHaveLength(2);
+  const switcher = screen.getByRole("navigation", { name: "Lesson library" });
+  expect(within(switcher).getByRole("link", { name: "Trace lessons" })).toHaveAttribute("aria-current", "page");
+  expect(within(switcher).getByRole("link", { name: "My lessons" })).toHaveAttribute("href", "/learn/my");
+  expect(screen.getByText("Sign in to start. Each lesson takes 5–10 minutes.")).toBeVisible();
+  // Removed from /learn: the demo nudge banner, follow-ups and explanatory sections.
+  for (const gone of [/Try the demo/, /Follow-ups/, /lessons completed/, /Start here/]) expect(screen.queryByText(gone)).toBeNull();
   for (const call of [fixture.identity, fixture.journey, fixture.lesson, fixture.me, fixture.customList, fixture.guideList]) expect(call).not.toHaveBeenCalled();
 });
-test("hub: a new signed-in learner sees both real lessons, the transfer locked with its reason, and no fake lessons", async () => {
+test("hub: a new signed-in learner sees both lessons, one button each, and the transfer locked with its reason", async () => {
   fixture.auth = { status: "signed-in", email: "learner@example.test" };
   wrap(<LessonsHub />);
-  expect(await screen.findByText("0 of 2 lessons completed")).toBeVisible();
+  expect(await screen.findByText("0 of 2 completed")).toBeVisible();
+  expect(screen.getByText("New here? Start with lesson 1. It takes about 5 minutes.")).toBeVisible();
   const cards = screen.getAllByRole("article");
   expect(cards).toHaveLength(2);
-  expect(within(cards[1]).getByText("Locked")).toBeVisible();
-  expect(within(cards[1]).getByText(/Opens when you complete/)).toBeVisible();
+  expect(within(cards[0]).getByText("Not started")).toBeVisible();
+  expect(within(cards[0]).getAllByRole("link")).toHaveLength(1);
+  expect(within(cards[0]).getByRole("link", { name: "Start" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+  expect(within(cards[1]).getAllByText("Locked").length).toBeGreaterThan(0);
   expect(within(cards[1]).queryByRole("link")).toBeNull();
-  expect(screen.getByRole("heading", { name: "More lessons are being written" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Start lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+  const locked = within(cards[1]).getByRole("button", { name: "Locked" });
+  expect(locked).toBeDisabled();
+  expect(locked).toHaveAccessibleDescription("Finish lesson 1 to unlock");
+  expect(screen.queryByRole("heading", { name: "Continue" })).toBeNull();
+  expect(screen.queryByText(/Follow-up/)).toBeNull();
 });
-test("hub: a new signed-in learner gets a Start here guide and an empty My lessons with one way in", async () => {
-  fixture.auth = { status: "signed-in", email: "learner@example.test" };
-  wrap(<LessonsHub />);
-  expect(await screen.findByRole("heading", { name: "Start here" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Open lesson 1" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
-  expect(screen.getByRole("heading", { name: "My lessons" })).toBeVisible();
-  expect(screen.getAllByRole("link", { name: /^Create a lesson/ })).toHaveLength(1);
-});
-test("hub: Start here disappears once the learner has started", async () => {
+test("hub: the Continue card appears only while a lesson is unfinished", async () => {
   fixture.auth = { status: "signed-in", email: "learner@example.test" };
   fixture.journey.mockResolvedValue(journeyWith({ sessions: [session("a", "needs_revision")], attempt_count: 1 }));
   wrap(<LessonsHub />);
-  expect(await screen.findByRole("heading", { name: "Continue where you left off" })).toBeVisible();
-  expect(screen.queryByRole("heading", { name: "Start here" })).toBeNull();
+  const resume = await screen.findByRole("region", { name: "Continue" });
+  expect(within(resume).getByText("Follow the note")).toBeVisible();
+  expect(within(resume).getAllByRole("link")).toHaveLength(1);
+  expect(within(resume).getByRole("link", { name: "Continue Follow the note" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+  expect(within(screen.getAllByRole("article")[0]).getByText("Needs revision")).toBeVisible();
+  expect(screen.queryByText(/New here\?/)).toBeNull();
 });
-test("hub: a returning learner sees where they left off and the unlocked transfer", async () => {
+test("hub: a returning learner sees progress, Review for the finished lesson and Continue for the transfer", async () => {
   fixture.auth = { status: "signed-in", email: "learner@example.test" };
   fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("a", "completed")], attempt_count: 2 }, { available: true, sessions: [session("b", "needs_revision")], attempt_count: 1 }));
   wrap(<LessonsHub />);
-  expect(await screen.findByRole("heading", { name: "Continue where you left off" })).toBeVisible();
-  expect(screen.getByText("1 of 2 lessons completed")).toBeVisible();
-  expect(screen.getByRole("link", { name: "Revise your change" })).toHaveAttribute("href", "/learn/fastapi-nested-payload-transfer");
+  expect(await screen.findByRole("region", { name: "Continue" })).toBeVisible();
+  expect(screen.getByText("1 of 2 completed")).toBeVisible();
+  const [first, second] = screen.getAllByRole("article");
+  expect(within(first).getByText("Completed")).toBeVisible();
+  expect(within(first).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/learn/fastapi-payload-mismatch");
+  expect(within(second).getByRole("link", { name: "Continue" })).toHaveAttribute("href", "/learn/fastapi-nested-payload-transfer");
+});
+test("hub: with no Trace lesson in progress, Continue offers the newest unfinished custom lesson", async () => {
+  fixture.auth = { status: "signed-in", email: "learner@example.test" };
+  fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("a", "completed")] }, { available: true }));
+  fixture.customList.mockResolvedValue({ items: [{ id: "custom-1", request_id: "r", position: 1, title: "Closures in JavaScript", objective: "o", language: "JavaScript", level: "beginner", created_at: now, challenge_count: 4, completed_challenges: 1 }] });
+  wrap(<LessonsHub />);
+  const resume = await screen.findByRole("region", { name: "Continue" });
+  expect(within(resume).getByRole("link", { name: "Continue Closures in JavaScript" })).toHaveAttribute("href", "/learn/custom/custom-1");
+  expect(within(resume).getByText("1 of 4 challenges done")).toBeVisible();
 });
 test("hub: a signed-in account with unclaimed guest history is asked before any learning history is created", async () => {
   fixture.auth = { status: "signed-in", email: "learner@example.test" };
@@ -136,7 +151,7 @@ test("hub: a signed-in account with unclaimed guest history is asked before any 
   expect(fixture.identity).not.toHaveBeenCalled();
   expect(fixture.journey).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Start fresh on this account" }));
-  await screen.findByText("0 of 2 lessons completed");
+  await screen.findByText("0 of 2 completed");
   expect(fixture.identity).toHaveBeenCalled();
 });
 test("hub: load errors offer a retry", async () => {
@@ -149,7 +164,7 @@ test("hub: load errors offer a retry", async () => {
   expect(await screen.findByText(/couldn't reach the lesson server/, {}, { timeout: 5000 })).toBeVisible();
   expect(fixture.journey).toHaveBeenCalledTimes(2);
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByText("0 of 2 lessons completed")).toBeVisible();
+  expect(await screen.findByText("0 of 2 completed")).toBeVisible();
 });
 
 // ---------- Completion panel ----------
@@ -206,6 +221,21 @@ test("account: the timeline shows real predictions, attempts and observed result
   expect(screen.getByRole("heading", { name: "Concepts practised" })).toBeVisible();
   expect(screen.queryByText(/%/)).toBeNull();
 });
+test("account: follow-ups live here (moved from /learn), from the real journey", async () => {
+  fixture.me.mockResolvedValue({ ...account, learner_id: "learner" });
+  const due = { id: "c1", ordinal: 1, status: "due" as const, due_at: now, completed_at: null, attempt_count: 0, transfer_session_id: "t" };
+  const later = { ...due, id: "c2", ordinal: 2, status: "upcoming" as const };
+  fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("done", "completed")] }, { completed: true, available: true, sessions: [session("t", "completed")] }, [later, due]));
+  fixture.progress.mockResolvedValue(completedProgress);
+  wrap(<AccountDashboard />);
+  const heading = await screen.findByRole("heading", { name: "Follow-ups" });
+  const section = heading.closest("section")!;
+  expect(section).toHaveAttribute("id", "follow-ups");
+  const cards = within(section).getAllByRole("listitem");
+  expect(cards).toHaveLength(2);
+  expect(cards[0]).toHaveTextContent("Follow-up 1");
+  expect(cards[1]).toHaveTextContent("Follow-up 2");
+});
 test("account: claim requires confirmation and a conflict keeps the same retry key", async () => {
   fixture.me.mockResolvedValue({ ...account, anonymous_history_available: true });
   const { ApiError } = await import("@/lib/api/client");
@@ -252,12 +282,12 @@ test("hub: switching signed-in accounts clears the previous account's cached jou
   fixture.auth = { status: "signed-in", userId: "owner-a" };
   fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("owner-a-session", "completed")] }));
   const view = render(<LessonsHub />);
-  expect(await screen.findByText("1 of 2 lessons completed")).toBeVisible();
+  expect(await screen.findByText("1 of 2 completed")).toBeVisible();
   fixture.auth = { status: "signed-in", userId: "owner-b" };
   fixture.journey.mockResolvedValue(journeyWith({}));
   view.rerender(<LessonsHub />);
-  expect(screen.queryByText("1 of 2 lessons completed")).toBeNull();
-  expect(await screen.findByText("0 of 2 lessons completed")).toBeVisible();
+  expect(screen.queryByText("1 of 2 completed")).toBeNull();
+  expect(await screen.findByText("0 of 2 completed")).toBeVisible();
   expect(fixture.identity).toHaveBeenCalledTimes(2);
   expect(fixture.journey).toHaveBeenCalledTimes(2);
 });
