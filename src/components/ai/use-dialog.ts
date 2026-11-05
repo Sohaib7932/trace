@@ -17,7 +17,11 @@ export function useDialog(open: boolean, onClose: () => void, initialFocus?: () 
   useEffect(() => {
     if (!open) return;
     returnTo.current = document.activeElement as HTMLElement | null;
-    const frame = requestAnimationFrame(() => (initialFocus?.() ?? panel.current?.querySelector<HTMLElement>(FOCUSABLE))?.focus());
+    const frame = requestAnimationFrame(() => {
+      // A user may already be typing before this frame runs. Keep their chosen focus.
+      if (!panel.current || panel.current.contains(document.activeElement)) return;
+      (initialFocus?.() ?? panel.current.querySelector<HTMLElement>(FOCUSABLE))?.focus();
+    });
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") { event.preventDefault(); close.current(); return; }
       if (event.key !== "Tab" || !panel.current) return;

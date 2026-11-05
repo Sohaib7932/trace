@@ -230,7 +230,11 @@ test("account: a due follow-up from the real journey shows on Overview", async (
   const due = { id: "c1", ordinal: 1, status: "due" as const, due_at: now, completed_at: null, attempt_count: 0, transfer_session_id: "t" };
   const later = { ...due, id: "c2", ordinal: 2, status: "upcoming" as const };
   fixture.journey.mockResolvedValue(journeyWith({ completed: true, sessions: [session("done", "completed")] }, { completed: true, available: true, sessions: [session("t", "completed")] }, [later, due]));
-  fixture.progress.mockResolvedValue(completedProgress);
+  fixture.progress.mockImplementation(async (id: string) => ({
+    ...completedProgress,
+    session: { ...completedProgress.session, id },
+    lesson: id === "t" ? { ...lesson, id: "fastapi-nested-payload-transfer", title: "The Nested Payload Problem" } : lesson,
+  }));
   wrap(<AccountDashboard />);
   const heading = await screen.findByRole("heading", { name: "A follow-up is ready" });
   const cards = await within(heading.closest("section")!).findAllByRole("listitem");

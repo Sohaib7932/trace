@@ -208,8 +208,9 @@ def test_disconnect_prevents_history_read_and_new_question_without_deleting_arti
 def test_question_route_uses_existing_rate_admission(project_http):
     project = project_http
     ingest(project)
-    # Setup/ingestion already consumed four account requests in this window.
-    for _ in range(6):
+    # GitHub HTTP admission allows 30 account requests per minute, independently
+    # of AI provider quotas. Setup/ingestion already consumed four requests.
+    for _ in range(30 - 4):
         assert (
             project.api.client.get(
                 project.path + "/knowledge", params={"commit_sha": SHA}

@@ -4,6 +4,8 @@ Answer keys (correct_option, model_answer) are read only to check an answer; no 
 here ever contains them.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -17,6 +19,7 @@ from app.db.custom_lesson_models import (
     CustomLessonRequestRow,
     CustomLessonRow,
 )
+from app.db.models import WriteGate
 from app.db.session import Database
 from app.repositories.custom_lessons import (
     AnswerOutcome,
@@ -65,6 +68,15 @@ class SqlCustomLessonRepository:
     def __init__(self, database: Database) -> None:
         self.database = database
 
+    @contextmanager
+    def _write(self) -> Iterator[Session]:
+        # Reserve the same write gate as account/learning transactions before reads.
+        # This avoids SQLite lock upgrades and keeps quota/idempotency checks atomic.
+        # These scopes contain only database work, never provider I/O.
+        with self.database.session() as session, session.begin():
+            session.execute(update(WriteGate).where(WriteGate.id == 1).values(id=1))
+            yield session
+
     # ---------- requests ----------
     def create_request(
         self,
@@ -77,7 +89,7 @@ class SqlCustomLessonRepository:
         per_minute: int,
         per_day: int,
     ) -> CreateOutcome:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             existing = session.scalar(
                 select(CustomLessonRequestRow).where(
                     CustomLessonRequestRow.account_id == account_id,
@@ -132,7 +144,7 @@ class SqlCustomLessonRepository:
     def get_request(
         self, account_id: UUID, request_id: UUID, now: datetime, stale_after: timedelta
     ) -> CustomLessonRequestView | None:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             row = session.get(CustomLessonRequestRow, request_id)
             if row is None or row.account_id != account_id:
                 return None
@@ -144,7 +156,7 @@ class SqlCustomLessonRepository:
     def cancel_request(
         self, account_id: UUID, request_id: UUID, now: datetime
     ) -> CustomLessonRequestView | None:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             row = session.get(CustomLessonRequestRow, request_id)
             if row is None or row.account_id != account_id:
                 return None
@@ -156,7 +168,7 @@ class SqlCustomLessonRepository:
     def recover_interrupted(self, now: datetime) -> int:
         """Nothing can be running at startup. Tolerates a database not yet at head."""
         try:
-            with self.database.session() as session, session.begin():
+            with self._write() as session:
                 result = session.execute(
                     update(CustomLessonRequestRow)
                     .where(CustomLessonRequestRow.status.in_(ACTIVE))
@@ -197,7 +209,7 @@ class SqlCustomLessonRepository:
 
     # ---------- generation job ----------
     def start_generation(self, request_id: UUID, now: datetime) -> GenerationJob | None:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             row = session.get(CustomLessonRequestRow, request_id)
             if row is None or row.status != "queued":
                 return None
@@ -222,7 +234,7 @@ class SqlCustomLessonRepository:
             )
 
     def finish(self, request_id: UUID, status: str, code: str | None, now: datetime) -> None:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             session.execute(
                 update(CustomLessonRequestRow)
                 .where(
@@ -241,7 +253,7 @@ class SqlCustomLessonRepository:
         now: datetime,
     ) -> bool:
         """Stores one validated lesson unless the request was cancelled meanwhile."""
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             current = session.get(CustomLessonRequestRow, request_id)
             if current is None or current.status != "generating":
                 return False
@@ -299,7 +311,7 @@ class SqlCustomLessonRepository:
             )
 
     def delete_lesson(self, account_id: UUID, lesson_id: UUID) -> bool:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             row = session.get(CustomLessonRow, lesson_id)
             if row is None or row.account_id != account_id:
                 return False
@@ -406,7 +418,7 @@ class SqlCustomLessonRepository:
         text: str | None,
         now: datetime,
     ) -> AnswerOutcome:
-        with self.database.session() as session, session.begin():
+        with self._write() as session:
             lesson = session.get(CustomLessonRow, lesson_id)
             challenge = session.get(CustomChallengeRow, challenge_id)
             if (
