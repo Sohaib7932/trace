@@ -1,7 +1,7 @@
 # Global leaderboard API integration
 
 Implemented on `codex/leaderboard-backend`, based on `72bcfc329543f8d51e256a15d9be3beca61b7a30`.
-This is backend work awaiting review. No frontend component or live leaderboard client is enabled by this change.
+That initial checkpoint was saved as `1c019698dc20c53ce8265b2eb0fada6d9c3cb88c`; the current integration review is `codex/trace-backend-logging-integration` on merged main `646b9bf1de05c31139d96682c8901007a7213e5e`. This is backend work awaiting review. No frontend component or live leaderboard client is enabled by this change.
 
 ## Endpoint and authentication
 
