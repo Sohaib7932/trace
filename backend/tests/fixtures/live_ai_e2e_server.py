@@ -17,6 +17,7 @@ from app.ai.providers.bounded_support import BoundedSupportAssistant
 from app.api.dependencies import current_account, get_http_support_service
 from app.core.ai_settings import AIClientSettings
 from app.core.settings import Settings
+from app.core.tutor_settings import TutorSettings
 from app.db.github_projects import SqlGitHubProjectRepository
 from app.db.learning import SqlLearningRepository
 from app.db.migrations import migration_config
@@ -208,6 +209,9 @@ def main():
                     conversational_model_id="fixture-conversation-model",
                 ),
                 ai_transport_factory=lambda: transport,
+                # All browser journeys share one loopback client and one minute window. The default
+                # 120-per-minute project/tutor ingress allowance is for real users, not this suite.
+                tutor_settings=TutorSettings(_env_file=None, ingress_requests_per_minute=600),
             )
             original_lifespan = app.router.lifespan_context
 
