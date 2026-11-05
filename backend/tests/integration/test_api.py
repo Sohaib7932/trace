@@ -60,6 +60,7 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
         "/api/v1/account/me",
         "/api/v1/account/me/learner",
         "/api/v1/account/claim-anonymous",
+        "/api/v1/leaderboard",
         "/api/v1/admin/knowledge/revisions",
         "/api/v1/admin/knowledge/revisions/{revision_id}",
         "/api/v1/admin/knowledge/revisions/{revision_id}/transitions",
