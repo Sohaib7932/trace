@@ -6,7 +6,7 @@ Base: `72bcfc329543f8d51e256a15d9be3beca61b7a30` (merged PR #31).
 The backend implements `GET /api/v1/leaderboard` using existing registered-account
 ownership and server-verification histories. No migration or scoring table is required.
 The integration contract is [leaderboard-api-integration.md](../leaderboard-api-integration.md).
-Changes remain uncommitted; this workstream did not stage, commit, push, open a PR or merge.
+At the original validation checkpoint, changes were uncommitted and no publication occurred. The later authorized integration task saved checkpoint commit `1c019698dc20c53ce8265b2eb0fada6d9c3cb88c` and pushed `codex/leaderboard-backend`; see `backend-logging-integration.md` for the newer-main integration results.
 
 ## Verified gates
 

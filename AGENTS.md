@@ -18,7 +18,7 @@ Always commit .claude-logs/ with your changes.
 
 That is an inclusion policy for user-authorized commits. Do not commit or push without explicit approval.
 
-The existing `.claude/settings.json` and `.claude/hooks/extract-log.py` are Claude-specific. Their historical behavior and logs are preserved; they do not enable Codex logging. Verify real prompts and emitted final answers across genuine turns before claiming automatic capture works.
+The `.claude/settings.json` and `.claude/hooks/extract-log.py` are Claude-specific; they do not enable Codex logging. The Claude entry point uses `scripts/agent_session_logs.py` to read the exact primary-session transcript and exclude subagents. Historical logs remain preserved. Codex native hooks stay separate; explicit JSONL recovery must never be described as automatic capture. Verify real prompts and emitted final answers across genuine turns before claiming either integration works. See `scripts/CODEX_LOGGING.md` for the current verification status and repository-only setup.
 
 `.claude-logs/` is the single log directory for every agent and every teammate (Claude Code, Codex, Cursor, etc.). Never add it to `.gitignore`, and don't create per-agent folders like `.codex-logs/`.
 
