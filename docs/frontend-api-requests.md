@@ -395,3 +395,37 @@ With only two server-verified Trace lessons, scores will be 0, 1 or 2 and most u
    submit button in `src/components/learning/hub/custom-lessons.tsx` and post 10a with an
    `Idempotency-Key`; render statuses (queued, generating, needs review, ready, failed).
    Remove the "Coming soon" line. Update `tests/components/lesson-refinement.test.tsx`.
+
+## Projects (GitHub): what the screens need that the contract does not have yet
+
+The Projects screens (`/projects`, `/projects/connect`, `/projects/import`, `/projects/[connectionId]`,
+`.../path`, `.../manage`) use only the 13 `/api/v1/projects/github/*` endpoints in
+`backend/openapi.json`. Each item below is shown in the UI as an honest unavailable or manual state,
+never as fake data. When an endpoint ships, replace the manual step with the call (see the file named
+in each item).
+
+1. **Latest commit for a repository.** Today a learner must paste a full 40-character commit SHA, because
+   no endpoint returns the default branch's head. Request: `GET /projects/github/repositories/{connection_id}/head`
+   returning `{ default_branch, commit_sha, committed_at }`. UI: `src/components/projects/project-view.tsx`
+   (the "Choose the commit" card) would become a one-click "Use the latest commit" plus the manual field.
+2. **Delete stored project data.** Disconnect keeps private history; nothing deletes snapshots, knowledge or
+   learning paths. Request: `DELETE /projects/github/repositories/{connection_id}/data` (idempotent, returns counts
+   deleted). UI: `manage-view.tsx` shows an unavailable note where a typed-confirmation delete belongs.
+3. **Import status for long reads.** `POST .../ingest` is one synchronous call (it can return 504, which the UI
+   treats as "unconfirmed, check state"). Request: an operation resource (`POST .../ingest` returning `202` with an
+   id, `GET .../operations/{id}` with `queued | fetching | indexing | failed | ready` and a reason code) so the
+   pipeline tracker can show real stages and poll. Until then the tracker shows the stage in flight on the client
+   and re-reads saved results (`GET .../snapshot`, `GET .../knowledge`, `GET .../learning-path`).
+4. **Outdated detection.** There is no way to know a pinned commit is behind the default branch (needs item 1).
+5. **Plan review and approval; lessons list; answers and progress.** The backend produces one learning path per
+   commit (`project-learning-v1`: title, steps with a question and cited sources). There is no plan to approve, no
+   per-step progress, and `can_complete_lesson` is always `false`. The UI therefore shows the path as practice only:
+   no completion, nothing on the leaderboard. Request, if wanted: step-level progress (`POST .../learning-path/{id}/steps/{n}/response`)
+   and a completion rule the server owns.
+6. **Languages.** `RepositoryView` has no language or size. Language chips come from the file extensions in the
+   read catalog (only after a repository is read). Request: `language` and `size_kb` on `RepositoryView`.
+7. **Batch connect.** Repositories are connected one request at a time (the server allows one active GitHub request
+   per account). The picker caps one batch at 10 (`MAX_SELECTION` in `src/lib/projects/format.ts`). Request: a
+   documented per-request limit, or a batch endpoint.
+8. **Idempotency.** None of these endpoints takes an `Idempotency-Key`. Repeats are safe by design (connect,
+   ingest and sync are keyed by repository and commit), so the UI sends none.

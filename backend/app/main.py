@@ -33,7 +33,7 @@ from app.core.embedding_settings import EmbeddingSettings
 from app.core.errors import register_error_handlers
 from app.core.feedback_middleware import FeedbackSecurityMiddleware
 from app.core.feedback_settings import FeedbackSettings
-from app.core.github_settings import GitHubSettings
+from app.core.github_settings import GitHubSettings, load_github_env_file
 from app.core.https_middleware import ProductionHTTPSMiddleware
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
@@ -96,6 +96,9 @@ def create_app(
     accounting_config = accounting_settings or AccountingSettings(_env_file=None)
     embedding_config = embedding_settings or EmbeddingSettings(_env_file=None)
     retrieval_config = retrieval_settings or RetrievalSettings(_env_file=None)
+    if github_settings is None and config.environment == "development":
+        # Owner GitHub App values live in the untracked backend/.env.github (names only here).
+        load_github_env_file()
     github_config = github_settings or GitHubSettings(_env_file=None)
     custom_lesson_config = custom_lesson_settings or CustomLessonSettings()
     if config.environment == "production":

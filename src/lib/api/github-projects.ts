@@ -30,6 +30,8 @@ export const githubProjectsApi = {
   connect: (installation_id: number, repository_id: number) => protectedApiRequest<GitHubConnection>(`${prefix}/repositories`, { installation_id, repository_id }),
   connections: () => protectedApiRequest<GitHubConnection[]>(`${prefix}/repositories`),
   sync: (id: string, commit_sha: string) => protectedApiRequest<ProjectSnapshot>(`${prefix}/repositories/${encodeURIComponent(id)}/sync`, { commit_sha }),
+  /** Saved snapshot for a pinned commit (404 until it has been synced). */
+  snapshot: (id: string, commit_sha: string) => protectedApiRequest<ProjectSnapshot>(`${prefix}/repositories/${encodeURIComponent(id)}/snapshot?commit_sha=${encodeURIComponent(commit_sha)}`),
   learningPath: (id: string, commit_sha: string) => protectedApiRequest<ProjectLearningPath>(`${prefix}/repositories/${encodeURIComponent(id)}/learning-path`, { commit_sha }),
   savedLearningPath: (id: string, commit_sha: string) => protectedApiRequest<ProjectLearningPath>(`${prefix}/repositories/${encodeURIComponent(id)}/learning-path?commit_sha=${encodeURIComponent(commit_sha)}`),
   disconnect: (id: string) => protectedApiRequest<GitHubConnection>(`${prefix}/repositories/${encodeURIComponent(id)}/disconnect`, {}),
