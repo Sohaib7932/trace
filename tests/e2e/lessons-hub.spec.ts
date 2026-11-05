@@ -55,9 +55,8 @@ test("the transfer lesson stays locked until the first is complete, then the com
   await page.screenshot({ path: testInfo.outputPath("learn-new.png"), fullPage: true });
 
   await page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Lessons" })).toBeVisible();
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await expect(page.getByRole("link", { name: /Back to lessons/ })).toBeVisible();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
   await page.getByLabel("Why do you expect that?").fill("The sender and receiver use different names.");
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await page.getByRole("button", { name: /^Change field name, currently / }).click();
@@ -145,12 +144,12 @@ test("keyboard alone can reach a lesson from the hub", async ({ page, request, i
   }
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/learn\/fastapi-payload-mismatch$/);
-  await expect(page.getByRole("button", { name: "Start lesson", exact: true })).toBeVisible();
-  // Keep tabbing until the lesson's own start button has focus.
+  await expect(page.getByRole("button", { name: "Lock prediction", exact: true })).toBeVisible();
+  // Keep tabbing until the first answer option has focus.
   let reached = false;
   for (let i = 0; i < 30 && !reached; i++) {
     await page.keyboard.press("Tab");
-    reached = await page.evaluate(() => document.activeElement?.textContent?.trim() === "Start lesson");
+    reached = await page.evaluate(() => document.activeElement instanceof HTMLInputElement && document.activeElement.type === "radio");
   }
   expect(reached).toBe(true);
 });

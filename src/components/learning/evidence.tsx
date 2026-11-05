@@ -10,7 +10,7 @@ const runTitle = (run: Verification) =>
 
 /** One verification run as evidence cards: what was checked, what was expected, what the server showed. */
 export function VerificationEvidence({ run, number }: { run: Verification; number: number }) {
-  return <>
+  return <section aria-label={`Verification evidence, attempt ${number}`} className="grid gap-3">
     <EvidenceCard title={`Attempt ${number} · ${runTitle(run)}`} tag="Server">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[0.9375rem] leading-relaxed">{run.feedback}</p>
@@ -21,12 +21,13 @@ export function VerificationEvidence({ run, number }: { run: Verification; numbe
       {run.status === "pending" && <p className="mt-2 text-[0.8125rem] text-secondary">The server is still checking this attempt. Refresh your saved progress to see the result.</p>}
     </EvidenceCard>
     {(run.checks ?? []).map((check) => (
-      <EvidenceCard key={check.code} title={check.code.replaceAll("_", " ")} tag={check.source}>
+      <EvidenceCard key={check.code} title={check.code} tag={check.source}>
         <p className="text-[0.875rem]"><span className="text-secondary">Expected:</span> {check.expected}</p>
-        <pre className="mt-1.5 max-h-64 overflow-auto rounded-md bg-surface-muted p-2 font-mono text-[0.8125rem] break-words whitespace-pre-wrap"><span className="sr-only">Observed: </span>{String(check.observed)}</pre>
+        <p className="sr-only">Observed</p>
+        <pre className="mt-1.5 max-h-64 overflow-auto rounded-md bg-surface-muted p-2 font-mono text-[0.8125rem] break-words whitespace-pre-wrap">{String(check.observed)}</pre>
       </EvidenceCard>
     ))}
-  </>;
+  </section>;
 }
 
 /**

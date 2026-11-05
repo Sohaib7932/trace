@@ -150,8 +150,7 @@ test("an uncertain attempt reuses its key and body; a deliberate new correction 
   await waitFor(() => expect(attempt).toHaveBeenCalledTimes(2));
   expect(attempt.mock.calls[1][2]).toBe(attempt.mock.calls[0][2]);
   expect(attempt.mock.calls[1][1]).toEqual(attempt.mock.calls[0][1]);
-  // The saved change is verified on the Verify step; a deliberate new correction starts from "Try another change".
-  await user.click(await screen.findByRole("button", { name: "Try another change" }));
+  // A failed check stays on Modify, so a deliberate new correction can be sent straight away.
   await user.click(await screen.findByRole("button", { name: "Check my change" }));
   await waitFor(() => expect(attempt).toHaveBeenCalledTimes(3));
   expect(attempt.mock.calls[2][2]).not.toBe(attempt.mock.calls[0][2]);

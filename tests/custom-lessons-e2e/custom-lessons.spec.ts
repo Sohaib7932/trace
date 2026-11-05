@@ -60,22 +60,19 @@ test("hub to composer to tracker to lesson to a server-checked answer, then My l
   await expect(page.getByText(/Checked on a real server/)).toHaveCount(0);
 
   // Challenge 1: read, predict (locked), change a line in the code, verify; wrong, then right.
-  const first = page.getByRole("region", { name: /Challenge 1 ·/ });
-  await first.getByRole("button", { name: "I've read it" }).click();
+  const first = page.getByRole("region", { name: /Challenge 1:/ });
   await first.getByText("It always fails").click();
   await first.getByRole("button", { name: "Lock prediction" }).click();
-  await expect(first.getByText("Your prediction · locked")).toBeVisible();
+  await expect(first.getByText("Locked", { exact: true })).toBeVisible();
   await first.getByRole("button", { name: "Try a change in the code" }).click();
   await first.getByRole("button", { name: "Change line 1" }).click();
   await first.getByRole("textbox", { name: "Line 1: your change" }).fill("from pydantic import BaseModel, Field");
   await first.getByRole("textbox", { name: "Line 1: your change" }).press("Enter");
-  await expect(first.getByText("Your answer doesn't match the lesson's answer key.")).toBeVisible();
-  await expect(first.getByText("This result comes from the lesson, not from running your code.")).toBeVisible();
-  await expect(first.getByText("Your change · line 1")).toBeVisible();
-  await first.getByRole("button", { name: "Try another change" }).click();
+  // A wrong answer stays on Modify with a "Not yet" note, as in the demo.
+  await expect(first.getByText(/Your answer doesn't match the lesson's answer key\./).first()).toBeVisible();
   await first.getByText("It describes the expected shape").click();
-  await first.getByRole("button", { name: /Check my answer/ }).click();
-  await expect(first.getByText("Your answer matches the lesson's answer key.")).toBeVisible();
+  await first.getByRole("button", { name: /Check my (answer|change)/ }).click();
+  await expect(first.getByText("Your answer matches the lesson's answer key.").first()).toBeVisible();
   await expect(first.getByText("Challenge 1 done")).toBeVisible();
   await expect(page.getByText("1 of 3 challenges done")).toBeVisible();
   await expect(page.getByText(/verified by the server|ran your code/i)).toHaveCount(0);
@@ -90,15 +87,14 @@ test("hub to composer to tracker to lesson to a server-checked answer, then My l
 
   // Reload: progress comes back from the server and the next unfinished challenge opens.
   await page.reload();
-  await expect(page.getByRole("region", { name: /Challenge 2 ·/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: /Challenge 2:/ })).toBeVisible();
   await page.getByRole("button", { name: "Challenge 3" }).click();
-  const third = page.getByRole("region", { name: /Challenge 3 ·/ });
-  await expect(third.getByText("Practice only")).toBeVisible();
-  await third.getByRole("button", { name: "I've read it" }).click();
+  const third = page.getByRole("region", { name: /Challenge 3:/ });
+  await expect(third.getByText("Practice only", { exact: true })).toBeVisible();
   await third.getByLabel("Your explanation").fill("It describes the data the code expects.");
   await third.getByRole("button", { name: "Lock it in" }).click();
   await third.getByRole("button", { name: /Check my answer/ }).click();
-  await expect(third.getByText("Compare your explanation with the lesson's example.")).toBeVisible();
+  await expect(third.getByText("Compare your explanation with the lesson's example.").first()).toBeVisible();
   await expect(page.getByText("2 of 3 challenges done")).toBeVisible();
   await noOverflow(page);
 

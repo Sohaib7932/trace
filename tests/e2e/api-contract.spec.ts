@@ -10,7 +10,7 @@ async function guard(page: Page, errors: string[]) {
   await page.route("**/api/v1/**", (route) => new URL(route.request().url()).origin === API ? route.continue() : route.abort("blockedbyclient"));
 }
 async function predict(page: Page) {
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
 }
@@ -21,7 +21,6 @@ test("Notes: real failure evidence, fixture hint slots, correction, completion a
   const errors: string[] = [];
   await guard(page, errors);
   await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   // Reason left blank: the form says what is saved, and the locked view never presents it as learner text.
   await expect(page.getByText(/If you leave this blank, Trace saves/)).toBeVisible();
   await predict(page);
@@ -31,25 +30,25 @@ test("Notes: real failure evidence, fixture hint slots, correction, completion a
   await page.getByRole("option", { name: /"body"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
   const failed = page.getByRole("region", { name: "Verification evidence, attempt 1" });
-  await expect(failed.getByRole("heading", { name: "Request rejected" })).toBeVisible();
+  await expect(failed.getByRole("heading", { name: /Request rejected/ })).toBeVisible();
   await expect(failed.getByText("422", { exact: true })).toBeVisible();
   await expect(failed.getByText("row_count", { exact: true })).toBeVisible();
 
   const guidance = page.getByRole("region", { name: "Recorded guidance" });
-  await expect(guidance.getByText("0 of 3 requests used · 0 delivered")).toBeVisible();
-  await guidance.getByRole("button", { name: "Request a hint" }).click();
-  await expect(guidance.getByText("Hint 1 · fixture guidance")).toBeVisible();
-  await expect(guidance.getByText("1 of 3 requests used · 1 delivered")).toBeVisible();
+  await expect(guidance.getByText(/0 of 3 hints used/)).toBeVisible();
+  await guidance.getByRole("button", { name: "Show a hint" }).click();
+  await expect(guidance.getByText(/Hint 1 ·/).first()).toBeVisible();
+  await expect(guidance.getByText(/1 of 3 hints used/)).toBeVisible();
 
   await page.getByRole("button", { name: /^Change field name, currently / }).click();
   await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Verification evidence, attempt 2" }).getByRole("heading", { name: "Persistence verified" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Verification evidence, attempt 2" }).getByRole("heading", { name: /Persistence verified/ })).toBeVisible();
   await expect(page.getByText("Lesson completed · verified by the server")).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Attempt 1 · body" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Attempt 2 · content" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your change · attempt 1/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your change · attempt 2/ })).toBeVisible();
   await expect(page.getByText("Lesson completed · verified by the server")).toBeVisible();
   await expect(page.getByRole("button", { name: "Leave this attempt" })).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -61,7 +60,6 @@ test("an unreachable backend leaves a recoverable state with the draft intact, t
   const errors: string[] = [];
   await guard(page, errors);
   await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await predict(page);
   await page.getByRole("button", { name: /^Change field name, currently / }).click();
   await page.getByRole("option", { name: /"content"/ }).click();
@@ -72,7 +70,7 @@ test("an unreachable backend leaves a recoverable state with the draft intact, t
   await expect(page.getByRole("button", { name: "Change field name, currently content" })).toBeVisible();
   await page.unroute("**/api/v1/sessions/*/attempts");
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Verification evidence, attempt 1" }).getByRole("heading", { name: "Persistence verified" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Verification evidence, attempt 1" }).getByRole("heading", { name: /Persistence verified/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -82,13 +80,11 @@ test("leaving an attempt needs confirmation, keeps history and allows a new atte
   const errors: string[] = [];
   await guard(page, errors);
   await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await predict(page);
   await page.getByRole("button", { name: "Leave this attempt" }).click();
   await expect(page.getByText(/Leave this attempt\? Its saved work stays/)).toBeVisible();
   await page.getByRole("button", { name: "Yes, leave it" }).click();
   await expect(page.getByText(/You left that attempt/)).toBeVisible();
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
   await expect(page.getByRole("form", { name: "Initial prediction" })).toBeVisible();
   expect(errors).toEqual([]);
 });

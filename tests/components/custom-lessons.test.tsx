@@ -155,25 +155,21 @@ test("loop: read, predict (locked), change a line, verify on the server, revise,
   await user.keyboard("{Enter}");
   expect(fx.api.answer).toHaveBeenNthCalledWith(1, "lesson-1", "c1", { selected_option: 0 }, expect.any(String));
 
-  // 04 Verify: evidence, neutral wording, the explanation held back until asked for.
-  expect(await within(card).findByText("Your answer doesn't match the lesson's answer key.")).toBeVisible();
-  expect(within(card).getAllByText("Prediction differed").length).toBeGreaterThan(0);
-  expect(within(card).getByText("Your change · line 2")).toBeVisible();
-  expect(within(card).getByText("This result comes from the lesson, not from running your code.")).toBeVisible();
+  // A wrong answer stays on Modify with a neutral "Not yet" note, like the demo; nothing is explained yet.
+  expect(await within(card).findByText(/Your answer doesn't match the lesson's answer key./)).toBeVisible();
   expect(within(card).queryByText("Validation runs first.")).toBeNull();
 
   // Revise: a new numbered attempt with a new key; the prediction stays locked.
-  await user.click(within(card).getByRole("button", { name: "Try another change" }));
   expect(within(card).getByText("A · 200")).toBeVisible();
   await user.click(within(card).getByRole("radio", { name: /^422/ }));
-  await user.click(within(card).getByRole("button", { name: /Check my answer/ }));
+  await user.click(within(card).getByRole("button", { name: /Check my (answer|change)/ }));
   expect(fx.api.answer).toHaveBeenNthCalledWith(2, "lesson-1", "c1", { selected_option: 1 }, expect.any(String));
   expect(fx.api.answer.mock.calls[1][3]).not.toBe(fx.api.answer.mock.calls[0][3]);
 
-  expect(await within(card).findByText("Your answer matches the lesson's answer key.")).toBeVisible();
+  expect((await within(card).findAllByText("Your answer matches the lesson's answer key.")).length).toBeGreaterThan(0);
   expect(within(card).getByText("Validation runs first.")).toBeVisible();
   expect(within(card).getByRole("list", { name: "Your attempts" })).toHaveTextContent("Attempt 1 · A · changed line 2 · didn't match");
-  expect(within(card).getByRole("list", { name: "Your attempts" })).toHaveTextContent("Attempt 2 · B · matched");
+  expect(within(card).getByRole("list", { name: "Your attempts" })).toHaveTextContent("Attempt 2 · B · changed line 2 · matched");
   // Completion only once the server reports it.
   expect(await within(card).findByText("Challenge 1 done")).toBeVisible();
   expect(screen.getByText("1 of 2 challenges done")).toBeVisible();

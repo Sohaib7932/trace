@@ -38,7 +38,7 @@ test("account: tabs, a created lesson in history and stats, avatar that persists
   await nav(page).getByRole("link", { name: "Account" }).click();
   await expect(page).toHaveURL(/\/account/);
   const stats = page.getByRole("heading", { name: "Your numbers" }).locator("xpath=ancestor::section[1]");
-  await expect(stats).toContainText("Lessons created1");
+  await expect(stats).toContainText("1Lessons created");
   // No Trace lesson started yet: the account has no learner, so Trace stats stay hidden (reading them would create one).
   await expect(stats).not.toContainText("Trace lessons completed");
 
@@ -52,8 +52,7 @@ test("account: tabs, a created lesson in history and stats, avatar that persists
   // Keyboard: arrow keys move between tabs.
   await tabs.getByRole("tab", { name: "Learning history" }).focus();
   await page.keyboard.press("ArrowRight");
-  await expect(tabs.getByRole("tab", { name: "Follow-ups" })).toHaveAttribute("aria-selected", "true");
-  await page.keyboard.press("End");
+  await expect(tabs.getByRole("tab", { name: "Settings" })).toHaveAttribute("aria-selected", "true");
   await expect(page).toHaveURL(/tab=settings$/);
   await expect(page.getByText("For support")).toBeVisible();
 
@@ -61,14 +60,14 @@ test("account: tabs, a created lesson in history and stats, avatar that persists
   await tabs.getByRole("tab", { name: "Overview" }).click();
   await page.getByRole("button", { name: "Change avatar" }).click();
   const dialog = page.getByRole("dialog", { name: "Choose your avatar" });
-  await dialog.getByRole("button", { name: "Rose drop" }).click();
+  await dialog.getByRole("button", { name: "Coral planet" }).click();
   await dialog.getByRole("button", { name: "Save avatar" }).click();
   await expect(dialog.getByText(/^Saved/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Change avatar" })).toBeFocused();
   await page.reload();
-  await expect(page.locator("header svg[data-avatar]").first()).toHaveAttribute("data-avatar", "rose-drop");
+  await expect(page.locator("header svg[data-avatar]").first()).toHaveAttribute("data-avatar", "planet-coral");
   await noOverflow(page);
   expect(errors).toEqual([]);
 });

@@ -2,7 +2,6 @@
 
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { LoopStep } from "@/lib/learning/custom-loop";
 import { CodeWindow } from "@/components/code/code-window";
@@ -15,7 +14,7 @@ import { ChangeStep, LockedPrediction, PredictionForm, actionStyle, panelStyle }
 import { EditableRequest } from "./editable-request";
 import { attemptBody, familyOf, flatRunRecorded, ORIGINAL } from "@/lib/learning/edits";
 import { AttemptHistory, Guidance, ProgressSummary } from "./evidence";
-import { LessonWindow, StepHeading, pillButton } from "./lesson-window";
+import { HintNote, LessonWindow, NotYet, StepHeading } from "./lesson-window";
 import { VerificationBadge } from "./verification-badge";
 
 
@@ -75,10 +74,8 @@ export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
     const lesson = bootstrap.data!.lesson;
     const body = { lesson_id: lesson.id, version: lesson.version };
     return learningApi.createSession(body, keyFor("start", body));
-  }, onSuccess: (session) => { keys.current.delete("start"); setNotice(""); setViewing(false); remember(session.id); }, onSettled: () => queryClient.invalidateQueries({ queryKey: ["learning-journey"] }) });
+  }, onSuccess: (session) => { keys.current.delete("start"); setNotice(""); remember(session.id); }, onSettled: () => queryClient.invalidateQueries({ queryKey: ["learning-journey"] }) });
   const [confirmLeave, setConfirmLeave] = useState(false);
-  // After a check the Verify step stays up until the learner chooses to try another change.
-  const [viewing, setViewing] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const abandon = useMutation({ mutationFn: () => learningApi.abandon(sessionId!),
     onSuccess: () => {
@@ -95,7 +92,7 @@ export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
     onSuccess: () => keys.current.delete("prediction"), onSettled: refresh });
   const attempt = useMutation({ mutationFn: (body: Schema["AttemptCreate"] | Schema["TransferAttemptCreate"]) => learningApi.attempt(sessionId!, body, keyFor("attempt", body)),
     // Like the demo: saving a change runs its real check straight away (one click).
-    onSuccess: (saved) => { keys.current.delete("attempt"); setViewing(true); verification.mutate(saved.id); }, onSettled: refresh });
+    onSuccess: (saved) => { keys.current.delete("attempt"); verification.mutate(saved.id); }, onSettled: refresh });
   const hint = useMutation({ mutationFn: () => {
     const attemptId = progress.data?.attempts.at(-1)?.id;
     return learningApi.hint(sessionId!, attemptId, keyFor("hint", { attemptId }));
@@ -106,7 +103,7 @@ export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
   const live = Boolean(sessionId && progress.data && state && state !== "abandoned");
   const unlocked = !task || Boolean(bootstrap.data && (journey.data ?? bootstrap.data.journey).phases.some((p) => p.lesson_id === lessonId && p.available));
   const restoring = Boolean(sessionId) && (progress.isPending || (Boolean(progress.error) && !progress.data));
-  const step: LoopStep = !unlocked || restoring ? "read" : !live || !progress.data?.prediction ? "predict" : state === "completed" || state === "verification_pending" || viewing ? "verify" : "change";
+  const step: LoopStep = !unlocked || restoring ? "read" : !live || !progress.data?.prediction ? "predict" : state === "completed" || state === "verification_pending" ? "verify" : "change";
   // Each new step takes focus on its heading (announced), never on first render.
   const lastStep = useRef(step);
   useEffect(() => {
@@ -184,7 +181,7 @@ export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
           <div>
             <StepHeading headingRef={headingRef} step={2} title="Modify" />
             <LockedPrediction prediction={progress.data.prediction} task={task} />
-            {state === "needs_revision" && <p className="mt-4 text-[0.9375rem]">The last check didn&apos;t pass. Try another change.</p>}
+            {state === "needs_revision" && <div className="mt-4"><NotYet>The last check didn&apos;t pass. Read what the server observed below, then try another change.</NotYet></div>}
             <div className="mt-5">
               <ChangeStep family={family} changed={!mustRunOriginal && editValue !== ORIGINAL[family]} mustRunOriginal={mustRunOriginal} pending={pending}
                 onReset={() => setEditValue(ORIGINAL[family])}
@@ -193,18 +190,23 @@ export function Workspace({ lessonId = LESSON }: { lessonId?: string }) {
             <div className="mt-4">
               <Guidance hints={progress.data.hints} summary={progress.data.summary} available={hintAvailable} pending={pending} onRequest={() => hint.mutate()} />
             </div>
+            {progress.data.attempts.length > 0 && <div className="mt-6">
+              <h4 className="type-label mb-3 text-secondary">Earlier attempts</h4>
+              <AttemptHistory progress={progress.data} pending={pending} onVerify={(id) => verification.mutate(id)} onRefresh={() => void refresh()} />
+            </div>}
           </div>
         )}
 
         {step === "verify" && progress.data && (
           <div>
             <StepHeading headingRef={headingRef} step={3} title="Verify" />
+            {progress.data.prediction && <div className="mb-4"><LockedPrediction prediction={progress.data.prediction} task={task} /></div>}
             <div className="grid gap-4">
               <AttemptHistory progress={progress.data} pending={pending} onVerify={(id) => verification.mutate(id)} onRefresh={() => void refresh()} />
+              {progress.data.hints.length > 0 && <ol className="grid gap-2" aria-label="Hints used">
+                {progress.data.hints.map((item) => <li key={item.id}><HintNote index={item.sequence}>{item.status === "error" ? "Unavailable. This request is recorded and used one slot." : item.text}<span className="ml-1 text-secondary">(fixture guidance)</span></HintNote></li>)}
+              </ol>}
               <ProgressSummary progress={progress.data} />
-              {state !== "completed" && state !== "verification_pending" && (
-                <button type="button" className={`${pillButton} justify-self-start`} onClick={() => setViewing(false)} disabled={pending}><RotateCcw aria-hidden="true" className="size-4" strokeWidth={1.8} />Try another change</button>
-              )}
             </div>
           </div>
         )}
