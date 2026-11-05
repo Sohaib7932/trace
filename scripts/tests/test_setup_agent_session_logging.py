@@ -23,7 +23,9 @@ SPEC.loader.exec_module(setup)
 class LoggingSetupTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.base = Path(self.temporary.name)
+        # Resolve once: on Windows runners the temp dir is a short 8.3 name (RUNNER~1) that the
+        # code under test resolves to the long one, so compare against the resolved path.
+        self.base = Path(self.temporary.name).resolve()
         self.home = self.base / "private-global-claude"
         self.project = self.make_project("Trace project $literal & spaces")
 
