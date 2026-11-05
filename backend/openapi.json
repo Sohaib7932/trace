@@ -2821,6 +2821,126 @@
         "title": "LanguageView",
         "type": "object"
       },
+      "LeaderboardEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "avatar_id": {
+            "title": "Avatar Id",
+            "type": "null"
+          },
+          "avatar_url": {
+            "title": "Avatar Url",
+            "type": "null"
+          },
+          "display_name": {
+            "description": "No public profile is currently stored.",
+            "title": "Display Name",
+            "type": "null"
+          },
+          "is_me": {
+            "title": "Is Me",
+            "type": "boolean"
+          },
+          "rank": {
+            "description": "Competition rank: equal counts share ranks 1, 1, 3.",
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "user_id": {
+            "description": "Stable opaque board identifier, not an account identifier.",
+            "title": "User Id",
+            "type": "string"
+          },
+          "verified_count": {
+            "description": "Distinct server-verified canonical problems.",
+            "minimum": 1.0,
+            "title": "Verified Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "user_id",
+          "display_name",
+          "avatar_id",
+          "avatar_url",
+          "verified_count",
+          "is_me"
+        ],
+        "title": "LeaderboardEntry",
+        "type": "object"
+      },
+      "LeaderboardMe": {
+        "additionalProperties": false,
+        "properties": {
+          "rank": {
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "verified_count": {
+            "minimum": 1.0,
+            "title": "Verified Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "verified_count"
+        ],
+        "title": "LeaderboardMe",
+        "type": "object"
+      },
+      "LeaderboardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "generated_at": {
+            "description": "UTC cutoff retained throughout this pagination.",
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "me": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeaderboardMe"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Viewer's position; null for zero completions."
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque continuation, or null at the end.",
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "entries",
+          "next_cursor",
+          "me",
+          "generated_at"
+        ],
+        "title": "LeaderboardResponse",
+        "type": "object"
+      },
       "LessonAlias": {
         "pattern": "^l[1-5]$",
         "type": "string"
@@ -7486,6 +7606,125 @@
         "summary": "Readiness",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/leaderboard": {
+      "get": {
+        "description": "Global all-time distinct verified problems, for active registered learners.\n\nCompetition ranks share ties (1, 1, 3); tied rows have a stable secondary order.\nOnly completed sessions with passed server verification and all five matching\nevidence categories count. Repeated sessions and lesson versions count once per\ncanonical lesson. AI practice and retrieval answers do not count.\n\nOnly positive scores are visible. No public profile is stored, so names/avatars\nare null. Account, learner and provider identifiers and emails are never returned.\nContinuations retain a UTC cutoff for scores, registrations and history claims.\nAccount disablement or role removal takes effect immediately, including on a\ncontinuation; restart pagination after such membership changes.",
+        "operationId": "get_leaderboard",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Leaderboard",
+        "tags": [
+          "leaderboard"
         ]
       }
     },

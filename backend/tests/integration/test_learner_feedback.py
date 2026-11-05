@@ -661,10 +661,14 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
         assert app.openapi() == expected
         custom = {p for p in expected["paths"] if p.startswith("/api/v1/custom-lessons")}
         assert len(custom) == 7
-        assert len(expected["paths"]) == 53
+        leaderboard = {p for p in expected["paths"] if p.startswith("/api/v1/leaderboard")}
+        assert leaderboard == {"/api/v1/leaderboard"}
+        assert len(expected["paths"]) == 54
         assert (
             sum(
-                not path.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
+                not path.startswith(
+                    ("/api/v1/admin/knowledge/", "/api/v1/custom-lessons", "/api/v1/leaderboard")
+                )
                 for path in expected["paths"]
             )
             == 39
@@ -673,7 +677,9 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
             sum(
                 method in {"get", "post", "put", "patch", "delete", "head", "options"}
                 for name, path in expected["paths"].items()
-                if not name.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
+                if not name.startswith(
+                    ("/api/v1/admin/knowledge/", "/api/v1/custom-lessons", "/api/v1/leaderboard")
+                )
                 for method in path
             )
             == 44

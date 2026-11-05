@@ -340,6 +340,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leaderboard
+         * @description Global all-time distinct verified problems, for active registered learners.
+         *
+         *     Competition ranks share ties (1, 1, 3); tied rows have a stable secondary order.
+         *     Only completed sessions with passed server verification and all five matching
+         *     evidence categories count. Repeated sessions and lesson versions count once per
+         *     canonical lesson. AI practice and retrieval answers do not count.
+         *
+         *     Only positive scores are visible. No public profile is stored, so names/avatars
+         *     are null. Account, learner and provider identifiers and emails are never returned.
+         *     Continuations retain a UTC cutoff for scores, registrations and history claims.
+         *     Account disablement or role removal takes effect immediately, including on a
+         *     continuation; restart pagination after such membership changes.
+         */
+        get: operations["get_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/learners/anonymous": {
         parameters: {
             query?: never;
@@ -1960,6 +1991,60 @@ export interface components {
             /** Note */
             note: string;
             verification: components["schemas"]["GeneratedVerification"];
+        };
+        /** LeaderboardEntry */
+        LeaderboardEntry: {
+            /** Avatar Id */
+            avatar_id: null;
+            /** Avatar Url */
+            avatar_url: null;
+            /**
+             * Display Name
+             * @description No public profile is currently stored.
+             */
+            display_name: null;
+            /** Is Me */
+            is_me: boolean;
+            /**
+             * Rank
+             * @description Competition rank: equal counts share ranks 1, 1, 3.
+             */
+            rank: number;
+            /**
+             * User Id
+             * @description Stable opaque board identifier, not an account identifier.
+             */
+            user_id: string;
+            /**
+             * Verified Count
+             * @description Distinct server-verified canonical problems.
+             */
+            verified_count: number;
+        };
+        /** LeaderboardMe */
+        LeaderboardMe: {
+            /** Rank */
+            rank: number;
+            /** Verified Count */
+            verified_count: number;
+        };
+        /** LeaderboardResponse */
+        LeaderboardResponse: {
+            /** Entries */
+            entries: components["schemas"]["LeaderboardEntry"][];
+            /**
+             * Generated At
+             * Format: date-time
+             * @description UTC cutoff retained throughout this pagination.
+             */
+            generated_at: string;
+            /** @description Viewer's position; null for zero completions. */
+            me: components["schemas"]["LeaderboardMe"] | null;
+            /**
+             * Next Cursor
+             * @description Opaque continuation, or null at the end.
+             */
+            next_cursor: string | null;
         };
         LessonAlias: string;
         /** LessonAssistantReply */
@@ -4808,6 +4893,83 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_leaderboard: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderboardResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

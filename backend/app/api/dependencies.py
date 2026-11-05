@@ -22,6 +22,7 @@ from app.db.candidates import SqlCandidateRepository
 from app.db.feedback_release import SqlFeedbackReleaseRepository
 from app.db.health import SqlReadinessProbe
 from app.db.knowledge import SqlKnowledgeRepository
+from app.db.leaderboard import SqlLeaderboardRepository
 from app.db.learning import SqlLearningRepository
 from app.db.session import Database
 from app.domain.accounts import AuthenticatedAccount, Principal
@@ -45,6 +46,7 @@ from app.services.health import HealthService
 from app.services.identity import COOKIE_NAME, IdentityService
 from app.services.knowledge import KnowledgeGovernanceService
 from app.services.knowledge_indexing import KnowledgeIndexingService
+from app.services.leaderboard import LeaderboardService
 from app.services.learner_feedback import LearnerFeedbackService
 from app.services.learning import LearningService
 from app.services.lesson_assistant import LessonAssistantService
@@ -118,6 +120,14 @@ def get_identity_service(
 
 def get_account_service(database: Annotated[Database, Depends(get_database)]) -> AccountService:
     return AccountService(SqlAccountRepository(database))
+
+
+def get_leaderboard_service(
+    request: Request, database: Annotated[Database, Depends(get_database)]
+) -> LeaderboardService:
+    return LeaderboardService(
+        SqlLeaderboardRepository(database), cast(Clock, request.app.state.clock)
+    )
 
 
 def optional_account(
