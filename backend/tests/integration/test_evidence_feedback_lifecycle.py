@@ -54,10 +54,14 @@ def test_internal_feedback_dependency_reuses_app_provider_and_existing_repositor
         assert app.openapi() == expected
         custom = {p for p in expected["paths"] if p.startswith("/api/v1/custom-lessons")}
         assert len(custom) == 7
-        assert len(expected["paths"]) == 53
+        leaderboard = {p for p in expected["paths"] if p.startswith("/api/v1/leaderboard")}
+        assert leaderboard == {"/api/v1/leaderboard"}
+        assert len(expected["paths"]) == 54
         assert (
             sum(
-                not path.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
+                not path.startswith(
+                    ("/api/v1/admin/knowledge/", "/api/v1/custom-lessons", "/api/v1/leaderboard")
+                )
                 for path in expected["paths"]
             )
             == 39

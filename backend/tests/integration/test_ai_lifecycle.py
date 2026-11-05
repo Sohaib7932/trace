@@ -211,13 +211,17 @@ def test_public_api_schema_matches_export_and_existing_fixture_hints_are_unchang
     assert learner.app.openapi() == baseline
     custom_paths = {path for path in baseline["paths"] if path.startswith("/api/v1/custom-lessons")}
     assert len(custom_paths) == 7
+    leaderboard_paths = {
+        path for path in baseline["paths"] if path.startswith("/api/v1/leaderboard")
+    }
+    assert leaderboard_paths == {"/api/v1/leaderboard"}
     legacy_paths = {
         path
         for path in baseline["paths"]
-        if not path.startswith(("/api/v1/admin/", "/api/v1/custom-lessons"))
+        if not path.startswith(("/api/v1/admin/", "/api/v1/custom-lessons", "/api/v1/leaderboard"))
     }
     assert len(legacy_paths) == 39
-    assert set(baseline["paths"]) - legacy_paths - custom_paths == {
+    assert set(baseline["paths"]) - legacy_paths - custom_paths - leaderboard_paths == {
         "/api/v1/admin/knowledge/revisions",
         "/api/v1/admin/knowledge/revisions/{revision_id}",
         "/api/v1/admin/knowledge/revisions/{revision_id}/transitions",

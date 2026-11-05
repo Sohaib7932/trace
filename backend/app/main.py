@@ -19,6 +19,7 @@ from app.api.v1.feedback import router as feedback_router
 from app.api.v1.github_projects import router as github_projects_router
 from app.api.v1.knowledge_admin import router as knowledge_admin_router
 from app.api.v1.knowledge_indexes import router as knowledge_indexes_router
+from app.api.v1.leaderboard import router as leaderboard_router
 from app.api.v1.learning import router as learning_router
 from app.api.v1.private_guides import router as private_guides_router
 from app.api.v1.project_knowledge import router as project_knowledge_router
@@ -483,6 +484,7 @@ def create_app(
     app.include_router(router)
     app.include_router(learning_router)
     app.include_router(account_router)
+    app.include_router(leaderboard_router)
     app.include_router(feedback_router)
     app.include_router(tutor_router)
     app.include_router(support_router)
