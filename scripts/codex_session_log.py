@@ -23,6 +23,9 @@ EVENT_ROLES = {"UserPromptSubmit": "PROMPT", "Stop": "RESPONSE"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 MARKER = re.compile(r"(?m)^\[CLAUDE_LOG_ENTRY type=(PROMPT|RESPONSE) num=(\d+) session=([A-Za-z0-9_-]+)\]\n")
 REDACTIONS = (
+    (r"(?i)([?&#](?:code|state|access_token|refresh_token|client_secret|id_token)=)[^&#\s<>\"')`]+", r"\1[REDACTED]"),
+    (r"(?m)^(\s*(?:(?i:export)\s+|\$(?i:env):)?[A-Z][A-Z0-9_]{1,127}\s*=\s*)[^\r\n]+", r"\1[ENV VALUE REDACTED]"),
+    (r"(?im)^([ \t]*(?:password|passwd|secret|token|api[_-]?key|client[_-]?secret)[ \t]*[:=][ \t]*)[^\r\n]+", r"\1[REDACTED]"),
     (r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", "[PRIVATE KEY REDACTED]"),
     (r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})", "[GITHUB TOKEN REDACTED]"),
     (r"\bsk-(?:ant-|proj-|live_|test_)?[A-Za-z0-9_-]{16,}", "[API KEY REDACTED]"),
@@ -165,7 +168,11 @@ def session_lock(root: Path, session: str):
 
 
 def read_log(path: Path, session: str) -> tuple[dict, list[dict]]:
-    text = path.read_text(encoding="utf-8")
+    return parse_log(path.read_text(encoding="utf-8"), session)
+
+
+def parse_log(text: str, session: str) -> tuple[dict, list[dict]]:
+    """Validate a rendered log before replacing a preserved session file."""
     if not text.startswith("---\n") or "\n---\n" not in text[4:]:
         raise ValueError("Existing session file has invalid frontmatter; refusing to overwrite it")
     head, body = text[4:].split("\n---\n", 1)
@@ -260,19 +267,23 @@ def statistics(entries: list[dict]) -> dict:
 def render(metadata: dict, entries: list[dict]) -> str:
     prompts = [e for e in entries if e["kind"] == "PROMPT"]
     replies = {e["num"] for e in entries if e["kind"] == "RESPONSE"}
-    pending = [e["num"] for e in prompts if e["num"] not in replies]
+    pending = [e["num"] for e in prompts if e["num"] not in replies and not e.get("is_turn_continuation")]
     metadata = {**metadata, "generated_at": now(), "total_exchanges": len(prompts), "total_responses": len(replies),
                 "session_status": "awaiting_response" if pending else "complete",
                 "last_entry_type": "user" if pending else "assistant", **statistics(entries)}
     lines = ["---", *(f"{k}: {json.dumps(v, ensure_ascii=False)}" for k, v in metadata.items()), "---", "",
              f"# Codex Session Log - {metadata['date']}", "",
              f"Session: `{metadata['session_id']}` | Project: `{metadata['project']}` | Author: `{metadata['author']}` | GitHub: `{metadata['github_user']}`", "", "---"]
-    for entry in sorted(entries, key=lambda e: (e["num"], e["kind"] == "RESPONSE")):
+    ordered = sorted(entries, key=lambda e: (instant(e.get("source_timestamp", e["timestamp"])), e.get("source_record_ordinal", float("inf")))) if metadata.get("entry_order") == "chronological" else sorted(entries, key=lambda e: (e["num"], e["kind"] == "RESPONSE"))
+    for entry in ordered:
         lines.extend(["", f"[CLAUDE_LOG_ENTRY type={entry['kind']} num={entry['num']} session={metadata['session_id']}]",
                       f"timestamp: {entry['timestamp']}", f"time: {instant(entry['timestamp']).astimezone():%Y-%m-%d %H:%M}",
                       f"chars: {len(entry['text'])}"])
         for key in ("turn_id", "capture_event", "timestamp_source", "model", "cwd"):
             lines.append(f"{key}: {json.dumps(entry.get(key), ensure_ascii=False)}")
+        for key in ("source_message_id", "source_record_ordinal", "source_record_type", "source_timestamp", "source_turn_trigger", "is_turn_continuation", "unpaired_final", "source_coverage", "original_exchange_number", "recovery_preserved_from", "provenance", "reconstructed"):
+            if key in entry:
+                lines.append(f"{key}: {json.dumps(entry[key], ensure_ascii=False)}")
         if entry["kind"] == "PROMPT":
             flags = paste_indicators(entry["text"])
             lines.append(f"words: {len(entry['text'].split())}")
@@ -325,7 +336,7 @@ def capture(payload: dict, root: Path = ROOT, identity_provider=attribution) -> 
         if entry["kind"] == "PROMPT":
             entry["num"] = 1 + max((e["num"] for e in entries), default=0)
         else:
-            matching = [e for e in entries if e["turn_id"] == entry["turn_id"] and e["kind"] == "PROMPT"]
+            matching = [e for e in entries if e["turn_id"] == entry["turn_id"] and e["kind"] == "PROMPT" and not e.get("is_turn_continuation")]
             if len(matching) != 1:
                 raise ValueError("Stop has no captured prompt for this turn; no historical backfill will be performed")
             entry["num"] = matching[0]["num"]

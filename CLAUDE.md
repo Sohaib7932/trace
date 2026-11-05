@@ -1,4 +1,13 @@
 # TRACE — CLAUDE.md
+
+## Session Logs
+
+Always commit .claude-logs/ with your changes.
+
+Use the shared primary-session logging setup documented in `scripts/CODEX_LOGGING.md`.
+Preserve genuine agent attribution; capture only prompts and emitted final answers.
+Logging does not authorize Git commits, pushes or publication.
+
 ## Product, Creative Direction, Design System & Engineering Standards
 
 > This document is the single source of truth for designing and developing Trace. Read it fully before making architectural, visual, or functional changes.

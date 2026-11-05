@@ -159,3 +159,134 @@ behaviour and its already-tracked session record are preserved as originally sto
 
 Keep `.claude-logs/` tracked and include it with any user-authorized commit.
 This logging task itself does not authorize committing or pushing.
+
+## Unified transcript setup — 2026-11-05
+
+The native Codex hook definitions remain unchanged. `codex_session_log.py` now also
+redacts OAuth callback values, environment assignments and short unquoted secrets.
+It still captures only native prompt/final fields; it never falls back to a guessed
+answer or silently imports historical JSONL.
+
+Both agents use `.claude-logs/<YYYY-MM-DD_HH-MM-SS>_<session-id>.md`. The required
+cohort frontmatter, statistics and PROMPT/RESPONSE markers are retained. Agent
+attribution remains `codex` or `claude-code`; Codex is never presented as Claude.
+
+The repository's Claude entry point, `.claude/hooks/extract-log.py`, now delegates
+to `scripts/agent_session_logs.py hook --agent claude`. The existing prompt/stop
+commands are preserved. Only the old logging `SubagentStop` handler was removed:
+new logs must not contain delegated reports. Existing historical logs are retained.
+The adapter reads the exact native `transcript_path`, session ID and cwd, not the
+most recently modified file. Historical Claude final answers require explicit
+terminal metadata; a genuine Stop can confirm only an intact final candidate.
+If Claude has not appended a submitted prompt yet, capture remains pending until
+the transcript supplies it. No source timestamp or missing answer is invented.
+
+### Explicit transcript recovery
+
+`agent_session_logs.py` provides a separate, opt-in transcript reader:
+
+```powershell
+python -B scripts/agent_session_logs.py export --agent codex --session-id SESSION_ID --transcript ABSOLUTE_JSONL_PATH --dry-run
+```
+
+Use `--agent claude` for an actual Claude JSONL. Remove `--dry-run` only after
+reviewing the selected session. Codex's observed `final_answer` phase and
+`task_complete` mirrors are deduplicated by turn ID. Tools, commentary, reasoning,
+injected context and subagent/guardian transcripts are excluded. For paginated
+Codex sessions, provide every ancestor with repeated `--transcript` arguments;
+the recorded byte and ordinal cutoffs must agree. Unrelated branches are rejected.
+Related worktree source directories require explicit `--source-cwd` arguments and
+must resolve to the same Git common directory as the target project.
+
+Exports identify themselves as transcript exports, not automatic capture. Existing
+native/legacy logs, including reconstructed filename variants, are preserved and
+reported instead of overwritten or duplicated. Exporter-managed logs are updated
+atomically under the same session lock and repeated identical exports do not
+rewrite them. There is no background watcher or automatic history scan.
+
+### Scope and installation
+
+The owner explicitly chose **repository-only configuration**. No global Claude or
+Codex settings, hook trust records, or Git ignore settings were changed.
+
+An optional installer is included for a future explicitly approved machine setup:
+
+```powershell
+python -B scripts/setup_agent_session_logging.py --project ABSOLUTE_REPOSITORY_ROOT
+```
+
+This is a dry run. `--apply` would register only explicitly selected checkout
+roots, install `~/.claude/extract-log.py`, and merge only UserPromptSubmit/Stop into
+`~/.claude/settings.json` while preserving other settings and making a private
+backup. That global installation was **not applied**. The repository hooks already
+call the shared implementation directly, so the global wrapper is optional.
+
+### Verification and limitations
+
+- Installed versions: Codex `0.166.0-alpha.5.1`, Claude Code `2.1.72`, Python `3.13.5`.
+- A fresh, tool-free, read-only Codex CLI session produced the actual final
+  `TRACE_CODEX_LOGGING_OK`; native hooks captured its prompt and final in one file.
+  A separate read-only transcript extraction confirmed the actual pair. No hook
+  trust bypass was used and the test was not manually written into a log.
+- The ongoing desktop session's latest three prompts and latest three already
+  emitted finals were independently matched to genuine Codex records. A current
+  unfinished turn is never given a prewritten final answer.
+- Claude is installed but signed out, and its local project transcript directory
+  is empty. Claude parser/hook tests are synthetic fixtures only; live Claude
+  capture and genuine historical Claude recovery cannot be claimed on this PC.
+  After private sign-in, review `/hooks`, submit a harmless prompt, and inspect
+  the resulting PROMPT/RESPONSE pair under this checkout's `.claude-logs/`.
+- No historical log was rewritten, removed or backfilled by this setup. Existing
+  primary-history overlaps and provisional coverage gaps remain available for a
+  separate, reviewed recovery task; no duplicate recovery file was created.
+- Tests use temporary fixtures for privacy filtering, finality, pagination,
+  idempotency, concurrency, scope isolation, global-setting preservation and
+  atomic failure. Run `python -B -m unittest discover -s scripts/tests -q`.
+
+The guide's agent-specific transcript assumptions were adapted to the installed
+schemas. Current lifecycle references: [Codex hooks](https://learn.chatgpt.com/docs/hooks)
+and [Claude Code hooks](https://code.claude.com/docs/en/hooks).
+
+## Authorized primary-conversation completion — 2026-11-05
+
+The owner subsequently authorized recovery of every genuine input and emitted
+final in this particular conversation. The existing canonical file remains
+`.claude-logs/2026-10-31_10-25-36_01a18c8a-4fc7-70a0-bf35-3113cfa88f29.md`.
+No additional file for that session was created. Older reconstructed history and
+its index remain unchanged as dated snapshots; they must not be counted as new
+conversations or added again to the canonical totals.
+
+At the bounded recovery checkpoint, the canonical file contains **131 actual
+human input messages and 102 emitted final answers**. This includes 28 genuine
+question-reply messages and 22 additional inputs sharing an existing native turn.
+All 176 original native entries and 24 historical snapshot entries retain their
+text, timestamps, native turn IDs and capture provenance. Another 33 previously
+missing entries are explicitly labelled `CodexTranscriptRecovery`. Presentation
+numbers now follow the human-input sequence; previous native exchange numbers
+are retained as metadata. Every actual source message has its own source message
+ID and ordinal, rather than being collapsed into a single prompt per turn.
+
+Two genuine native prompts survived in older parent tails that are outside the
+current pagination chain. They remain intact with `source_coverage: native_hook_only`;
+no replacement source identity was invented. One actual final came from a native
+`resume_interrupted_task` without a new user input. It is preserved as an explicit
+unpaired RESPONSE (`num=0`, `unpaired_final: true`), with no fabricated prompt.
+Interrupted turns without an emitted final remain unanswered. The final response
+to the current request cannot be prewritten; the real Stop hook captures it only
+after it is emitted, so the counts above are a verification checkpoint.
+
+`scripts/complete_codex_conversation.py` is an explicit recovery command, **not a
+hook**. It requires owner-selected primary JSONL segments, the existing canonical
+file and approved source checkouts belonging to the same Git repository. Dry-run
+is the default. Application requires a verified byte-for-byte backup outside the
+repository, holds the native session lock, validates the rendered log in memory,
+then replaces it atomically and reads it back. Repeating the authorized completion
+leaves both bytes and modification time unchanged. Original JSONL, other logs,
+global settings, databases and application files are not modified.
+
+Native hooks retain their original definitions. The renderer supports chronological
+recovery metadata and Stop still associates the final with the primary input of
+its native turn. Future automatic capture of several distinct human inputs sharing
+one turn is not guaranteed by the one-prompt-per-turn native payload handler;
+explicit transcript completion is available to reconcile those inputs accurately.
+No global installer, background watcher or trust bypass was activated.
