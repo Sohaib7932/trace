@@ -524,7 +524,7 @@ def test_http_foreign_and_missing_connections_are_indistinguishable(api, project
 def test_http_admission_rate_limit_is_enforced_without_github_network(api):
     path = "/api/v1/projects/github/installations/start"
     limit = api.app.state.github_operations.settings.requests_per_minute
-    assert limit == 10
+    assert limit == 30
     for _ in range(limit):
         assert api.client.post(path).status_code == 503
     limited = api.client.post(path)

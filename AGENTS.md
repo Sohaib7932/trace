@@ -10,15 +10,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Session Logs
 
+`SubagentStop` uses `scripts/codex_subagent_log.py` for verified child transcripts. Claude uses the shared extractor on `UserPromptSubmit`, `Stop`, and `SubagentStop`. All delegated entries remain inside the parent session file.
+
 Codex uses the project-local `.codex/hooks.json` and `scripts/codex_session_log.py` on `UserPromptSubmit` and `Stop`. New or changed hooks must be reviewed and trusted through Codex's supported hook UI before they run. See `scripts/CODEX_LOGGING.md` for activation and verification.
 
-Capture the documented native `UserPromptSubmit.prompt` and `Stop.last_assistant_message` fields, associated by `session_id` and `turn_id`. Preserve the cohort frontmatter/statistics and `[CLAUDE_LOG_ENTRY type=PROMPT ...]` / `[CLAUDE_LOG_ENTRY type=RESPONSE ...]` markers. Exclude internal reasoning, intermediate commentary, tools/results, source diffs, system/developer instructions, injected context, and subagent conversations. Never fabricate a final response or describe manually recovered history as automatic capture.
+Capture the documented native `UserPromptSubmit.prompt` and `Stop.last_assistant_message` fields, associated by `session_id` and `turn_id`. Preserve the cohort frontmatter/statistics and `[CLAUDE_LOG_ENTRY type=PROMPT ...]` / `[CLAUDE_LOG_ENTRY type=RESPONSE ...]` markers. Exclude internal reasoning, intermediate commentary, tools/results, source diffs, system/developer instructions, injected context, and subagent intermediate work. Include genuine subagent briefs and final reports in a separate Subagents section, as explicitly requested by the owner under the company guide. Never fabricate a final response or describe manually recovered history as automatic capture.
 
 Always commit .claude-logs/ with your changes.
 
 That is an inclusion policy for user-authorized commits. Do not commit or push without explicit approval.
 
-The `.claude/settings.json` and `.claude/hooks/extract-log.py` are Claude-specific; they do not enable Codex logging. The Claude entry point uses `scripts/agent_session_logs.py` to read the exact primary-session transcript and exclude subagents. Historical logs remain preserved. Codex native hooks stay separate; explicit JSONL recovery must never be described as automatic capture. Verify real prompts and emitted final answers across genuine turns before claiming either integration works. See `scripts/CODEX_LOGGING.md` for the current verification status and repository-only setup.
+The `.claude/settings.json` and `.claude/hooks/extract-log.py` are Claude-specific; they do not enable Codex logging. The Claude entry point uses `scripts/agent_session_logs.py` to read the exact primary-session transcript and its scoped subagent briefs/final reports. Historical logs remain preserved. Codex native hooks stay separate; explicit JSONL recovery must never be described as automatic capture. Verify real prompts and emitted final answers across genuine turns before claiming either integration works. See `scripts/CODEX_LOGGING.md` for the current verification status and repository-only setup.
 
 `.claude-logs/` is the single log directory for every agent and every teammate (Claude Code, Codex, Cursor, etc.). Never add it to `.gitignore`, and don't create per-agent folders like `.codex-logs/`.
 

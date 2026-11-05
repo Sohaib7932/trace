@@ -13,7 +13,7 @@ from app.ai.providers.gemini import _KEY_FILE, MODEL, GeminiCredentials
 from app.ai.providers.guided_lesson_assistant import GuidedLessonAssistant
 from app.ai.resources import AIResources
 from app.blueprints.candidates import tasks_blueprint_candidate
-from app.core.ai_settings import AIClientSettings
+from app.core.ai_settings import GEMINI_MAX_RESPONSE_SECONDS, AIClientSettings
 from app.core.settings import Settings
 from app.db.candidates import SqlCandidateRepository
 from app.db.migrations import migration_config
@@ -60,6 +60,7 @@ def main() -> int:
         credential_env_var="GEMINI_API_KEY",
         free_tier_project_confirmed=True,
         max_live_requests_per_process=3,
+        response_timeout_seconds=GEMINI_MAX_RESPONSE_SECONDS,
     )
     resources: AIResources | None = None
     passed = False

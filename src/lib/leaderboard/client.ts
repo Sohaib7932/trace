@@ -1,13 +1,20 @@
-import { EndpointNotAvailableError } from "@/lib/ai/client";
+import { protectedApiRequest } from "@/lib/api/client";
 import { AVATAR_IDS } from "@/lib/avatars/avatars";
-import { PROPOSED_LEADERBOARD_ENDPOINT, type LeaderboardClient, type LeaderboardEntry, type LeaderboardPage, type LeaderboardQuery } from "./contracts";
+import type { LeaderboardClient, LeaderboardEntry, LeaderboardPage, LeaderboardQuery } from "./contracts";
 
 export const PAGE_SIZE = 20;
 
-/** The backend has no leaderboard endpoint yet; this client says so instead of inventing data. */
+/**
+ * The real board. The server owns every rank, count and order; this only asks for a page. The request is a GET,
+ * so an expired token is refreshed once through the existing client and the same request is repeated.
+ */
 export const realLeaderboard: LeaderboardClient = {
   mode: "real",
-  page: () => Promise.reject(new EndpointNotAvailableError(`Leaderboard (proposed ${PROPOSED_LEADERBOARD_ENDPOINT})`)),
+  page({ cursor, limit = PAGE_SIZE }: LeaderboardQuery, signal?: AbortSignal) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return protectedApiRequest<LeaderboardPage>(`/leaderboard?${params}`, undefined, undefined, signal);
+  },
 };
 
 // ---------- Demo data: fictional people, only behind NEXT_PUBLIC_LEADERBOARD_DEMO=1 and in tests ----------
@@ -42,7 +49,6 @@ export const demoLeaderboard: LeaderboardClient = {
       next_cursor: end < all.length ? String(end) : null,
       me: { rank: me.rank, verified_count: me.verified_count },
       generated_at: new Date(Date.now() - 4 * 60_000).toISOString(),
-      total_ranked: all.length,
     };
   },
 };

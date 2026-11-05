@@ -37,7 +37,8 @@ Write for the requested level and goal, in the requested language (put its plain
 "language"). Keep it short and concrete:
 - title (max 80 chars) and objective (one sentence).
 - 1 to 3 sections, each a heading and a short plain-language body (max 900 chars).
-- 3 to 5 challenges using ONLY the requested practice styles:
+- Exactly 3 challenges using ONLY the requested practice styles. Repeat a requested style
+  when fewer than 3 styles are supplied; do not limit the count to one per style:
   predict_output / find_bug / multiple_choice: 2 to 4 distinct options, exactly one correct,
   correct_option is its 0-based index, model_answer "", verification_mode "answer_key".
   explain: options [], correct_option -1, a short model_answer, verification_mode "practice_only".

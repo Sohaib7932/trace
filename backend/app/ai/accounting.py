@@ -47,7 +47,8 @@ class AllowancePolicy(Value):
 class ProviderAttempt(Value):
     id: UUID
     capability: AccountingCapability
-    model_id: Literal["gemini-3.5-flash-lite", "gemini-embedding-001"]
+    # Retain the previous model for historical reservations; new calls use GEMINI_MODEL.
+    model_id: Literal["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-embedding-001"]
     subject_hash: Digest
     estimated_input_bytes: Count
     item_count: Annotated[Positive, Field(le=128)] = 1

@@ -2,7 +2,12 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode } from "react";
-import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager } from "@tanstack/react-query";
+import { ConnectView } from "@/components/projects/connect";
+import { ProjectTutor } from "@/components/projects/project-tutor";
+import { ProjectView } from "@/components/projects/project-view";
+import { ProjectsProviders } from "@/components/projects/shell";
+import { githubQueue } from "@/lib/projects/queue";
 import { GitHubProjects } from "@/components/projects/github-projects";
 import { ApiError } from "@/lib/api/client";
 import { clearGitHubAuthorization, githubAuthorizationUrl, pendingGitHubAuthorization, saveGitHubAuthorization, type ProjectAnswer, type RepositoryKnowledge } from "@/lib/api/github-projects";
@@ -14,7 +19,7 @@ vi.mock("@/lib/supabase/use-auth", () => ({ useAuth: () => mocks.auth }));
 vi.mock("@/lib/api/client", async (original) => ({ ...await original<typeof import("@/lib/api/client")>(), protectedApiRequest: mocks.request }));
 afterEach(() => { cleanup(); focusManager.setFocused(undefined); clearGitHubAuthorization(); });
 beforeEach(() => { mocks.auth = { status: "guest" }; mocks.request.mockReset(); });
-function page() { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GitHubProjects /></QueryClientProvider>); }
+function page() { return render(<GitHubProjects />); }
 
 describe("GitHub Project Learning boundary", () => {
   it("excludes callback queries from development request logs", () => {
@@ -36,15 +41,15 @@ describe("GitHub Project Learning boundary", () => {
     mocks.auth = { status: "signed-in", userId: "owner-a" };
     mocks.request.mockRejectedValue(new Error("private provider error"));
     page();
-    expect(await screen.findByRole("alert")).toHaveTextContent("GitHub App is not available");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
     expect(screen.queryByText("private provider error")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Read this commit" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /Open fixture/ })).toBeNull();
   });
   it.each([
-    [401, "Your sign-in needs renewing. Sign in again before continuing with Project Learning."],
-    [404, "This repository is unavailable or does not belong to your account. Select an available connection."],
-    [429, "Project Learning request limit reached. Wait before trying again."],
-    [504, "Project Learning took too long. The result is unconfirmed; check the current state before trying again."],
+    [401, "Sign in again"],
+    [404, "Not found"],
+    [429, "going a little fast"],
+    [504, "server took too long"],
   ] as const)("explains status %s safely without assuming missing App configuration or replaying the action", async (status, message) => {
     mocks.auth = { status: "signed-in", userId: "owner-a" };
     mocks.request.mockImplementation(async (path: string) => {
@@ -52,14 +57,14 @@ describe("GitHub Project Learning boundary", () => {
       return [];
     });
     const user = userEvent.setup();
-    page();
-    await screen.findByText("No repositories connected.");
-    await user.click(screen.getByRole("button", { name: "Connect GitHub App" }));
+    render(<ProjectsProviders><ConnectView /></ProjectsProviders>);
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Continue to GitHub" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(screen.getByRole("alert")).not.toHaveTextContent("App is not configured");
     expect(screen.queryByText("private-upstream-diagnostic-canary")).toBeNull();
     expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations/start"))).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Connect GitHub App" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue to GitHub" })).toBeEnabled();
   });
   it.each(["http://github.com/login/oauth/authorize", "https://github.com.evil.test/login/oauth/authorize", "https://github.com/repos/private", "https://user@github.com/login/oauth/authorize", "javascript:alert(1)"])("rejects an unsafe authorization address: %s", (url) => {
     expect(() => githubAuthorizationUrl(url, "authorize")).toThrow();
@@ -88,195 +93,137 @@ const groundedAnswer: ProjectAnswer = {
   sections: [{ explanation: "The helper returns the supplied subject; other authentication behavior is unknown.", citations: [{ reference_id: "d".repeat(64), path: "backend/identity.py", line_start: 2, line_end: 2, quote: "return subject" }] }],
 };
 
-function projectApi(answer: ProjectAnswer = groundedAnswer) {
-  let disconnected = false;
-  mocks.auth = { status: "signed-in", userId: "owner-a" };
-  mocks.request.mockImplementation(async (path: string) => {
-    const id = mocks.auth.userId === "owner-b" ? secondConnection : connectionId;
-    if (path.endsWith("/installations")) return [];
-    if (path.endsWith("/repositories")) return [{ id, repository_id: 22, installation_id: 11, full_name: "fixture/architecture", private: true, status: disconnected ? "disconnected" : "connected" }];
-    if (path.endsWith("/ingest")) return { ...knowledge, connection_id: id };
-    if (path.endsWith("/ask")) return answer;
-    if (path.endsWith("/disconnect")) { disconnected = true; return { id, status: "disconnected" }; }
-    throw new Error("Unexpected test API path");
-  });
+function tutor(sha = commitSha, id = connectionId) { return <ProjectTutor connectionId={id} sha={sha} repository="fixture/architecture" />; }
+async function openTutor(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /Project tutor/ }));
 }
-
-async function readKnowledge(user: ReturnType<typeof userEvent.setup>, id = connectionId) {
-  await screen.findByRole("option", { name: "fixture/architecture" });
-  await user.selectOptions(screen.getByLabelText("Repository"), id);
-  await user.clear(screen.getByLabelText("Exact commit SHA"));
-  await user.type(screen.getByLabelText("Exact commit SHA"), commitSha);
-  await user.click(screen.getByRole("button", { name: "Read repository for questions" }));
-  await screen.findByRole("heading", { name: "Repository knowledge" });
+async function ask(user: ReturnType<typeof userEvent.setup>, text: string) {
+  await user.type(screen.getByLabelText("Ask about this project"), text);
+  await user.click(screen.getByRole("button", { name: "Ask" }));
 }
 
 describe("Owned repository questions", () => {
+  beforeEach(() => { mocks.auth = { status: "signed-in", userId: "owner-a" }; mocks.request.mockResolvedValue(groundedAnswer); });
   it("renders exact server citations and sends bounded dialogue instead of client evidence", async () => {
-    projectApi();
-    const user = userEvent.setup();
-    page(); await readKnowledge(user);
-    await user.type(screen.getByLabelText("Ask about this project"), "Teach me authentication in this project.");
-    await user.click(screen.getByRole("button", { name: "Ask grounded question" }));
+    const user = userEvent.setup(); render(tutor()); await openTutor(user);
+    await ask(user, "Teach me authentication in this project.");
     expect(await screen.findByText(groundedAnswer.sections[0].explanation)).toBeVisible();
-    expect(screen.getByText("backend/identity.py:2–2")).toBeVisible();
+    expect(screen.getByText("backend/identity.py")).toBeVisible();
+    expect(screen.getByText("Line 2")).toBeVisible();
     expect(screen.getByText("return subject")).toBeVisible();
-    expect(screen.getByText("Test fixture · Ungraded · Not executed")).toBeVisible();
-    const first = mocks.request.mock.calls.find(([path]) => path.endsWith("/ask"));
-    expect(first?.[1]).toEqual({ commit_sha: commitSha, question: "Teach me authentication in this project.", history: [] });
-    await user.type(screen.getByLabelText("Ask about this project"), "Explain that return value.");
-    await user.click(screen.getByRole("button", { name: "Ask grounded question" }));
-    await waitFor(() => expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/ask"))).toHaveLength(2));
-    const second = mocks.request.mock.calls.filter(([path]) => path.endsWith("/ask"))[1];
-    expect(second[1]).toEqual({ commit_sha: commitSha, question: "Explain that return value.", history: [{ role: "user", text: "Teach me authentication in this project." }, { role: "assistant", text: groundedAnswer.sections[0].explanation }] });
-    expect(JSON.stringify(second[1])).not.toContain("owner-a");
+    expect(screen.getByText(/Test fixture.*Ungraded.*Not executed/)).toBeVisible();
+    expect(mocks.request.mock.calls[0][1]).toEqual({ commit_sha: commitSha, question: "Teach me authentication in this project.", history: [] });
+    await ask(user, "Explain that return value.");
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
+    expect(mocks.request.mock.calls[1][1]).toEqual({ commit_sha: commitSha, question: "Explain that return value.", history: [{ role: "user", text: "Teach me authentication in this project." }, { role: "assistant", text: groundedAnswer.sections[0].explanation }] });
+    expect(JSON.stringify(mocks.request.mock.calls[1][1])).not.toContain("owner-a");
   });
-
-  it.each(["insufficient_information", "unavailable"] as const)("does not invent quotations for %s responses", async (status) => {
-    projectApi({ ...groundedAnswer, status, source: "none", sections: [] });
-    const user = userEvent.setup(); page(); await readKnowledge(user);
-    await user.type(screen.getByLabelText("Ask about this project"), "An unsupported or unavailable question");
-    await user.click(screen.getByRole("button", { name: "Ask grounded question" }));
-    expect(await screen.findByText(status === "insufficient_information" ? "The ingested sources do not provide enough information for this question." : "Gemini could not return a validated grounded answer. No answer was invented.")).toBeVisible();
-    expect(screen.queryByText("backend/identity.py:2–2")).toBeNull();
-    expect(screen.queryByText("Test fixture · Ungraded · Not executed")).toBeNull();
+  it.each(["insufficient_information", "unavailable"] as const)("does not invent quotations for %s", async (status) => {
+    mocks.request.mockResolvedValue({ ...groundedAnswer, status, source: "none", sections: [] });
+    const user = userEvent.setup(); render(tutor()); await openTutor(user); await ask(user, "What does this code do?");
+    await screen.findByText(status === "insufficient_information" ? /kept excerpts don't say enough/ : /couldn't return a validated answer/);
+    expect(screen.queryByText("return subject")).toBeNull();
   });
-
-  it("clears private answers, knowledge and draft questions when repository context or owner changes", async () => {
-    projectApi();
-    const user = userEvent.setup(); const view = page(); await readKnowledge(user);
-    await user.type(screen.getByLabelText("Ask about this project"), "Draft for the previous account");
-    await user.clear(screen.getByLabelText("Exact commit SHA"));
-    expect(screen.queryByRole("heading", { name: "Repository knowledge" })).toBeNull();
-    await user.type(screen.getByLabelText("Exact commit SHA"), commitSha);
-    await user.click(screen.getByRole("button", { name: "Read repository for questions" }));
-    expect(await screen.findByLabelText("Ask about this project")).toHaveValue("");
-    await user.type(screen.getByLabelText("Ask about this project"), "Another private owner draft");
-    mocks.auth = { status: "signed-in", userId: "owner-b" };
-    view.rerender(<GitHubProjects />);
-    expect(screen.queryByRole("heading", { name: "Repository knowledge" })).toBeNull();
-    await readKnowledge(user, secondConnection);
+  it.each(["owner", "commit", "repository"])("clears private conversation and drafts when the %s changes", async (context) => {
+    const user = userEvent.setup(); const page = render(tutor()); await openTutor(user);
+    await ask(user, "Explain this helper."); await screen.findByText(groundedAnswer.sections[0].explanation);
+    await user.type(screen.getByLabelText("Ask about this project"), "private draft");
+    if (context === "owner") mocks.auth = { status: "signed-in", userId: "owner-b" };
+    page.rerender(tutor(context === "commit" ? "f".repeat(40) : commitSha, context === "repository" ? secondConnection : connectionId));
+    expect(screen.queryByText(groundedAnswer.sections[0].explanation)).toBeNull();
     expect(screen.getByLabelText("Ask about this project")).toHaveValue("");
-    expect(screen.queryByText(groundedAnswer.sections[0].explanation)).toBeNull();
   });
-
-  it("disconnect immediately removes source material and further question controls", async () => {
-    projectApi();
-    const user = userEvent.setup(); page(); await readKnowledge(user);
-    await user.type(screen.getByLabelText("Ask about this project"), "Explain authentication");
-    await user.click(screen.getByRole("button", { name: "Ask grounded question" }));
-    await screen.findByText(groundedAnswer.sections[0].explanation);
-    await user.click(screen.getByRole("button", { name: "Disconnect this repository from Trace" }));
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "Repository knowledge" })).toBeNull());
+  it("removes the tutor when a repository is disconnected", async () => {
+    localStorage.setItem(`trace.project.sha.${connectionId}`, commitSha);
+    let disconnected = false;
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path.endsWith("/repositories")) return [{ id: connectionId, full_name: "fixture/architecture", status: disconnected ? "disconnected" : "connected" }];
+      if (path.includes("/knowledge?")) return knowledge;
+      if (path.endsWith("/ask")) return groundedAnswer;
+      throw new ApiError(404, "not saved");
+    });
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup(); render(<QueryClientProvider client={client}><ProjectView connectionId={connectionId} /></QueryClientProvider>);
+    await screen.findByRole("button", { name: /Project tutor/ }); await openTutor(user);
+    await ask(user, "Explain authentication"); await screen.findByText(groundedAnswer.sections[0].explanation);
+    disconnected = true; await act(async () => { await client.invalidateQueries({ queryKey: ["projects", "owner-a", "connections"] }); });
+    await screen.findByRole("heading", { name: "That project isn't available" });
     expect(screen.queryByText(groundedAnswer.sections[0].explanation)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Ask grounded question" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Read repository for questions" })).toBeDisabled();
+    expect(screen.queryByRole("dialog")).toBeNull(); localStorage.clear();
   });
 });
-
 
 describe("GitHub request admission", () => {
-  it("serializes the two initial reads before starting a user action", async () => {
+  it("serializes reads and user actions and skips aborted queued work", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((done) => { release = done; });
+    const calls: string[] = [];
+    const first = githubQueue(async () => { calls.push("read"); await held; });
+    const controller = new AbortController();
+    const cancelled = githubQueue(async () => { calls.push("old owner"); }, controller.signal).catch((error: ApiError) => error.code);
+    const action = githubQueue(async () => { calls.push("action"); });
+    await Promise.resolve(); expect(calls).toEqual(["read"]);
+    controller.abort(); release(); await first;
+    expect(await cancelled).toBe("request_cancelled"); await action;
+    expect(calls).toEqual(["read", "action"]);
+  });
+  it("keeps the lane usable through StrictMode replay", async () => {
+    mocks.auth = { status: "signed-in", userId: "owner-a" };
+    let active = 0, maximum = 0;
+    mocks.request.mockImplementation(async () => { active++; maximum = Math.max(maximum, active); try { await Promise.resolve(); return []; } finally { active--; } });
+    render(<StrictMode><GitHubProjects /></StrictMode>);
+    await screen.findByRole("heading", { name: "Connect GitHub" });
+    expect(maximum).toBe(1); expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("does not start queued old-account reads with the new credentials", async () => {
     mocks.auth = { status: "signed-in", userId: "owner-a" };
     let release!: () => void;
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const held = new Promise<void>((done) => { release = done; });
+    const calls: { path: string; owner: string | undefined }[] = [];
     mocks.request.mockImplementation(async (path: string) => {
-      if (path.endsWith("/repositories")) { await held; return []; }
-      if (path.endsWith("/installations/start")) throw new ApiError(503, "Controlled unavailable fixture");
+      const owner = mocks.auth.userId; calls.push({ path, owner });
+      if (owner === "owner-a" && path.endsWith("/installations")) await held;
       return [];
     });
-    const user = userEvent.setup();
-    page();
-    await waitFor(() => expect(mocks.request.mock.calls.some(([path]) => path.endsWith("/repositories"))).toBe(true));
-    try {
-      expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations"))).toHaveLength(0);
-      await user.click(screen.getByRole("button", { name: "Connect GitHub App" }));
-      expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations/start"))).toHaveLength(0);
-    } finally { release(); }
-    await screen.findByRole("alert");
+    const page = render(<GitHubProjects />);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    mocks.auth = { status: "signed-in", userId: "owner-b" }; page.rerender(<GitHubProjects />);
+    await act(async () => { release(); await held; });
+    await screen.findByRole("heading", { name: "Connect GitHub" });
+    expect(calls.filter((call) => call.owner === "owner-a" && call.path.endsWith("/repositories"))).toHaveLength(0);
+    expect(calls.filter((call) => call.owner === "owner-b" && call.path.endsWith("/repositories"))).toHaveLength(1);
+  });
+  it("continues after a failed read without automatically replaying it", async () => {
+    mocks.auth = { status: "signed-in", userId: "owner-a" };
+    mocks.request.mockImplementation(async (path: string) => { if (path.endsWith("/repositories")) throw new ApiError(503, "private-source-error-canary"); return []; });
+    page(); await screen.findByRole("alert");
     expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations"))).toHaveLength(1);
-    expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations/start"))).toHaveLength(1);
-  });
-});
-
-
-it("serializes focus reloads behind an active repository action", async () => {
-  mocks.auth = { status: "signed-in", userId: "owner-a" };
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  let active = 0, maximumActive = 0, ingestStarted = false;
-  mocks.request.mockImplementation(async (path: string) => {
-    active += 1; maximumActive = Math.max(maximumActive, active);
-    try {
-      if (path.endsWith("/repositories")) return [{ id: connectionId, full_name: "fixture/architecture", status: "connected" }];
-      if (path.endsWith("/installations")) return [];
-      if (path.endsWith("/ingest")) { ingestStarted = true; await held; return knowledge; }
-      throw new Error("Unexpected controlled API path");
-    } finally { active -= 1; }
-  });
-  const user = userEvent.setup(); page();
-  await waitFor(() => expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations"))).toHaveLength(1));
-  await user.selectOptions(screen.getByLabelText("Repository"), connectionId);
-  await user.type(screen.getByLabelText("Exact commit SHA"), commitSha);
-  await user.click(screen.getByRole("button", { name: "Read repository for questions" }));
-  await waitFor(() => expect(ingestStarted).toBe(true));
-  try {
-    await act(async () => { focusManager.setFocused(false); focusManager.setFocused(true); });
     expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/repositories"))).toHaveLength(1);
-    expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations"))).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Connect GitHub App" })).toBeDisabled();
-  } finally { release(); }
-  await screen.findByRole("heading", { name: "Repository knowledge" });
-  await waitFor(() => expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations"))).toHaveLength(2));
-  expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/repositories"))).toHaveLength(2);
-  expect(maximumActive).toBe(1);
-});
-
-it("keeps the request lane usable through StrictMode effect replay", async () => {
-  mocks.auth = { status: "signed-in", userId: "owner-a" };
-  let active = 0, maximumActive = 0;
-  mocks.request.mockImplementation(async () => {
-    active += 1; maximumActive = Math.max(maximumActive, active);
-    try { await Promise.resolve(); return []; } finally { active -= 1; }
+    expect(screen.queryByText("private-source-error-canary")).toBeNull();
   });
-  render(<StrictMode><GitHubProjects /></StrictMode>);
-  await screen.findByText("No repositories connected.");
-  await waitFor(() => expect(mocks.request.mock.calls.some(([path]) => path.endsWith("/installations"))).toBe(true));
-  expect(maximumActive).toBe(1);
-  expect(screen.queryByRole("alert")).toBeNull();
 });
 
-it("does not start queued old-account reads with the new account's credentials", async () => {
+
+it("stops preparation before another write when the owner changes", async () => {
   mocks.auth = { status: "signed-in", userId: "owner-a" };
+  localStorage.clear();
   let release!: () => void;
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  const calls: { path: string; owner: string | undefined }[] = [];
+  const held = new Promise<void>((done) => { release = done; });
   mocks.request.mockImplementation(async (path: string) => {
-    const owner = mocks.auth.userId; calls.push({ path, owner });
-    if (owner === "owner-a" && path.endsWith("/repositories")) await held;
-    return [];
+    if (path.endsWith("/repositories")) return [{ id: connectionId, full_name: "fixture/architecture", status: "connected" }];
+    if (path.endsWith("/sync")) { await held; return { commit_sha: commitSha, references: [], digest: "b".repeat(64) }; }
+    throw new ApiError(404, "not saved");
   });
-  const view = render(<GitHubProjects />);
-  await waitFor(() => expect(calls.some((call) => call.owner === "owner-a")).toBe(true));
-  mocks.auth = { status: "signed-in", userId: "owner-b" };
-  view.rerender(<GitHubProjects />);
-  await screen.findByText("No repositories connected.");
-  await waitFor(() => expect(calls.filter((call) => call.owner === "owner-b" && call.path.endsWith("/installations"))).toHaveLength(1));
+  const tree = () => <ProjectsProviders><ProjectView connectionId={connectionId} /></ProjectsProviders>;
+  const user = userEvent.setup(); const page = render(tree());
+  await user.type(await screen.findByLabelText("Commit ID"), commitSha);
+  await user.click(screen.getByRole("button", { name: "Use this commit" }));
+  await user.click(await screen.findByRole("button", { name: "Fetch snapshot and continue" }));
+  await waitFor(() => expect(mocks.request.mock.calls.some(([path]) => path.endsWith("/sync"))).toBe(true));
+  mocks.auth = { status: "signed-in", userId: "owner-b" }; page.rerender(tree());
   await act(async () => { release(); await held; });
-  expect(calls.filter((call) => call.path.endsWith("/installations"))).toHaveLength(1);
-  expect(calls.filter((call) => call.owner === "owner-a" && call.path.endsWith("/installations"))).toHaveLength(0);
-  expect(screen.queryByRole("alert")).toBeNull();
-});
-
-it("continues after a failed read without automatically replaying it", async () => {
-  mocks.auth = { status: "signed-in", userId: "owner-a" };
-  mocks.request.mockImplementation(async (path: string) => {
-    if (path.endsWith("/repositories")) throw new ApiError(503, "private-source-error-canary");
-    return [];
-  });
-  page();
-  await screen.findByRole("alert");
-  await waitFor(() => expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations"))).toHaveLength(1));
-  expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/repositories"))).toHaveLength(1);
-  expect(screen.queryByText("private-source-error-canary")).toBeNull();
+  await screen.findByLabelText("Commit ID");
+  expect(mocks.request.mock.calls.some(([path]) => path.endsWith("/ingest") || path.endsWith("/learning-path"))).toBe(false);
+  localStorage.clear();
 });

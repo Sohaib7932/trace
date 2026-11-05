@@ -206,7 +206,7 @@ class ClaudeTranscriptTests(unittest.TestCase):
     def test_wrong_session_or_cwd_is_rejected_without_revealing_contents(self):
         for changes in (
             {"sessionId": "other"},
-            {"cwd": str(self.root / "other")},
+            {"cwd": str(self.root.parent / "other")},
             {"cwd": "relative"},
             {"cwd": None},
         ):

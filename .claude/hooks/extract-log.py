@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility entry point for the shared primary-session-only Claude adapter."""
+"""Compatibility entry point for the shared Claude conversation and subagent adapter."""
 
 import runpy
 import sys

@@ -19,9 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def project_root(cwd: Path) -> Path:
-    value = native.command(
-        cwd, ["git", "--no-optional-locks", "rev-parse", "--show-toplevel"]
-    )
+    value = native.command(cwd, ["git", "--no-optional-locks", "rev-parse", "--show-toplevel"])
     root = Path(value).resolve()
     if not cwd.resolve().is_relative_to(root):
         raise ValueError("Session working directory is outside the project")
@@ -29,9 +27,7 @@ def project_root(cwd: Path) -> Path:
 
 
 def _common(root: Path) -> Path:
-    value = native.command(
-        root, ["git", "--no-optional-locks", "rev-parse", "--git-common-dir"]
-    )
+    value = native.command(root, ["git", "--no-optional-locks", "rev-parse", "--git-common-dir"])
     return (root / value).resolve()
 
 
@@ -61,6 +57,11 @@ def _read_managed(path: Path, session: str, agent: str) -> tuple[dict, list[dict
         raise ValueError("Existing managed session has no valid entry markers")
     cursor = match.start()
     while cursor < len(body):
+        if body.startswith("# Subagents\n", cursor):
+            from session_subagents import parse
+
+            metadata["_subagent_entries"] = parse(body[cursor:], session)
+            break
         match = native.MARKER.match(body, cursor)
         if not match or match[3] != session:
             raise ValueError("Invalid existing session marker")
@@ -83,9 +84,7 @@ def _read_managed(path: Path, session: str, agent: str) -> tuple[dict, list[dict
         length = fields.get("chars")
         if type(length) is not int or length < 0 or cursor + length > len(body):
             raise ValueError("Invalid existing entry length")
-        result.append(
-            {"kind": match[1], "text": body[cursor : cursor + length], **fields}
-        )
+        result.append({"kind": match[1], "text": body[cursor : cursor + length], **fields})
         cursor += length
         while cursor < len(body) and body[cursor] == "\n":
             cursor += 1
@@ -116,9 +115,7 @@ def session_files(directory: Path, session: str) -> list[Path]:
             header = stream.read(16384)
         match = None
         if header.startswith("---\n") and "\n---\n" in header[4:]:
-            match = re.search(
-                r"(?m)^session_id: (.+)$", header[4:].split("\n---\n", 1)[0]
-            )
+            match = re.search(r"(?m)^session_id: (.+)$", header[4:].split("\n---\n", 1)[0])
         identity = None
         if match:
             try:
@@ -144,9 +141,7 @@ def export_session(
     root = root.resolve()
     if agent not in {"codex", "claude"} or not native.SAFE_ID.fullmatch(session):
         raise ValueError("Invalid agent or session identifier")
-    if not paths or any(
-        p.is_symlink() or not p.is_file() or p.suffix != ".jsonl" for p in paths
-    ):
+    if not paths or any(p.is_symlink() or not p.is_file() or p.suffix != ".jsonl" for p in paths):
         raise ValueError("Select explicit existing JSONL transcripts")
     for alias in source_cwds:
         if _common(project_root(alias)) != _common(root):
@@ -173,25 +168,18 @@ def export_session(
                     "reason": "existing_native_or_legacy_log",
                 }
         if agent == "codex":
-            entries = extract_codex_transcripts(
-                paths, session, root, source_cwds=source_cwds
-            )
+            entries = extract_codex_transcripts(paths, session, root, source_cwds=source_cwds)
         else:
             if len(paths) != 1:
                 raise ValueError("Claude hooks select one exact session transcript")
-            cwd = Path(hook_payload["cwd"]) if hook_payload else root
+            cwd = root
             entries = extract_claude_transcript(
                 paths[0],
                 session,
                 cwd,
-                stop_event=bool(
-                    hook_payload and hook_payload.get("hook_event_name") == "Stop"
-                ),
+                stop_event=bool(hook_payload and hook_payload.get("hook_event_name") == "Stop"),
             )
-            if (
-                hook_payload
-                and hook_payload.get("hook_event_name") == "UserPromptSubmit"
-            ):
+            if hook_payload and hook_payload.get("hook_event_name") == "UserPromptSubmit":
                 prompt = hook_payload.get("prompt")
                 if isinstance(prompt, str) and prompt.strip():
                     prompts = [e for e in entries if e["kind"] == "PROMPT"]
@@ -202,14 +190,15 @@ def export_session(
                             "status": "pending",
                             "reason": "prompt_not_yet_in_transcript",
                         }
-            if hook_payload and isinstance(
-                hook_payload.get("last_assistant_message"), str
+            if (
+                hook_payload
+                and hook_payload.get("hook_event_name") == "Stop"
+                and isinstance(hook_payload.get("last_assistant_message"), str)
             ):
                 final = [e for e in entries if e["kind"] == "RESPONSE"]
                 if hook_payload["last_assistant_message"].strip() and (
                     not final
-                    or final[-1]["text"].strip()
-                    != hook_payload["last_assistant_message"].strip()
+                    or final[-1]["text"].strip() != hook_payload["last_assistant_message"].strip()
                 ):
                     raise ValueError("Native final and transcript evidence disagree")
         if not entries or not any(e["kind"] == "PROMPT" for e in entries):
@@ -220,9 +209,11 @@ def export_session(
             if not native.SAFE_ID.fullmatch(entry["turn_id"]):
                 raise ValueError("Transcript entry has an invalid turn identifier")
             native.instant(entry["timestamp"])
-            entry["text"] = native.redact(
-                entry["text"].replace("\r\n", "\n").replace("\r", "\n")
-            )
+            entry["text"] = native.redact(entry["text"].replace("\r\n", "\n").replace("\r", "\n"))
+            if entry["kind"] == "PROMPT":
+                from session_prompt_text import clean_prompt
+
+                entry["text"] = clean_prompt(entry["text"])
             entry["timestamp_source"] = "transcript.timestamp"
             if entry["kind"] == "PROMPT":
                 if entry["turn_id"] in turns:
@@ -236,10 +227,20 @@ def export_session(
         old = [{k: e[k] for k in content_keys} for e in old_entries]
         new = [{k: e[k] for k in content_keys} for e in numbered]
         if old and new[: len(old)] != old:
-            raise ValueError(
-                "Transcript update would replace existing authentic entries"
-            )
-        if old == new:
+            raise ValueError("Transcript update would replace existing authentic entries")
+        from session_subagents import collect_claude
+
+        subagents = (
+            collect_claude(paths[0], session, root)
+            if agent == "claude"
+            else previous.get("_subagent_entries", [])
+        )
+        previous_subagents = previous.get("_subagent_entries", [])
+        subagent_keys = ("kind", "num", "agent_id", "timestamp", "text")
+        same_subagents = [{k: e[k] for k in subagent_keys} for e in subagents] == [
+            {k: e[k] for k in subagent_keys} for e in previous_subagents
+        ]
+        if old == new and same_subagents:
             return {"status": "unchanged", "path": str(existing[0])}
         if dry_run:
             return {
@@ -252,9 +253,7 @@ def export_session(
             previous.get(k) != identity.get(k)
             for k in ("author", "github_user", "git_identity_fingerprint")
         ):
-            raise ValueError(
-                "Developer identity changed; existing session is preserved"
-            )
+            raise ValueError("Developer identity changed; existing session is preserved")
         first = native.instant(numbered[0]["timestamp"]).astimezone()
         metadata = previous or {
             "session_id": session,
@@ -267,11 +266,10 @@ def export_session(
             "automatic_hook_triggered": hook_payload is not None,
             **identity,
         }
+        metadata["_subagent_entries"] = subagents
         directory.mkdir(exist_ok=True)
         destination = (
-            existing[0]
-            if existing
-            else directory / f"{first:%Y-%m-%d_%H-%M-%S}_{session}.md"
+            existing[0] if existing else directory / f"{first:%Y-%m-%d_%H-%M-%S}_{session}.md"
         )
         native.atomic_write(destination, render(metadata, numbered))
         return {
@@ -285,15 +283,18 @@ def export_session(
 def hook(agent: str, payload: dict) -> dict:
     if (
         agent != "claude"
-        or payload.get("hook_event_name") not in {"UserPromptSubmit", "Stop"}
-        or any(
-            payload.get(k)
-            for k in (
-                "agent_id",
-                "agent_type",
-                "agent_transcript_path",
-                "isSidechain",
-                "is_subagent",
+        or payload.get("hook_event_name") not in {"UserPromptSubmit", "Stop", "SubagentStop"}
+        or (
+            payload.get("hook_event_name") != "SubagentStop"
+            and any(
+                payload.get(k)
+                for k in (
+                    "agent_id",
+                    "agent_type",
+                    "agent_transcript_path",
+                    "isSidechain",
+                    "is_subagent",
+                )
             )
         )
     ):
@@ -304,12 +305,31 @@ def hook(agent: str, payload: dict) -> dict:
     path = payload.get("transcript_path")
     if not isinstance(path, str) or not Path(path).is_absolute():
         raise ValueError("A native transcript path is required")
+    if payload.get("hook_event_name") == "SubagentStop":
+        agent_id, child = payload.get("agent_id"), payload.get("agent_transcript_path")
+        if (
+            not isinstance(agent_id, str)
+            or not native.SAFE_ID.fullmatch(agent_id)
+            or not isinstance(child, str)
+        ):
+            raise ValueError("A native subagent identity and transcript are required")
+        expected = (
+            Path(path).parent
+            / payload.get("session_id", "")
+            / "subagents"
+            / f"agent-{agent_id}.jsonl"
+        )
+        if Path(child).resolve() != expected.resolve() or not expected.is_file():
+            raise ValueError("Subagent transcript does not belong to the parent session")
     return export_session(
         [Path(path)], agent, payload.get("session_id", ""), ROOT, hook_payload=payload
     )
 
 
 def main() -> int:
+    for stream in (sys.stdin, sys.stdout):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="operation", required=True)
     live = sub.add_parser("hook")

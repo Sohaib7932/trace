@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isUnavailable } from "@/lib/ai/client";
 import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { appendPage, MAX_ROWS } from "./board";
@@ -11,6 +10,7 @@ import type { LeaderboardEntry, LeaderboardPage } from "./contracts";
 export type BoardFailure =
   | { kind: "unavailable" }
   | { kind: "unauthenticated" }
+  | { kind: "forbidden" }
   | { kind: "rate_limited" }
   | { kind: "error"; requestId: string | null };
 
@@ -23,8 +23,9 @@ export type BoardState =
 const REFRESH_MS = 3 * 60_000;
 
 export function classify(error: unknown): BoardFailure {
-  if (isUnavailable(error)) return { kind: "unavailable" };
   if (error instanceof ApiError && error.status === 401) return { kind: "unauthenticated" };
+  if (error instanceof ApiError && error.status === 403) return { kind: "forbidden" };
+  if (error instanceof ApiError && error.status === 503) return { kind: "unavailable" };
   if (error instanceof ApiError && error.status === 429) return { kind: "rate_limited" };
   return { kind: "error", requestId: error instanceof ApiError ? error.requestId : null };
 }
@@ -50,7 +51,8 @@ export function useLeaderboard({ limit = PAGE_SIZE, live = true }: { limit?: num
       setState({ status: "ready", entries: appendPage([], page.entries), first: page, nextCursor: page.next_cursor, loadingMore: false, moreFailed: false });
     } catch (error) {
       if (controller.signal.aborted || (error instanceof ApiError && error.code === "request_cancelled")) return;
-      setState({ status: "failed", failure: classify(error) });
+      // A failed refresh never wipes a board that is already on screen.
+      setState((current) => (current.status === "ready" ? current : { status: "failed", failure: classify(error) }));
     }
   }, [client, limit]);
 
@@ -81,10 +83,12 @@ export function useLeaderboard({ limit = PAGE_SIZE, live = true }: { limit?: num
       setState((current) => current.status === "ready"
         ? { ...current, entries: appendPage(current.entries, page.entries), nextCursor: page.next_cursor, loadingMore: false }
         : current);
-    } catch {
+    } catch (error) {
+      // A rejected cursor (422) is stale or malformed: drop it and start again from page one.
+      if (error instanceof ApiError && error.status === 422) { setState({ status: "loading" }); void loadFirst(); return; }
       setState((current) => current.status === "ready" ? { ...current, loadingMore: false, moreFailed: true } : current);
     }
-  }, [state, limit, client]);
+  }, [state, limit, client, loadFirst]);
 
   const refresh = useCallback(() => { setState({ status: "loading" }); void loadFirst(); }, [loadFirst]);
 

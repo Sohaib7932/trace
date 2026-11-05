@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { LeaderboardLink } from "./leaderboard-link";
 import { LessonsMenu } from "./lessons-menu";
 import { MobileNav } from "./mobile-nav";
+import { ProjectsLink } from "./projects-link";
 import { NavScroll } from "./nav-scroll";
 import { navLinks, primaryCta } from "./nav-links";
 
@@ -35,6 +36,7 @@ export function SiteHeader({ cta = primaryCta }: { cta?: Cta | null } = {}) {
             </li>
           ))}
             <li><LessonsMenu /></li>
+            <li><ProjectsLink /></li>
             <li><LeaderboardLink /></li>
           </ul>
         </div>

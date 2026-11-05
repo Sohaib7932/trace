@@ -48,8 +48,8 @@ locals {
   gemini_text_env = {
     TRACE_LLM_MODE                          = "gemini_free"
     TRACE_LLM_PROVIDER_ID                   = "gemini"
-    TRACE_LLM_GENERATION_MODEL_ID           = "gemini-3.5-flash-lite"
-    TRACE_LLM_CONVERSATIONAL_MODEL_ID       = "gemini-3.5-flash-lite"
+    TRACE_LLM_GENERATION_MODEL_ID           = "gemini-3.1-flash-lite"
+    TRACE_LLM_CONVERSATIONAL_MODEL_ID       = "gemini-3.1-flash-lite"
     TRACE_LLM_CREDENTIAL_ENV_VAR            = "GEMINI_API_KEY"
     TRACE_LLM_FREE_TIER_PROJECT_CONFIRMED   = "true"
     TRACE_LLM_SPEND_LIMIT_MICROUSD          = "0"

@@ -290,3 +290,59 @@ its native turn. Future automatic capture of several distinct human inputs shari
 one turn is not guaranteed by the one-prompt-per-turn native payload handler;
 explicit transcript completion is available to reconcile those inputs accurately.
 No global installer, background watcher or trust bypass was activated.
+
+
+## Company guide alignment on this checkout, 2026-11-05
+
+The owner explicitly chose the company policy: primary prompts/finals **plus
+subagent briefs and final reports**. This supersedes the primary-only policy in
+older dated sections above. Tool operations/results, reasoning, commentary and
+injected editor context remain excluded. There is one canonical session file in
+`.claude-logs/`; delegated entries appear under `# Subagents` using the company
+`SUBAGENT_PROMPT` and `SUBAGENT_RESPONSE` markers. They do not inflate primary
+conversation statistics.
+
+Both repository hook configurations now include `SubagentStop`. Claude reads only
+its exact parent transcript and its session-specific subagents directory. Codex
+keeps native primary payload capture and uses the explicit child transcript from
+the subagent event, requiring matching child/parent IDs and project ancestry.
+Unknown child transcript schemas fail closed. No general tool hooks were added.
+Handback tool messages are retained as reports; tool arguments/results from other
+operations and closing narration after a handback are excluded.
+
+Claude parsing now follows attachment/meta ancestry without logging those nodes,
+and accepts cwd changes inside this checkout. GitHub CLI is absent on this PC;
+that no longer suppresses logging. Git identity remains recorded, email is masked,
+and GitHub identity is explicitly `unknown` unless a noreply Git identity is
+available. No GitHub verification is invented. Existing verified sessions still
+reject an identity change.
+
+The existing Claude canonical file ending `ac502e61-757d-4998-a421-8b1428fcceb3.md`
+was explicitly reconciled from its genuine local JSONL: **100 prompts, 87 proven
+final responses, one delegated brief and one final report**. Interrupted or
+unproven answers remain absent. This was manual source-based reconciliation, not
+automatic capture. Its original bytes were backed up and verified outside the
+repository under the local user's `.codex/log-repair-backups/`. The canonical file
+records the prior SHA-256 and recovery provenance. Future normal Claude hooks can
+update this managed file; the previous legacy file had been preserved without
+updates by the exporter.
+
+Historical reconstruction files and the four old suggested-message artifacts are
+preserved, as required by the project's history policy. They are **not additional
+canonical conversations** and do not establish current capture. Their source
+sessions belong to another checkout; this review does not claim to reconcile all
+historical files. The current Codex transcript also lacks the record ordinals
+required by the older full-history completion utility; no history was fabricated
+to bypass that check.
+
+Validation: 177 isolated script tests pass, including footer round trips,
+redaction, concurrent primary capture, replay idempotence, parent/child scope,
+handback handling, changing directories and excluding IDE context. Genuine local
+Claude extraction was checked separately. These tests do not prove new hook
+activation. **Review the changed definitions in `/hooks`**, then verify a genuine
+prompt and emitted final across subsequent turns. Trust settings and global agent
+settings were not modified. Earlier live-verification claims in this document
+refer to their dated machine/session, not this checkout's new definitions.
+
+References: [Codex hooks](https://learn.chatgpt.com/docs/hooks) and
+[Claude hooks](https://code.claude.com/docs/en/hooks#subagentstop).

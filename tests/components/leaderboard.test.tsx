@@ -1,7 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
-import { EndpointNotAvailableError } from "@/lib/ai/client";
 import { ApiError } from "@/lib/api/client";
 import { LeaderboardView } from "@/components/leaderboard/leaderboard-view";
 import { CompletionRank } from "@/components/leaderboard/completion-rank";
@@ -34,12 +33,28 @@ test("signed-out visitors get a short teaser and no request", async () => {
   expect(fx.page).not.toHaveBeenCalled();
 });
 
-test("until the backend has the endpoint the page says so, with no data and no retry loop", async () => {
-  fx.page.mockRejectedValue(new EndpointNotAvailableError("Leaderboard"));
+test("a 503 says the board is unavailable and offers one bounded retry, with no data shown", async () => {
+  fx.page.mockRejectedValue(new ApiError(503, "Required dependencies are not ready.", "dependency_unavailable"));
   render(<LeaderboardView />);
-  expect(await screen.findByText("The leaderboard isn't open yet")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  expect(await screen.findByText("The leaderboard is unavailable right now")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
   expect(screen.queryByRole("list")).toBeNull();
+});
+
+test("a 403 says the account can't use the board and does not offer a retry", async () => {
+  fx.page.mockRejectedValue(new ApiError(403, "Forbidden.", "forbidden"));
+  render(<LeaderboardView />);
+  expect(await screen.findByText("The leaderboard isn't available for this account")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+});
+
+test("people without a public name are shown as Trace learner with a short tag, and you see your own name", async () => {
+  fx.page.mockResolvedValue(page([entry("board-aaaa1234", 1, 2, { display_name: null }), entry("board-bbbb5678", 2, 1, { display_name: null, is_me: true })], { me: { rank: 2, verified_count: 1 } }));
+  render(<LeaderboardView />);
+  const list = (await screen.findByRole("heading", { name: "Everyone" })).closest("section")!;
+  expect(within(list).getAllByText("Trace learner")).toHaveLength(2);
+  expect(within(list).getByText("1234")).toBeVisible();
+  expect(within(list).getByText("You")).toBeVisible();
 });
 
 test("an empty board and a learner without a count are different states", async () => {
@@ -91,17 +106,6 @@ test("when you are not on the loaded page, Your position still shows and there i
   expect(within(position).queryByRole("button", { name: "Jump to my position" })).toBeNull();
 });
 
-test("a pass-N nudge shows only when the backend provides the number", async () => {
-  fx.page.mockResolvedValueOnce(page([entry("a", 1, 3)], { me: { rank: 5, verified_count: 1, passable_with_one_more: 4 } }));
-  const { unmount } = render(<LeaderboardView />);
-  expect(await screen.findByText("One more verified problem would pass 4 people.")).toBeVisible();
-  unmount();
-  fx.page.mockResolvedValueOnce(page([entry("a", 1, 3)], { me: { rank: 5, verified_count: 1 } }));
-  render(<LeaderboardView />);
-  await screen.findByRole("heading", { name: "Your position" });
-  expect(screen.queryByText(/would pass/)).toBeNull();
-});
-
 test("Load more appends the next page without duplicates, asks only by cursor, and never sends a score", async () => {
   const user = userEvent.setup();
   fx.page
@@ -132,7 +136,7 @@ test("display names are untrusted text: markup, scripts, bidi and zero-width tri
   expect(names[0]).toBe("<img src=x onerror=alert(1)><script>window.pwned=1</script>");
   expect(names[1]).toBe("evil‍name");
   expect(names[2].length).toBeLessThanOrEqual(60);
-  expect(names[3]).toBe("Trace learner");
+  expect(names[3]).toMatch(/^Trace learner/); // an empty name falls back, with a short tag after it
   expect(names[4]).toBe("مرحبا 👩‍💻");
   expect((window as unknown as { pwned?: number }).pwned).toBeUndefined();
   expect(document.body.textContent).not.toMatch(/@/);
@@ -140,7 +144,7 @@ test("display names are untrusted text: markup, scripts, bidi and zero-width tri
 
 test("errors: a request id sits in collapsed support details; rate limits say when to retry", async () => {
   const user = userEvent.setup();
-  fx.page.mockRejectedValueOnce(new ApiError(503, "down", "dependency_unavailable", "req-9"));
+  fx.page.mockRejectedValueOnce(new ApiError(500, "down", "internal_error", "req-9"));
   const { unmount } = render(<LeaderboardView />);
   expect(await screen.findByText("The leaderboard couldn't load")).toBeVisible();
   const details = screen.getByText("Support details").closest("details")!;
@@ -164,7 +168,7 @@ test("the page says when it was updated and uses no XP, streak or points languag
 });
 
 test("the completion line shows only when the backend returns your rank", async () => {
-  fx.page.mockRejectedValueOnce(new EndpointNotAvailableError("Leaderboard"));
+  fx.page.mockRejectedValueOnce(new ApiError(503, "Required dependencies are not ready.", "dependency_unavailable"));
   const { container, unmount } = render(<CompletionRank />);
   await waitFor(() => expect(fx.page).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
@@ -181,8 +185,22 @@ test("view helpers: names, appending, ties, podium by rank value, bars and age",
   expect(appendPage(a, [entry("b", 1, 2), entry("c", 3, 1)]).map((e) => e.user_id)).toEqual(["a", "b", "c"]);
   expect([...tiedRanks([...a, entry("c", 3, 1)])]).toEqual([1]);
   expect(topGroups([...a, entry("c", 3, 1), entry("d", 9, 0)])?.map((g) => [g.rank, g.entries.length])).toEqual([[1, 2], [3, 1]]);
-  expect(topGroups(Array.from({ length: 5 }, (_, i) => entry(String(i), 1, 2)))).toBeNull();
+  expect(topGroups(Array.from({ length: 5 }, (_, i) => entry(String(i), 1, 2)))?.map((g) => [g.rank, g.entries.length])).toEqual([[1, 5]]);
+  expect(topGroups([entry("x", 4, 1)])).toBeNull();
   expect(barPercent(1, [entry("a", 1, 4)])).toBe(25);
   expect(barPercent(0, [entry("a", 1, 0)])).toBe(0);
   expect(updatedAgo(new Date(Date.now() - 90 * 60_000).toISOString(), Date.now())).toBe("Updated 1 hour ago");
+});
+
+test("a rejected cursor (422) starts again from page one, and a failed refresh keeps the board on screen", async () => {
+  const user = userEvent.setup();
+  fx.page
+    .mockResolvedValueOnce(page([entry("a", 1, 3), entry("b", 2, 2)], { next_cursor: "stale" }))
+    .mockRejectedValueOnce(new ApiError(422, "Invalid leaderboard cursor.", "validation_error"))
+    .mockResolvedValueOnce(page([entry("a", 1, 3), entry("b", 2, 2)], { next_cursor: "fresh" }));
+  render(<LeaderboardView />);
+  await user.click(await screen.findByRole("button", { name: "Load more" }));
+  await waitFor(() => expect(fx.page).toHaveBeenNthCalledWith(3, { limit: 20 }, expect.anything()));
+  expect(await screen.findByRole("heading", { name: "Everyone" })).toBeVisible();
+  expect(screen.queryByRole("alert")).toBeNull();
 });

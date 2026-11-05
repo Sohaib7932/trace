@@ -10,7 +10,7 @@ from app.schemas.generation import TransportIdentifier
 type Limit = Annotated[StrictInt, Field(ge=1)]
 type Money = Annotated[StrictInt, Field(ge=0, le=1_000_000_000)]
 
-GEMINI_MODEL = "gemini-3.5-flash-lite"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 GEMINI_PROFILE = "gemini-free-text-v1"
 GEMINI_MAX_OUTPUT_TOKENS = 4096
 GEMINI_MAX_RESPONSE_SECONDS = 20.0

@@ -142,3 +142,18 @@ test("guide writes use the protected API and are not automatically replayed on u
   expect(init.headers).toMatchObject({ Authorization: "Bearer synthetic-test-token", "Idempotency-Key": guide.id, "X-Trace-Client": "learning-web" });
   expect(state.refreshSession).not.toHaveBeenCalled();
 });
+
+
+test("waits for sign-in before accepting a draft that an owner remount would erase", async () => {
+  state.auth = { status: "loading" };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const tree = () => <QueryClientProvider client={client}><CreateCustomLesson /></QueryClientProvider>;
+  const page = render(tree());
+  expect(screen.getByLabelText("What do you want to learn?")).toBeDisabled();
+  expect(screen.getByText("Checking your sign-in?")).toBeVisible();
+  state.auth = { status: "signed-in", userId: "synthetic-owner" }; page.rerender(tree());
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("What do you want to learn?"), "Python variables");
+  expect(screen.getByLabelText("What do you want to learn?")).toHaveValue("Python variables");
+  expect(screen.getByRole("button", { name: "Create lesson" })).toBeEnabled();
+});

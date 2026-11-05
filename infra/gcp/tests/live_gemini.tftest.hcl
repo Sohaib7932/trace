@@ -120,8 +120,8 @@ run "approved_profile_is_runtime_only_and_zero_paid" {
     condition = (
       local.runtime_env.TRACE_LLM_MODE == "gemini_free" &&
       local.runtime_env.TRACE_LLM_PROVIDER_ID == "gemini" &&
-      local.runtime_env.TRACE_LLM_GENERATION_MODEL_ID == "gemini-3.5-flash-lite" &&
-      local.runtime_env.TRACE_LLM_CONVERSATIONAL_MODEL_ID == "gemini-3.5-flash-lite" &&
+      local.runtime_env.TRACE_LLM_GENERATION_MODEL_ID == "gemini-3.1-flash-lite" &&
+      local.runtime_env.TRACE_LLM_CONVERSATIONAL_MODEL_ID == "gemini-3.1-flash-lite" &&
       local.runtime_env.TRACE_LLM_CREDENTIAL_ENV_VAR == "GEMINI_API_KEY" &&
       local.runtime_env.TRACE_LLM_FREE_TIER_PROJECT_CONFIRMED == "true" &&
       local.runtime_env.TRACE_LLM_SPEND_LIMIT_MICROUSD == "0" &&

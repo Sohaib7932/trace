@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# Hook commands use runpy from the repository root, not a Python package install.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 EVENT_ROLES = {"UserPromptSubmit": "PROMPT", "Stop": "RESPONSE"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 MARKER = re.compile(r"(?m)^\[CLAUDE_LOG_ENTRY type=(PROMPT|RESPONSE) num=(\d+) session=([A-Za-z0-9_-]+)\]\n")
@@ -75,6 +78,16 @@ def attribution(root: Path, previous: dict) -> dict:
     if not author or "@" not in email:
         raise ValueError("Set this checkout's Git author name and email before logging")
     fingerprint = hashlib.sha256((author + "\0" + email).encode()).hexdigest()
+    # The company guide permits unknown attribution when gh is unavailable.
+    # Missing optional CLI software must not discard the whole conversation.
+    if shutil.which("gh") is None:
+        match = re.fullmatch(r"(?:\d+\+)?([A-Za-z0-9-]+)@users\.noreply\.github\.com", email)
+        local, _, domain = email.partition("@")
+        public_email = email if match else f"{local[:1]}***@{domain}"
+        return {"author": author, "github_user": match[1] if match else "unknown",
+                "git_email": public_email, "git_email_redacted": public_email != email,
+                "git_identity_fingerprint": fingerprint, "github_identity_verified_at": None,
+                "github_identity_source": "git_noreply" if match else "unavailable_no_gh"}
     status = json.loads(command(root, ["gh", "auth", "status", "--active", "--json", "hosts"]))
     accounts = [a for a in status.get("hosts", {}).get("github.com", []) if a.get("active") and a.get("state") == "success"]
     if len(accounts) != 1 or not re.fullmatch(r"[A-Za-z0-9-]{1,39}", accounts[0].get("login", "")):
@@ -120,6 +133,11 @@ def validate_event(payload: dict, root: Path) -> dict:
     )):
         raise ValueError("Injected environment/Page/instruction context is excluded")
     text = redact(text.replace("\r\n", "\n").replace("\r", "\n"))
+    if event == "UserPromptSubmit":
+        from session_prompt_text import clean_prompt
+        text = clean_prompt(text)
+        if not text:
+            raise ValueError("The prompt contains only injected context")
     supplied_timestamp = payload.get("timestamp")
     timestamp = supplied_timestamp if isinstance(supplied_timestamp, str) else now()
     instant(timestamp)
@@ -195,6 +213,10 @@ def parse_log(text: str, session: str) -> tuple[dict, list[dict]]:
     match = MARKER.search(body)
     cursor = match.start() if match else len(body)
     while cursor < len(body):
+        if body.startswith("# Subagents\n", cursor):
+            from session_subagents import parse
+            metadata["_subagent_entries"] = parse(body[cursor:], session)
+            break
         match = MARKER.match(body, cursor)
         if not match or match[3] != session:
             raise ValueError("Existing session entry marker is malformed")
@@ -267,6 +289,8 @@ def statistics(entries: list[dict]) -> dict:
 
 
 def render(metadata: dict, entries: list[dict]) -> str:
+    metadata = dict(metadata)
+    subagents = metadata.pop("_subagent_entries", [])
     prompts = [e for e in entries if e["kind"] == "PROMPT"]
     replies = {e["num"] for e in entries if e["kind"] == "RESPONSE"}
     pending = [e["num"] for e in prompts if e["num"] not in replies and not e.get("is_turn_continuation")]
@@ -291,6 +315,9 @@ def render(metadata: dict, entries: list[dict]) -> str:
             lines.append(f"words: {len(entry['text'].split())}")
             lines.extend(f"{key}: {json.dumps(flags[key])}" for key in ("has_code_block", "has_file_paths", "has_urls", "likely_pasted"))
         lines.extend(["", entry["text"], ""])
+    if subagents:
+        from session_subagents import render as render_subagents
+        lines.extend(["", render_subagents(subagents, metadata["session_id"])])
     return "\n".join(lines)
 
 

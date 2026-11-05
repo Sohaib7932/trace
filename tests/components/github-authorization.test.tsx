@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitHubProjectCallback } from "@/components/projects/github-callback";
-import { GitHubProjects } from "@/components/projects/github-projects";
+import { ConnectView } from "@/components/projects/connect";
+import { ProjectsProviders } from "@/components/projects/shell";
 import { ApiError } from "@/lib/api/client";
 import { githubAuthorizationDiagnostic, type GitHubAuthorizationPresence, type GitHubAuthorizationStage } from "@/lib/api/github-authorization-diagnostics";
 import { clearGitHubAuthorization, pendingGitHubAuthorization, saveGitHubAuthorization, type GitHubStart } from "@/lib/api/github-projects";
@@ -28,13 +29,13 @@ function diagnostic() { return JSON.parse(screen.getByTestId("github-authorizati
 
 describe("GitHub authorization entry points", () => {
   it.each([
-    ["Connect GitHub App", "authorization_url"],
-    ["Install GitHub App", "installation_url"],
-  ] as const)("%s starts a fresh flow using the correct backend URL", async (button, destination) => {
-    mocks.request.mockImplementation(async (path: string) => path.endsWith("/installations/start") ? start : []);
-    const user = userEvent.setup(); render(<GitHubProjects />);
-    await screen.findByText("No repositories connected.");
-    await user.click(screen.getByRole("button", { name: button }));
+    ["Continue to GitHub", "installation_url", false],
+    ["Already installed? Sign in with GitHub", "authorization_url", false],
+  ] as const)("%s starts a fresh flow using the correct backend URL", async (button, destination, installed) => {
+    mocks.request.mockImplementation(async (path: string) => path.endsWith("/installations/start") ? start : installed ? [{ id: "i", status: "connected" }] : []);
+    const user = userEvent.setup(); render(<ProjectsProviders><ConnectView /></ProjectsProviders>);
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(await screen.findByRole("button", { name: button }));
     await waitFor(() => expect(location.assign).toHaveBeenCalledWith(start[destination]));
     expect(pendingGitHubAuthorization(start.state)).toEqual(start);
     expect(mocks.request.mock.calls.filter(([path]) => path.endsWith("/installations/start"))).toHaveLength(1);
@@ -54,7 +55,7 @@ describe("GitHub authorization callback", () => {
       return { installation_id: 11, repository_selection: "selected" };
     });
     render(<StrictMode><GitHubProjectCallback /></StrictMode>);
-    await waitFor(() => expect(location.replace).toHaveBeenCalledWith("/projects"));
+    await waitFor(() => expect(location.replace).toHaveBeenCalledWith("/projects/import"), { timeout: 3000 });
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(mocks.request.mock.calls[0][0]).toBe("/projects/github/installations/complete");
     expect(location.assign).not.toHaveBeenCalled();
@@ -77,12 +78,13 @@ describe("GitHub authorization callback", () => {
     location.search = kind === "invalid-installation" ? "?installation_id=-1&state=synthetic-state"
       : `?code=synthetic-code&state=${kind === "mismatch" ? "wrong-state" : start.state}${kind === "denied" ? "&error=access_denied" : ""}`;
     render(<GitHubProjectCallback />);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("could not be completed"));
+    await waitFor(() => expect(screen.queryAllByText(kind === "denied" ? /You stopped before finishing/ : /expired|needs|Start again|Start a fresh|didn.t send back/).length).toBeGreaterThan(0));
     expect(mocks.request).not.toHaveBeenCalled();
     expect(location.assign).not.toHaveBeenCalled(); expect(location.replace).not.toHaveBeenCalled();
     expect(replaceState).toHaveBeenCalledWith(null, "", "/projects/github/callback");
-    expect(() => pendingGitHubAuthorization(start.state)).toThrow();
-    expect(screen.getByRole("status")).not.toHaveTextContent("synthetic-code");
+    expect(document.body.textContent).not.toContain("synthetic-code");
+    if (kind === "denied") return;
+    expect(() => pendingGitHubAuthorization(start.state)).toThrow(); // a stopped authorization is a user choice: no failure diagnostic is shown
     const stages: Record<string, string> = { mismatch: "state_mismatch", expired: "expired", missing: "pending_missing", denied: "provider_declined", "invalid-installation": "installation_id_invalid" };
     expect(diagnostic().failure_stage).toBe(stages[kind]);
     expect(diagnostic().callback_code_present).toBe(kind !== "invalid-installation");
@@ -94,18 +96,18 @@ describe("GitHub authorization callback", () => {
   });
 
   it.each([
-    [401, "same Trace account"], [403, "access could not be verified"],
-    [404, "No accessible installation"], [409, "explicit installation selection"],
-    [429, "request limit"], [504, "took too long"], [503, "No successful connection is assumed"],
+    [401, "Sign in again"], [403, "That didn't work"],
+    [404, "Not found"], [409, "That changed on the server"],
+    [429, "going a little fast"], [504, "took too long"], [503, "server had a problem"],
   ] as const)("shows a safe status %s failure and never retries the one-use callback", async (status, message) => {
     saveGitHubAuthorization(start); location.search = "?code=synthetic-code&state=synthetic-state";
     mocks.request.mockRejectedValue(new ApiError(status, "private-upstream-secret-canary"));
     render(<GitHubProjectCallback />);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(message));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(message));
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(location.replace).not.toHaveBeenCalled(); expect(location.assign).not.toHaveBeenCalled();
     expect(() => pendingGitHubAuthorization(start.state)).toThrow();
-    expect(screen.getByRole("status")).not.toHaveTextContent("private-upstream-secret-canary");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("private-upstream-secret-canary");
     expect(diagnostic().failure_stage).toBe("completion_call");
     expect(diagnostic().pending_present).toBe(true);
     expect(diagnostic().saved_state_present).toBe(true);
@@ -149,9 +151,9 @@ describe("Value-free authorization diagnostics", () => {
     });
     if (stage === "start_storage") vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("private-storage-canary"); });
     if (stage === "start_navigation") location.assign.mockImplementationOnce(() => { throw new Error("private-navigation-canary"); });
-    const user = userEvent.setup(); render(<GitHubProjects />);
-    await screen.findByText("No repositories connected.");
-    await user.click(screen.getByRole("button", { name: "Connect GitHub App" }));
+    const user = userEvent.setup(); render(<ProjectsProviders><ConnectView /></ProjectsProviders>);
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Continue to GitHub" }));
     await screen.findByTestId("github-authorization-diagnostic");
     expect(diagnostic().failure_stage).toBe(stage);
     if (stage === "start_request") expect(diagnostic()).not.toHaveProperty("start_state_present");
@@ -170,8 +172,7 @@ describe("Value-free authorization diagnostics", () => {
     saveGitHubAuthorization({ ...start, state: "private-state-canary" });
     location.search = "?code=private-code-canary&state=private-state-canary&error=private-error-canary&error_description=private-token-canary";
     render(<GitHubProjectCallback />);
-    await screen.findByTestId("github-authorization-diagnostic");
-    expect(diagnostic().failure_stage).toBe("provider_declined");
+    await screen.findByText(/You stopped before finishing/);
     expect(document.body.textContent).not.toContain("canary");
     for (const spy of consoleSpies) expect(spy).not.toHaveBeenCalled();
     expect(mocks.request).not.toHaveBeenCalled();

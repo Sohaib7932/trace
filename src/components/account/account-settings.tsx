@@ -6,6 +6,7 @@ import { useRef, useState, type CSSProperties } from "react";
 import { accountApi, ApiError, type Schema } from "@/lib/api/client";
 import { ErrorNotice } from "@/components/learning/error-notice";
 import { clearProfileCache } from "@/lib/avatars/profile";
+import { GitHubSettings } from "./github-settings";
 import { browserAuth } from "@/lib/supabase/browser";
 
 /** Offered when this browser still holds guest progress. The same claim logic as before. */
@@ -82,6 +83,7 @@ export function AccountSettings({ me, providers }: { me: Schema["AccountResponse
           </dl>
         </details>
       </div>
+      <GitHubSettings />
       <div className="dash-card flex flex-col">
         <h3 className="flex items-center gap-2 text-[0.9375rem] font-semibold"><span aria-hidden="true" className="acct-icon"><ShieldCheck className="size-4" strokeWidth={1.8} /></span>Privacy</h3>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-secondary">Only you can see your lessons and answers. Your email is shown only on this page.</p>

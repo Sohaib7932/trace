@@ -4,8 +4,8 @@
 
 Always commit .claude-logs/ with your changes.
 
-Use the shared primary-session logging setup documented in `scripts/CODEX_LOGGING.md`.
-Preserve genuine agent attribution; capture only prompts and emitted final answers.
+Use the shared company session logging setup documented in `scripts/CODEX_LOGGING.md`.
+Preserve genuine agent attribution; capture primary prompts and emitted final answers, plus delegated briefs and final reports in a Subagents section. Exclude intermediate tool calls, tool results, commentary, and reasoning.
 Logging does not authorize Git commits, pushes or publication.
 
 ## Product, Creative Direction, Design System & Engineering Standards

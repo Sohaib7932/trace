@@ -58,9 +58,7 @@ def _timestamp(row: dict) -> str:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))  # noqa: FURB162 (Python 3.10)
     except ValueError:
-        raise ValueError(
-            "Claude transcript message has no valid aware timestamp"
-        ) from None
+        raise ValueError("Claude transcript message has no valid aware timestamp") from None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("Claude transcript message has no valid aware timestamp")
     return value
@@ -123,9 +121,7 @@ def extract_claude_transcript(
         or type(stop_event) is not bool
     ):
         raise ValueError("Invalid Claude transcript extraction context")
-    if any(
-        part.casefold() == "subagents" for part in path.parts
-    ) or path.stem.startswith("agent-"):
+    if any(part.casefold() == "subagents" for part in path.parts) or path.stem.startswith("agent-"):
         raise ValueError("Delegated Claude transcripts are excluded")
 
     entries: list[dict] = []
@@ -160,15 +156,33 @@ def extract_claude_transcript(
                 continue
             kind = row.get("type")
             if kind not in {"user", "assistant"}:
+                # Claude inserts attachment/progress nodes in the parent chain.
+                # Retain only their ancestry, never their payload or content.
+                source, parent = row.get("uuid"), row.get("parentUuid")
+                if (
+                    row.get("sessionId") == session_id
+                    and isinstance(source, str)
+                    and isinstance(parent, str)
+                    and parent in source_turns
+                ):
+                    source_turns[source] = source_turns[parent]
                 continue
             if any(row.get(field) for field in _META_FIELDS):
+                source, parent = row.get("uuid"), row.get("parentUuid")
+                if (
+                    row.get("sessionId") == session_id
+                    and isinstance(source, str)
+                    and isinstance(parent, str)
+                    and parent in source_turns
+                ):
+                    source_turns[source] = source_turns[parent]
                 continue
             row_cwd = row.get("cwd")
             if (
                 row.get("sessionId") != session_id
                 or not isinstance(row_cwd, str)
                 or not Path(row_cwd).is_absolute()
-                or _scope_path(row_cwd) != expected_cwd
+                or not Path(_scope_path(row_cwd)).is_relative_to(Path(expected_cwd))
             ):
                 raise ValueError("Claude transcript session or project does not match")
             message = row.get("message")
@@ -176,9 +190,7 @@ def extract_claude_transcript(
                 raise ValueError("Malformed Claude transcript message")
             parts, kinds = _parts(message)
             parent = row.get("parentUuid")
-            inherited = (
-                source_turns.get(parent) if isinstance(parent, str) else current_turn
-            )
+            inherited = source_turns.get(parent) if isinstance(parent, str) else current_turn
             source = _source_id(row)
             if source in seen:
                 if seen[source] != row:
@@ -188,10 +200,7 @@ def extract_claude_transcript(
             source_turns[source] = inherited
 
             if kind == "user":
-                if any(
-                    part.lstrip().startswith("[Request interrupted by user")
-                    for part in parts
-                ):
+                if any(part.lstrip().startswith("[Request interrupted by user") for part in parts):
                     pending, confirmed, current_turn = None, False, None
                     continue
                 if "tool_result" in kinds:
@@ -216,9 +225,7 @@ def extract_claude_transcript(
 
             # A forked or orphaned assistant message cannot answer the current
             # prompt merely because it happens to appear later in this file.
-            if current_turn is None or (
-                isinstance(parent, str) and inherited != current_turn
-            ):
+            if current_turn is None or (isinstance(parent, str) and inherited != current_turn):
                 if not confirmed:
                     pending = None
                 continue
@@ -228,9 +235,7 @@ def extract_claude_transcript(
                 continue
             text = "\n\n".join(part for part in parts if part.strip())
             reason = message.get("stop_reason", row.get("stop_reason"))
-            if not text.strip() or (
-                reason is not None and reason not in _FINAL_REASONS
-            ):
+            if not text.strip() or (reason is not None and reason not in _FINAL_REASONS):
                 continue
             pending = {
                 "kind": "RESPONSE",

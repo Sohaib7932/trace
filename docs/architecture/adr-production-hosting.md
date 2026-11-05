@@ -157,7 +157,7 @@ separate hosted-provider approval, explicit attestation that the existing key
 project is unbilled, application activation and an immutable numeric secret
 version. Only then does the runtime receive secret-scoped access and a private
 `GEMINI_API_KEY` reference. The exact approved `gemini-free-text-v1` profile pins
-`gemini-3.5-flash-lite`, zero paid allowance and retries, existing request/token
+`gemini-3.1-flash-lite`, zero paid allowance and retries, existing request/token
 bounds and deadlines, plus unchanged durable allowance/admission. The migrator
 never receives the key or live settings. Embeddings remain disabled and ranking
 remains lexical. Terraform prepares only an empty key container; it cannot
