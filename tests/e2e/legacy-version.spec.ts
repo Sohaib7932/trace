@@ -10,7 +10,7 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
   const api = "http://127.0.0.1:8000";
   await page.route("**/api/v1/**", (route) => new URL(route.request().url()).origin === api ? route.continue() : route.abort("blockedbyclient"));
   await page.goto("/learn/fastapi-payload-mismatch");
-  await expect(page.getByRole("button", { name: "Start lesson", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Lock prediction", exact: true })).toBeVisible();
   expect(bearer()).toMatch(/^Bearer /);
   const legacyResponse = await page.request.get(`${api}/api/v1/lessons/fastapi-payload-mismatch?version=1.0.0`);
   expect(legacyResponse.status()).toBe(200);
@@ -23,20 +23,20 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
   const session = await sessionResponse.json();
   await page.evaluate(({ lessonId, sessionId }) => localStorage.setItem(`trace.session.${lessonId}`, sessionId), { lessonId: legacy.id, sessionId: session.id });
   await page.reload();
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
   const reasoning = "This original prediction must survive a newer catalog publication.";
   await page.getByLabel("Why do you expect that?").fill(reasoning);
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await page.getByRole("button", { name: /^Change field name, currently / }).click();
   await page.getByRole("option", { name: /"body"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Request rejected", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Request a hint", exact: true }).click();
-  await expect(page.getByText("Hint 1 · fixture guidance", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Request rejected/ })).toBeVisible();
+  await page.getByRole("button", { name: "Show a hint", exact: true }).click();
+  await expect(page.getByText(/Hint 1 ·/).first()).toBeVisible();
   await page.getByRole("button", { name: /^Change field name, currently / }).click();
   await page.getByRole("option", { name: /"content"/ }).click();
   await page.getByRole("button", { name: "Check my change", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
+  await expect(page.getByText(/Verified (on first try|after a revision)/)).toBeVisible();
   const saved = await (await page.request.get(`${api}/api/v1/sessions/${session.id}/progress`, { headers: { Authorization: bearer() } })).json();
   try {
     const changed = await page.request.post(`${api}/__fixture__/catalog/advance`);
@@ -50,9 +50,9 @@ test("catalog changes cannot replace an old session's pinned content or saved ev
     await expect(page.getByRole("heading", { level: 1, name: legacy.title, exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: future.title, exact: true })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(reasoning);
-    await expect(page.getByRole("heading", { name: "Attempt 1 · body", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Attempt 2 · content", exact: true })).toBeVisible();
-    await expect(page.getByText("Hint 1 · fixture guidance", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Your change · attempt 1/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Your change · attempt 2/ })).toBeVisible();
+    await expect(page.getByText(/Hint 1 ·/).first()).toBeVisible();
     const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
     await expect(passed.getByText("201", { exact: true })).toBeVisible();
     await expect(passed.getByText("1", { exact: true })).toBeVisible();

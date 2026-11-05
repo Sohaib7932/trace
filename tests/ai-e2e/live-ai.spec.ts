@@ -53,8 +53,9 @@ test("real frontend adapter reaches owned tutor and sourced support APIs; fixtur
   test.setTimeout(120_000);
   await signUp(page, request);
   await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await expect(page.getByLabel("The request will be rejected", { exact: true })).toBeVisible();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
+  await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
   if (await page.locator(".tutor-bar").isVisible()) await page.locator(".tutor-bar button").click();
   const tutor = page.getByRole("dialog", { name: "Lesson tutor", exact: true });
   const panel = await tutor.isVisible() ? tutor : page.getByRole("complementary", { name: "Lesson tutor", exact: true });
@@ -115,8 +116,9 @@ test("conversational tutor sends natural questions and bounded follow-up history
   test.setTimeout(120_000);
   await signUp(page, request);
   await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await expect(page.getByLabel("The request will be rejected", { exact: true })).toBeVisible();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
+  await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
   if (await page.locator(".tutor-bar").isVisible()) await page.locator(".tutor-bar button").click();
   const drawer = page.getByRole("dialog", { name: "Lesson tutor", exact: true });
   const panel = await drawer.isVisible() ? drawer : page.getByRole("complementary", { name: "Lesson tutor", exact: true });

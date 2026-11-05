@@ -69,7 +69,8 @@ export function ChallengeLoop({ lessonId, lessonTitle, challenge, number, highli
   const firstPick = useRef<HTMLButtonElement>(null);
 
   const state = loopState(challenge, local);
-  const viewingResult = result !== null || state === "completed";
+  // Like the demo: a wrong answer stays on Modify with a "Not yet" note; only a match (or a practice-only comparison) moves on to Verify.
+  const viewingResult = (result !== null && result.correct !== false) || state === "completed";
   const step: LoopStep = viewingResult ? "verify" : currentStep(state);
   // Without code there is nothing to edit: step 3 is choosing (or revising) the answer to check.
   const hasCode = lines.length > 0;
@@ -221,7 +222,7 @@ export function ChallengeLoop({ lessonId, lessonTitle, challenge, number, highli
             <StepHeading headingRef={headingRef} step={2} title={changeTitle} />
             {local.prediction && <LockedCard>{lockedText}</LockedCard>}
             {state === "needs_revision" && (
-              <p className="mt-4 text-[0.9375rem]">{challenge.attempts} {challenge.attempts === 1 ? "attempt" : "attempts"} so far didn&apos;t match. Try a different answer.</p>
+              <div className="mt-4"><NotYet>{result?.correct === false ? "Your answer doesn't match the lesson's answer key. " : ""}{challenge.attempts} {challenge.attempts === 1 ? "attempt" : "attempts"} so far didn&apos;t match. Try a different answer.</NotYet></div>
             )}
             {lines.length > 0 && !editing && (
               <button type="button" onClick={tryChange} className={`${pillButton} mt-5`}>

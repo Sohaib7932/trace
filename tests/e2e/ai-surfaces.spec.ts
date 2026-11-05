@@ -33,8 +33,7 @@ async function openTutor(page: Page) {
 }
 async function startLesson(page: Page) {
   await page.goto("/learn/fastapi-payload-mismatch");
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
 }
@@ -78,8 +77,8 @@ test("lesson: the real fixture hint and the demo tutor stay separate from verifi
   if (await page.locator(".tutor-bar").isVisible()) await page.keyboard.press("Escape");
   // The demo tutor changed nothing real: still one attempt, still needs revision, one hint used.
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Attempt 1 · body" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Recorded guidance" }).getByText("1 of 3 requests used · 1 delivered")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your change · attempt 1/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Recorded guidance" }).getByText(/1 of 3 hints used/)).toBeVisible();
   await expect(page.getByText("Lesson completed · verified by the server")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -133,7 +132,7 @@ test("the Help launcher never overlaps the tutor or the submit button at 320, 39
     const submit = page.getByRole("button", { name: "Check my change", exact: true });
     await submit.scrollIntoViewIfNeeded();
     const launcher = await page.locator(".help-launcher").boundingBox();
-    const tutor = await page.locator(width >= 1280 ? ".tutor-dock" : ".tutor-bar").boundingBox();
+    const tutor = await page.locator(".tutor-bar").boundingBox();
     expect(overlap(launcher, tutor), `tutor at ${width}`).toBe(false);
     expect(overlap(launcher, await submit.boundingBox()), `submit at ${width}`).toBe(false);
   }

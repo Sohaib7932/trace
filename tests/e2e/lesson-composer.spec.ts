@@ -78,8 +78,7 @@ test("new and returning learners: a first-visit hint, then a Continue card once 
   await expect(page.getByText("New here? Start with lesson 1. It takes about 5 minutes.")).toBeVisible();
   await expect(page.getByRole("region", { name: "Continue" })).toHaveCount(0);
   await page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true }).click();
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
   await page.goto("/learn");

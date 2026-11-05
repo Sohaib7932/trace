@@ -20,8 +20,7 @@ async function expectNoCodeScroll(page: Page) {
 }
 
 async function predict(page: Page, label: string) {
-  await page.getByRole("button", { name: "Start lesson" }).click();
-  await page.getByLabel(label, { exact: true }).check();
+  await page.locator("label", { hasText: new RegExp(label) }).click();
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
 }
@@ -80,37 +79,37 @@ test("notes: keyboard-only in-code edit, then a real failed and passed run", asy
   await page.keyboard.press("Enter");
   const passed = page.getByRole("region", { name: "Verification evidence, attempt 2" });
   await expect(passed.getByText("201", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Session complete", exact: true })).toBeVisible();
+  await expect(page.getByText(/Verified (on first try|after a revision)/)).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("tutor: context line, collapse at desktop, drawer below 1280px", async ({ page, request }, testInfo) => {
+test("tutor: a bottom bar opens a drawer with the context line; chat history is kept", async ({ page, request }, testInfo) => {
   test.skip(testInfo.project.name.includes("mobile"), "Resizes a desktop window; the phone drawer is covered in ai-surfaces.spec.ts");
   test.setTimeout(90_000);
   const errors = guard(page);
   await signUp(page, request);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/learn/fastapi-payload-mismatch");
-  const tutor = page.getByRole("complementary", { name: "Lesson tutor" });
+  await page.getByRole("button", { name: /Lesson tutor/ }).click();
+  const tutor = page.getByRole("dialog", { name: "Lesson tutor" });
   await expect(tutor.getByText(/Lesson: .+\. Step: Read the code/)).toBeVisible();
+  await page.getByRole("button", { name: "Close lesson tutor" }).click();
   await predict(page, "The request will be rejected");
+  await page.getByRole("button", { name: /Lesson tutor/ }).click();
   await expect(tutor.getByText(/Step: Change the code/)).toBeVisible();
   await tutor.getByRole("button", { name: "Explain this concept" }).click();
   await expect(tutor.getByText(/AI explanation \(demo\)/).first()).toBeVisible();
-  await tutor.getByRole("button", { name: "Collapse the lesson tutor" }).click();
-  await expect(page.getByRole("button", { name: "Expand the lesson tutor" })).toBeFocused();
-  await page.getByRole("button", { name: "Expand the lesson tutor" }).click();
+  await page.getByRole("button", { name: "Close lesson tutor" }).click();
+  await expect(tutor).toHaveCount(0);
+  await page.getByRole("button", { name: /Lesson tutor/ }).click();
   await expect(tutor.getByText(/AI explanation \(demo\)/).first()).toBeVisible();
 
   await page.setViewportSize({ width: 1100, height: 800 });
-  await page.getByRole("button", { name: /Lesson tutor/ }).click();
-  const drawer = page.getByRole("dialog", { name: "Lesson tutor" });
-  await expect(drawer).toBeVisible();
-  const box = (await drawer.boundingBox())!;
+  const box = (await tutor.boundingBox())!;
   expect(box.x + box.width).toBeGreaterThan(1080); // right-edge drawer
   expect(box.width).toBeLessThanOrEqual(400);
   await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
+  await expect(tutor).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: /Lesson tutor/ }).click();
@@ -186,5 +185,5 @@ test("signing in from a lesson's gate returns to that lesson", async ({ page, re
   await page.getByLabel("Password", { exact: true }).fill("Controlled-fixture-password-47");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/learn\/fastapi-payload-mismatch$/);
-  await expect(page.getByRole("button", { name: "Start lesson", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Lock prediction", exact: true })).toBeVisible();
 });

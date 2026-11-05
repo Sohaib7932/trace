@@ -61,10 +61,10 @@ test("registration, verified account, authenticated learning, refresh and logout
   // Sign-in landed on /learn, which already started this account's learning record.
   await page.goto("/learn");
   await page.getByRole("article", { name: /Follow the note/ }).getByRole("link", { name: "Start", exact: true }).click();
-  await page.getByRole("button", { name: "Start lesson", exact: true }).click();
-  await page.getByLabel("The request will be rejected", { exact: true }).check();
+  await page.locator("label", { hasText: /The request will be rejected/ }).click();
   await page.getByLabel("Why do you expect that?").fill("The authenticated learner preserves this prediction after reload.");
   await page.getByRole("button", { name: "Lock prediction", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Locked prediction" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText("authenticated learner preserves");
   await openSupportId(page);
@@ -81,10 +81,11 @@ test("explicit guest claim preserves a real session and rejects a second account
   const guestCookie = (await context.cookies()).find((cookie) => cookie.name === "trace_learner")!;
   expect(Boolean(guestCookie)).toBe(true);
   await register(page, request, `claim-${crypto.randomUUID()}@example.test`);
-  await page.getByRole("button", { name: "Review history claim" }).click();
-  await expect(page.getByText("Attach this guest history to this account?", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Confirm history claim" }).click();
-  await expect(page.getByText(/Every session is preserved/)).toBeVisible();
+  // The claim choice is offered where learner calls begin: the lesson page.
+  await page.goto("/learn/fastapi-payload-mismatch");
+  await page.getByRole("button", { name: "Keep my guest progress" }).click();
+  await page.getByRole("button", { name: "Yes, keep it with my account" }).click();
+  await expect(page.getByRole("region", { name: "Locked prediction" })).toContainText(prediction);
   expect((await context.cookies()).some((cookie) => cookie.name === "trace_learner")).toBe(false);
   await page.goto("/account?tab=history");
   await expect(page.getByRole("heading", { name: "How you learned" })).toBeVisible();
