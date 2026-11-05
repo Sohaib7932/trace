@@ -5,6 +5,7 @@ import Link from "next/link";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/supabase/use-auth";
 import { ApiError } from "@/lib/api/client";
+import { githubAuthorizationDiagnostic, type GitHubAuthorizationDiagnostic, type GitHubAuthorizationPresence, type GitHubAuthorizationStage } from "@/lib/api/github-authorization-diagnostics";
 import { githubAuthorizationUrl, githubProjectsApi, saveGitHubAuthorization, type GitHubRepository, type ProjectLearningPath, type ProjectSnapshot, type RepositoryKnowledge, type ProjectAnswer } from "@/lib/api/github-projects";
 
 export function GitHubProjects() {
@@ -43,10 +44,11 @@ function GitHubProjectContent() {
   const [choices, setChoices] = useState<{ owner: string | undefined; installation: number; repositories: GitHubRepository[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [authorizationDiagnostic, setAuthorizationDiagnostic] = useState<GitHubAuthorizationDiagnostic | null>(null);
   const [connectionId, setConnectionId] = useState("");
   const [sha, setSha] = useState("");
   const [snapshot, setSnapshot] = useState<{ owner: string | undefined; value: ProjectSnapshot } | null>(null);
-  const [path, setPath] = useState<{ owner: string | undefined; value: ProjectLearningPath } | null>(null);
+  const [path, setPath] = useState<{ owner: string | undefined; connection: string; value: ProjectLearningPath } | null>(null);
   const [knowledge, setKnowledge] = useState<{ owner: string | undefined; value: RepositoryKnowledge } | null>(null);
   const [question, setQuestion] = useState("");
   const [answers, setAnswers] = useState<{ owner: string | undefined; connection: string; sha: string; turns: { question: string; answer: ProjectAnswer }[] } | null>(null);
@@ -65,10 +67,50 @@ function GitHubProjectContent() {
         ?? "Project Learning is unavailable or its GitHub App is not configured. No repository connection or AI result is assumed. Try again after setup.");
     } finally { setBusy(false); }
   }
+  async function startAuthorization(kind: "authorize" | "install") {
+    setAuthorizationDiagnostic(null);
+    let stage: GitHubAuthorizationStage = "start_request";
+    const presence: GitHubAuthorizationPresence = {};
+    try {
+      const start = await runRequest(githubProjectsApi.start);
+      presence.start_state_present = Boolean(start.state);
+      presence.start_expiry_present = Boolean(start.expires_at);
+      presence.start_authorization_url_present = Boolean(start.authorization_url);
+      presence.start_installation_url_present = Boolean(start.installation_url);
+      stage = "start_url_validation";
+      const authorize = githubAuthorizationUrl(start.authorization_url, "authorize");
+      const install = githubAuthorizationUrl(start.installation_url, "install");
+      stage = "start_storage";
+      saveGitHubAuthorization(start);
+      stage = "start_navigation";
+      window.location.assign(kind === "authorize" ? authorize : install);
+    } catch (failure) {
+      setAuthorizationDiagnostic(githubAuthorizationDiagnostic(stage, presence));
+      throw failure;
+    }
+  }
+  async function loadLearningPath(saved: boolean) {
+    setPath(null);
+    try {
+      const value = await runRequest(() => saved
+        ? githubProjectsApi.savedLearningPath(connectionId, sha)
+        : githubProjectsApi.learningPath(connectionId, sha));
+      setPath({ owner, connection: connectionId, value });
+    } catch (failure) {
+      if (saved && failure instanceof ApiError && failure.status === 404) {
+        setError("No saved learning path is available for this repository and commit.");
+        return;
+      }
+      throw failure;
+    }
+  }
   if (auth.status === "loading") return <p role="status">Checking sign-in…</p>;
   if (!enabled) return <section><h1 className="type-h2">Learn from a project</h1><p className="mt-4">Sign in to connect selected repositories privately.</p><Link href="/sign-in?next=%2Fprojects" className="mt-4 inline-block underline">Sign in</Link></section>;
   const activeSnapshot = snapshot && snapshot.owner === owner && snapshot.value.connection_id === connectionId && snapshot.value.commit_sha === sha ? snapshot.value : null;
-  const activePath = path && path.owner === owner && activeSnapshot && path.value.snapshot_digest === activeSnapshot.digest ? path.value : null;
+  const activePath = path && path.owner === owner && path.connection === connectionId && activeSnapshot && path.value.commit_sha === sha && path.value.snapshot_digest === activeSnapshot.digest ? path.value : null;
+  const savedPath = activePath?.status === "ready" && activePath.id && activePath.generation && activePath.content
+    && ((activePath.source === "ai" && activePath.generation.provider_id === "gemini") || (activePath.source === "test_fixture" && activePath.generation.provider_id === "mock"))
+    && activePath.content.steps.every((step) => step.reference_ids.every((id) => activeSnapshot?.references.some((reference) => reference.reference_id === id))) ? activePath : null;
   const activeKnowledge = knowledge && knowledge.owner === owner && knowledge.value.connection_id === connectionId && knowledge.value.commit_sha === sha ? knowledge.value : null;
   const activeAnswers = answers && answers.owner === owner && answers.connection === connectionId && answers.sha === sha ? answers.turns : [];
   const connected = connections.data?.find((item) => item.id === connectionId && item.status !== "disconnected");
@@ -76,13 +118,11 @@ function GitHubProjectContent() {
     <h1 className="type-h2">Project Learning</h1>
     <p className="mt-4 text-secondary">Connect a GitHub App with selected-repository, read-only access. This is separate from signing in with GitHub. External app configuration is required.</p>
     <p className="mt-2 text-secondary">Repository snapshots and grounded questions are private, bounded and ungraded. Trace does not run repository code or change your progress.</p>
-    <button disabled={busy} className="mt-6 min-h-11 rounded-lg bg-foreground px-4 text-white disabled:opacity-50" onClick={() => void action(async () => {
-      const start = await runRequest(githubProjectsApi.start);
-      const url = githubAuthorizationUrl(start.installation_url, "install");
-      githubAuthorizationUrl(start.authorization_url, "authorize");
-      saveGitHubAuthorization(start); window.location.assign(url);
-    })}>Connect GitHub App</button>
+    <button disabled={busy} className="mt-6 min-h-11 rounded-lg bg-foreground px-4 text-white disabled:opacity-50" onClick={() => void action(() => startAuthorization("authorize"))}>Connect GitHub App</button>
+    <p className="mt-2 text-sm text-secondary">Already installed? Connect to authorize your existing selected repositories. If you have not installed the App, install it first.</p>
+    <button disabled={busy} className="min-h-11 underline disabled:opacity-50" onClick={() => void action(() => startAuthorization("install"))}>Install GitHub App</button>
     {(error || connections.error || installations.error) && <p role="alert" className="mt-4">{error || "GitHub App is not available. Ask the owner to configure it; no live repository access has been verified."}</p>}
+    {authorizationDiagnostic && <details className="mt-4"><summary>Connection diagnostics</summary><pre data-testid="github-authorization-diagnostic" className="mt-2 whitespace-pre-wrap text-xs">{JSON.stringify(authorizationDiagnostic, null, 2)}</pre></details>}
     {installations.data?.map((installation) => <div key={installation.installation_id} className="mt-4">
       <p className="text-sm">Installation {installation.installation_id}: {installation.status === "disconnected" ? "disconnected" : installation.status === "reauthorization_required" ? "reconnect required" : "authorized"}</p>
       <button disabled={busy || installation.status === "disconnected" || installation.status === "reauthorization_required"} className="min-h-11 underline disabled:opacity-50" onClick={() => void action(async () => setChoices({ owner, installation: installation.installation_id, repositories: await runRequest(() => githubProjectsApi.choices(installation.installation_id)) }))}>Choose an allowed repository from installation {installation.installation_id}</button>
@@ -142,9 +182,10 @@ function GitHubProjectContent() {
     {activeSnapshot && <section className="mt-6 rounded-xl border border-border p-4"><h2 className="type-h4">Pinned snapshot</h2><p className="mt-2 break-all font-mono text-sm">{activeSnapshot.commit_sha}</p><p className="mt-2">{activeSnapshot.references.length} references; {activeSnapshot.omitted_files} omitted files. This is not a complete repository analysis.</p>
       <p className="mt-3 text-secondary">Generating sends the filtered references below to Gemini. Do not connect a repository containing material you cannot share with the approved provider.</p>
       <details className="mt-3"><summary>Review source excerpts</summary><ul>{activeSnapshot.references.map((reference) => <li key={reference.reference_id} className="mt-3"><strong>{reference.path}</strong><pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-sm">{reference.text}</pre></li>)}</ul></details>
-      <button disabled={busy} className="mt-4 min-h-11 rounded-lg bg-foreground px-4 text-white disabled:opacity-50" onClick={() => void action(async () => setPath({ owner, value: await runRequest(() => githubProjectsApi.learningPath(connectionId, sha)) }))}>Generate grounded learning questions</button>
+      <button disabled={busy} className="mt-4 min-h-11 rounded-lg bg-foreground px-4 text-white disabled:opacity-50" onClick={() => void action(() => loadLearningPath(false))}>Generate grounded learning questions</button>
+      <button disabled={busy} className="mt-4 ml-3 min-h-11 rounded-lg border px-4 disabled:opacity-50" onClick={() => void action(() => loadLearningPath(true))}>Load saved learning path</button>
     </section>}
     {busy && <p role="status" className="mt-4">Working… This may return unavailable.</p>}
-    {activePath && <section className="mt-6">{activePath.status !== "ready" || !activePath.content ? <p role="status">Gemini could not produce a validated learning path. No result has been invented.</p> : <><h2 className="type-h3">{activePath.content.title}</h2><p className="mt-2">{activePath.source === "test_fixture" ? "Test fixture · " : "AI-generated · "}Ungraded · Not executed</p><ol>{activePath.content.steps.map((step, index) => <li key={index} className="mt-6"><h3 className="type-h4">{step.title}</h3><p className="mt-2 whitespace-pre-wrap">{step.explanation}</p><p className="mt-3 font-medium">{step.question}</p><ul className="mt-2 text-sm">{step.reference_ids.map((id) => <li key={id}>{activeSnapshot?.references.find((item) => item.reference_id === id)?.path ?? "Source unavailable"}</li>)}</ul></li>)}</ol></>}</section>}
+    {activePath && <section className="mt-6">{!savedPath?.content ? <p role="status">A saved, validated learning path is unavailable. No result has been assumed.</p> : <><h2 className="type-h3">{savedPath.content.title}</h2><p className="mt-2">Saved privately · {savedPath.source === "test_fixture" ? "Test fixture · " : "AI-generated · "}Ungraded · Not executed</p><ol>{savedPath.content.steps.map((step, index) => <li key={index} className="mt-6"><h3 className="type-h4">{step.title}</h3><p className="mt-2 whitespace-pre-wrap">{step.explanation}</p><p className="mt-3 font-medium">{step.question}</p><ul className="mt-2 text-sm">{step.reference_ids.map((id) => <li key={id}>{activeSnapshot?.references.find((item) => item.reference_id === id)?.path ?? "Source unavailable"}</li>)}</ul></li>)}</ol></>}</section>}
   </section>;
 }

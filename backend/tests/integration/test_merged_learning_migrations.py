@@ -35,6 +35,7 @@ from app.services.catalog import LESSON_ID, seed_first_lesson
 from app.services.learning import LearningService
 
 MERGE = "0014_merge_learning_heads"
+LATEST = "0015_project_learning_paths"
 MAIN = "0010_custom_lessons"
 FEATURE = "0013_repository_knowledge"
 NOW = datetime(2026, 11, 4, tzinfo=UTC)
@@ -244,9 +245,10 @@ def seed_feature_history(database, owner):
 
 
 @pytest.mark.parametrize("dialect", ["sqlite", "postgresql"])
-def test_both_dialect_graphs_have_one_merge_head_and_retain_published_branches(dialect):
+def test_both_dialect_graphs_have_one_head_and_retain_published_merge_and_branches(dialect):
     graph = ScriptDirectory.from_config(migration_config(dialect))
-    assert graph.get_heads() == [MERGE]
+    assert graph.get_heads() == [LATEST]
+    assert graph.get_revision(LATEST).down_revision == MERGE
     assert set(graph.get_revision(MERGE).down_revision) == {MAIN, FEATURE}
     assert graph.get_revision(MAIN).down_revision == "0009_durable_ai_controls"
     assert graph.get_revision("0010_private_learning_guides").down_revision == (
@@ -274,7 +276,7 @@ def test_populated_published_head_upgrades_without_changing_existing_rows(
     migrate(database)
     after = snapshot(database)
     assert {name: after[name] for name in before} == before
-    assert heads(database) == expected_heads() == {MERGE}
+    assert heads(database) == expected_heads() == {LATEST}
     assert set(after) == set(Base.metadata.tables)
     assert {"custom_lessons", "private_learning_guides", "github_repository_knowledge"} <= set(
         after
@@ -293,12 +295,12 @@ def test_populated_published_head_upgrades_without_changing_existing_rows(
 
 def test_empty_merge_downgrade_and_reupgrade_preserve_both_branch_schemas(branch_database):
     database = branch_database
-    migrate(database)
+    migrate(database, MERGE)
     before = snapshot(database)
     migrate(database, FEATURE, downgrade=True)
     assert heads(database) == {MAIN, FEATURE}
     assert snapshot(database) == before
-    migrate(database)
+    migrate(database, MERGE)
     assert heads(database) == {MERGE}
     assert snapshot(database) == before
     migrate(database, "base", downgrade=True)
@@ -314,7 +316,7 @@ def test_merge_refuses_entry_to_unguarded_published_custom_history_rollback(bran
     database = branch_database
     migrate(database, MAIN)
     seed_custom_history(database, seed_legacy(database))
-    migrate(database)
+    migrate(database, MERGE)
     before = snapshot(database)
     with pytest.raises(RuntimeError, match="Custom lesson history exists"):
         migrate(database, "0009_durable_ai_controls", downgrade=True)
@@ -327,7 +329,7 @@ def test_published_feature_immutable_knowledge_and_downgrade_guards_survive_merg
     database = branch_database
     migrate(database, FEATURE)
     seed_feature_history(database, seed_legacy(database))
-    migrate(database)
+    migrate(database, MERGE)
     before = snapshot(database)
     with pytest.raises(DBAPIError), database.engine.begin() as connection:
         connection.execute(update(GitHubRepositoryKnowledge).values(digest="f" * 64))

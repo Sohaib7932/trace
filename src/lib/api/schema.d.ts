@@ -638,7 +638,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Saved Learning Path */
+        get: operations["saved_learning_path_api_v1_projects_github_repositories__connection_id__learning_path_get"];
         put?: never;
         /** Learning Path */
         post: operations["learning_path_api_v1_projects_github_repositories__connection_id__learning_path_post"];
@@ -1689,7 +1690,7 @@ export interface components {
         InstallationComplete: {
             /** Code */
             code: string;
-            installation_id: components["schemas"]["GitHubId"];
+            installation_id?: components["schemas"]["GitHubId"] | null;
             /** State */
             state: string;
         };
@@ -2113,6 +2114,21 @@ export interface components {
             explanation: components["schemas"]["ProjectExplanation"];
         };
         ProjectExplanation: components["schemas"]["ProjectText"];
+        /** ProjectGenerationProvenance */
+        ProjectGenerationProvenance: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Provider Id
+             * @enum {string}
+             */
+            provider_id: "gemini" | "mock";
+            requested_model_id: components["schemas"]["TransportIdentifier"];
+            returned_model_id?: components["schemas"]["TransportIdentifier"] | null;
+        };
         /** ProjectLearningContent */
         ProjectLearningContent: {
             /**
@@ -2140,12 +2156,14 @@ export interface components {
              * @constant
              */
             execution_status: "not_executed";
+            generation?: components["schemas"]["ProjectGenerationProvenance"] | null;
             /**
              * Grading
              * @default ungraded
              * @constant
              */
             grading: "ungraded";
+            id?: components["schemas"]["VersionId"] | null;
             snapshot_digest: components["schemas"]["Digest"];
             /**
              * Source
@@ -2774,6 +2792,7 @@ export interface components {
              */
             field_name: "flat" | "nested";
         };
+        TransportIdentifier: string;
         /** TutorConversationCreate */
         TutorConversationCreate: {
             code?: components["schemas"]["ChatText"] | null;
@@ -6635,6 +6654,120 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RepositoryKnowledgeSnapshot"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    saved_learning_path_api_v1_projects_github_repositories__connection_id__learning_path_get: {
+        parameters: {
+            query: {
+                commit_sha: components["schemas"]["CommitSha"];
+            };
+            header?: never;
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLearningPath"];
                 };
             };
             /** @description Unauthorized */

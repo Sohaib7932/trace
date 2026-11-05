@@ -4,22 +4,32 @@ Every context is short and closed before any provider work. The conditional
 state update and database uniqueness constraints retain cross-worker safety.
 """
 
+import json
 from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.core.errors import ApplicationError
+from app.core.github_errors import unavailable
 from app.db.github_models import (
     GitHubAuthorizationState,
     GitHubInstallationGrant,
+    GitHubProjectLearningPath,
     GitHubProjectSnapshot,
     GitHubRepositoryConnection,
 )
 from app.db.session import Database
+from app.domain.project_learning import canonical_digest, validate_learning_path
 from app.repositories.github_projects import GitHubAuthorizationGrant, GitHubConnectionLease
-from app.schemas.github_projects import ConnectionView, ProjectSnapshot, RepositoryView
+from app.schemas.github_projects import (
+    ConnectionView,
+    ProjectLearningPath,
+    ProjectSnapshot,
+    RepositoryView,
+)
 
 
 class SqlGitHubProjectRepository:
@@ -344,3 +354,142 @@ class SqlGitHubProjectRepository:
             return True
         except IntegrityError:
             return False
+
+    @staticmethod
+    def _learning_snapshot(session: Session, identity: UUID, sha: str) -> ProjectSnapshot:
+        row = session.get(GitHubProjectSnapshot, (identity, sha))
+        if row is None:
+            raise ValueError("A generated path requires its pinned source snapshot")
+        value = ProjectSnapshot.model_validate(row.payload)
+        if (
+            value.connection_id != str(identity)
+            or value.commit_sha != sha
+            or value.digest != row.digest
+        ):
+            raise ValueError("Stored snapshot identity does not match its row")
+        return value
+
+    def save_learning_path(
+        self, value: ProjectLearningPath, *, lease: GitHubConnectionLease, now: datetime
+    ) -> None:
+        try:
+            checked = ProjectLearningPath.model_validate_json(value.model_dump_json())
+            if (
+                checked.status != "ready"
+                or checked.id is None
+                or checked.generation is None
+                or now.tzinfo is None
+                or now.utcoffset() is None
+                or checked.generation.generated_at > now
+            ):
+                raise ValueError("Only a complete generated result can be archived")
+            identity, connection_id = UUID(checked.id), UUID(lease.connection.id)
+            payload = checked.model_dump(mode="json")
+            payload_digest = canonical_digest(payload)
+            with self.database.session() as session, session.begin():
+                # Enter through short write admission. Disconnect/reauthorization
+                # cannot race a later insert, and no provider work runs here.
+                grant = session.execute(
+                    update(GitHubInstallationGrant)
+                    .where(
+                        GitHubInstallationGrant.owner_id == lease.owner_id,
+                        GitHubInstallationGrant.installation_id == lease.connection.installation_id,
+                        GitHubInstallationGrant.authorization_revision
+                        == lease.authorization_revision,
+                        GitHubInstallationGrant.disconnected_at.is_(None),
+                        GitHubInstallationGrant.credential_expires_at > now,
+                    )
+                    .values(authorization_revision=lease.authorization_revision)
+                )
+                connection = session.execute(
+                    update(GitHubRepositoryConnection)
+                    .where(
+                        GitHubRepositoryConnection.id == connection_id,
+                        GitHubRepositoryConnection.owner_id == lease.owner_id,
+                        GitHubRepositoryConnection.installation_id
+                        == lease.connection.installation_id,
+                        GitHubRepositoryConnection.connection_revision == lease.connection_revision,
+                        GitHubRepositoryConnection.disconnected_at.is_(None),
+                    )
+                    .values(connection_revision=lease.connection_revision)
+                )
+                if grant.rowcount != 1 or connection.rowcount != 1:  # type: ignore[attr-defined]
+                    raise self._changed()
+                snapshot = self._learning_snapshot(session, connection_id, checked.commit_sha)
+                validate_learning_path(checked, snapshot)
+                existing = session.get(GitHubProjectLearningPath, identity)
+                if existing is not None:
+                    if (
+                        existing.owner_id != lease.owner_id
+                        or existing.connection_id != connection_id
+                        or existing.commit_sha != checked.commit_sha
+                        or existing.snapshot_digest != checked.snapshot_digest
+                        or existing.generated_at != checked.generation.generated_at
+                        or existing.payload_digest != payload_digest
+                        or existing.payload != payload
+                    ):
+                        raise ValueError(
+                            "A path identity already has a different immutable payload"
+                        )
+                    return
+                session.add(
+                    GitHubProjectLearningPath(
+                        id=identity,
+                        owner_id=lease.owner_id,
+                        connection_id=connection_id,
+                        commit_sha=checked.commit_sha,
+                        snapshot_digest=checked.snapshot_digest,
+                        payload=payload,
+                        payload_digest=payload_digest,
+                        generated_at=checked.generation.generated_at,
+                    )
+                )
+            # Transaction context has committed before the service can release it.
+        except ApplicationError:
+            raise
+        except Exception:
+            raise unavailable() from None
+
+    def load_learning_path(
+        self, owner: UUID, identity: UUID, sha: str
+    ) -> ProjectLearningPath | None:
+        try:
+            with self.database.session() as session:
+                row = session.scalar(
+                    select(GitHubProjectLearningPath)
+                    .join(
+                        GitHubRepositoryConnection,
+                        GitHubRepositoryConnection.id == GitHubProjectLearningPath.connection_id,
+                    )
+                    .where(
+                        GitHubProjectLearningPath.owner_id == owner,
+                        GitHubRepositoryConnection.owner_id == owner,
+                        GitHubProjectLearningPath.connection_id == identity,
+                        GitHubProjectLearningPath.commit_sha == sha,
+                    )
+                    .order_by(
+                        GitHubProjectLearningPath.generated_at.desc(),
+                        GitHubProjectLearningPath.id.desc(),
+                    )
+                    .limit(1)
+                )
+                if row is None:
+                    return None
+                value = ProjectLearningPath.model_validate_json(json.dumps(row.payload))
+                if (
+                    value.status != "ready"
+                    or value.id != str(row.id)
+                    or value.commit_sha != row.commit_sha
+                    or value.snapshot_digest != row.snapshot_digest
+                    or value.generation is None
+                    or value.generation.generated_at != row.generated_at
+                    or canonical_digest(row.payload) != row.payload_digest
+                ):
+                    raise ValueError("Stored path identity or digest is inconsistent")
+                snapshot = self._learning_snapshot(session, identity, sha)
+                validate_learning_path(value, snapshot)
+                return value
+        except ApplicationError:
+            raise
+        except Exception:
+            raise unavailable() from None

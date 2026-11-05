@@ -676,6 +676,6 @@ def test_internal_application_wiring_reuses_resources_and_remains_disabled(setti
                 if not name.startswith(("/api/v1/admin/knowledge/", "/api/v1/custom-lessons"))
                 for method in path
             )
-            == 43
+            == 44
         )
     assert resources.client.closed

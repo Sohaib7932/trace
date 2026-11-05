@@ -20,6 +20,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.ai.client import AITransportError
 from app.ai.json_output import strict_json_object
+from app.ai.project_generation_diagnostics import (
+    notify_project_provider_request,
+    notify_project_provider_response,
+)
 from app.core.ai_settings import (
     GEMINI_MAX_OUTPUT_TOKENS,
     GEMINI_MAX_RESPONSE_SECONDS,
@@ -198,7 +202,9 @@ class _PinnedAsyncTransport(httpx.AsyncBaseTransport):
         timeouts = dict(request.extensions.get("timeout", {}))
         timeouts["connect"] = min(timeouts.get("connect") or 3.0, _CONNECT_TIMEOUT.get())
         request.extensions["timeout"] = timeouts
+        notify_project_provider_request()
         response = await self.transport.handle_async_request(request)
+        notify_project_provider_response(response.status_code)
         if not isinstance(response.stream, httpx.AsyncByteStream):
             raise AITransportError("invalid_response")
         if response.headers.get("content-encoding", "identity").lower() != "identity":

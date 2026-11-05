@@ -114,16 +114,34 @@ class GitHubAuthorizationService:
             raise reauthorize()
         token = credential.access_token
         user_id = self.client.user_id(token)
-        self.client.validate_installation(body.installation_id)
-        repositories = self.client.accessible_repositories(token, body.installation_id)
+        installations = self.client.accessible_installations(token)
+        installation = body.installation_id
+        if installation is None:
+            if not installations:
+                raise ApplicationError(
+                    "github_installation_missing", "No accessible GitHub App installation.", 404
+                )
+            if len(installations) != 1:
+                raise ApplicationError(
+                    "github_installation_selection_required",
+                    "Select a GitHub App installation and authorize again.",
+                    409,
+                )
+            installation = installations[0]
+        elif installation not in installations:
+            raise ApplicationError(
+                "github_installation_inaccessible", "GitHub installation access is denied.", 403
+            )
+        self.client.validate_installation(installation)
+        repositories = self.client.accessible_repositories(token, installation)
         now = self.clock()
         expiry = started + timedelta(seconds=credential.expires_in)
         if expiry <= now:
             raise reauthorize()
-        ciphertext = vault.encrypt(owner, body.installation_id, user_id, token, expiry)
+        ciphertext = vault.encrypt(owner, installation, user_id, token, expiry)
         self.repository.bind_installation(
             owner,
-            body.installation_id,
+            installation,
             user_id,
             [item.repository_id for item in repositories],
             now,
@@ -131,7 +149,7 @@ class GitHubAuthorizationService:
             credential_expires_at=expiry,
         )
         return InstallationView(
-            installation_id=body.installation_id,
+            installation_id=installation,
             authorization_expires_at=expiry,
             status="authorized",
         )
