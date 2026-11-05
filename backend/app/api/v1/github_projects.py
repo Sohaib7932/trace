@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi import Path as ApiPath
 
+from app.ai.project_generation_diagnostics import project_generation_logger_observer
 from app.api.dependencies import current_account, get_account_service, require_write_origin
 from app.core.errors import ApplicationError
 from app.domain.accounts import AuthenticatedAccount
@@ -250,5 +251,28 @@ async def learning_path(
         response,
         actor,
         accounts,
-        lambda: service(request).learning_path(actor.account.id, connection_id, body.commit_sha),
+        lambda: service(request).learning_path(
+            actor.account.id,
+            connection_id,
+            body.commit_sha,
+            diagnostic_observer=project_generation_logger_observer(request.app.state.logger),
+        ),
+    )
+
+
+@router.get("/repositories/{connection_id}/learning-path", response_model=ProjectLearningPath)
+async def saved_learning_path(
+    connection_id: UUID,
+    request: Request,
+    response: Response,
+    actor: Actor,
+    accounts: Accounts,
+    commit_sha: Annotated[CommitSha, Query()],
+) -> ProjectLearningPath:
+    return await run(
+        request,
+        response,
+        actor,
+        accounts,
+        lambda: service(request).saved_learning_path(actor.account.id, connection_id, commit_sha),
     )

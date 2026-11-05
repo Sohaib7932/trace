@@ -84,6 +84,9 @@ def test_application_starts_router_and_openapi_are_mounted(client: TestClient) -
         "/api/v1/projects/github/repositories/{connection_id}/ask",
     }
     assert schema["paths"]["/api/v1/health/ready"]["get"]["responses"]["503"]
+    path = schema["paths"]["/api/v1/projects/github/repositories/{connection_id}/learning-path"]
+    assert {"get", "post"} <= set(path)
+    assert any(p["name"] == "commit_sha" and p["required"] for p in path["get"]["parameters"])
 
 
 def test_readiness_responds_to_actual_database_failure(

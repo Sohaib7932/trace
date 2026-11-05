@@ -2,13 +2,14 @@
 
 import re
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import AfterValidator, Field, StrictInt
+from pydantic import AfterValidator, AwareDatetime, Field, StrictInt, model_validator
 
 from app.core.ai_privacy import public_ai_question
 from app.domain.lesson_spec.fields import Digest, Items, Value, VersionId, plain_text
 from app.schemas.conversation_tutor import explanatory_text
+from app.schemas.generation import TransportIdentifier
 
 type GitHubId = Annotated[StrictInt, Field(gt=0, le=2**63 - 1)]
 type CommitSha = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
@@ -44,7 +45,7 @@ class InstallationStart(Value):
 
 
 class InstallationComplete(Value):
-    installation_id: GitHubId
+    installation_id: GitHubId | None = None
     state: str = Field(min_length=1, max_length=2000, repr=False)
     code: str = Field(min_length=1, max_length=512, pattern=r"^[A-Za-z0-9_.-]+$", repr=False)
 
@@ -111,6 +112,15 @@ class ProjectLearningContent(Value):
     steps: Items[ProjectLearningStep] = Field(min_length=1, max_length=5)
 
 
+class ProjectGenerationProvenance(Value):
+    provider_id: Literal["gemini", "mock"]
+    requested_model_id: Annotated[TransportIdentifier, AfterValidator(public_ai_question)]
+    returned_model_id: Annotated[TransportIdentifier, AfterValidator(public_ai_question)] | None = (
+        None
+    )
+    generated_at: AwareDatetime
+
+
 class ProjectLearningPath(Value):
     status: Literal["ready", "unavailable"]
     content: ProjectLearningContent | None = None
@@ -120,3 +130,17 @@ class ProjectLearningPath(Value):
     grading: Literal["ungraded"] = "ungraded"
     execution_status: Literal["not_executed"] = "not_executed"
     can_complete_lesson: Literal[False] = False
+    id: VersionId | None = None
+    generation: ProjectGenerationProvenance | None = None
+
+    @model_validator(mode="after")
+    def saved_result(self) -> Self:
+        if self.status == "ready":
+            if self.content is None or self.id is None or self.generation is None:
+                raise ValueError("A ready path requires saved content and generation provenance")
+            expected = "ai" if self.generation.provider_id == "gemini" else "test_fixture"
+            if self.source != expected:
+                raise ValueError("Generation source and provider must agree")
+        elif self.content is not None or self.id is not None or self.generation is not None:
+            raise ValueError("An unavailable path cannot claim persisted content")
+        return self

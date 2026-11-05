@@ -21,8 +21,10 @@ set `TRACE_GITHUB_APP_SLUG` to the actual registered slug. Configure:
   `http://localhost:3000/projects/github/callback`.
 - Setup URL after installation: the same exact callback above.
 - Keep **Request user authorization (OAuth) during installation** disabled.
-  Trace first receives the installation callback, then explicitly starts user
-  authorization with its saved owner-bound state and selected redirect URI.
+  For a new installation, Trace receives the setup callback, then explicitly
+  starts user authorization with its saved owner-bound state and redirect URI.
+  For an existing installation, Connect GitHub App starts user authorization
+  directly; it does not depend on a setup redirect or changing repositories.
 - Repository permissions: **Contents: Read-only**, **Pull requests: Read-only**
   and mandatory **Metadata: Read-only**. No repository writes, administration,
   secrets, Actions, organization membership or account permissions.
@@ -106,19 +108,27 @@ intersection of the user and App permissions. [GitHub user authorization](https:
 
 ## Connection and disconnect sequence
 
-1. A signed-in learner opens `/projects` and chooses Connect GitHub.
+1. A signed-in learner opens `/projects` and chooses **Connect GitHub App**.
 2. `POST /api/v1/projects/github/installations/start` returns installation and
    user-authorization URLs, signed owner-bound state and a ten-minute expiry.
    The nonce is persisted and can be consumed only once.
 3. The browser stores pending flow metadata in session storage, then visits
-   GitHub's installation page. The owner reviews permissions and selected repos.
-4. GitHub returns the installation ID and state to the setup callback. Trace
-   validates the pending browser flow and begins explicit user authorization.
+   GitHub's user-authorization page. An existing installation and its selected
+   repositories are preserved; reinstalling or saving installation settings is
+   not required.
+4. Only if the App is not installed, use the separate **Install GitHub App**
+   action. Its fresh flow visits GitHub's installation page for permission and
+   repository selection. The setup callback saves the returned installation ID
+   as an untrusted selection hint, then begins explicit user authorization.
 5. GitHub returns its one-use code and state. The callback strips the query and
    submits the protected complete request; pending browser state is cleared.
 6. The backend consumes the nonce before exchange, identifies the GitHub user,
-   verifies the configured App/installation and user-scoped selected repositories,
-   then stores an encrypted owner/installation/user-bound credential and expiry.
+   and uses that user's token to enumerate `/user/installations`. It matches the
+   configured App ID and requires exactly one installation when no setup hint
+   was supplied. An explicit hint must also belong to this user-accessible set.
+   Fresh App/installation, selected-repository and read-only permission checks
+   and user-scoped repository access checks precede encrypted
+   owner/installation/user-bound credential persistence.
 7. The learner explicitly selects a currently authorized repository. Every
    source operation rechecks access. Source reads use fresh installation tokens
    narrowed to that one repository and read-only permissions. GitHub supports
@@ -130,6 +140,17 @@ credentials remain encrypted at rest and are never returned to the frontend.
 Installation tokens are not persisted. Saved authorization works across backend
 restarts/workers when they share the database and the same private encryption
 key; it is no longer limited to the old five-minute process-memory proof.
+
+Discovery is bounded to four pages of 25 installations and must be complete and
+consistent; partial or malformed results fail closed. No matching installation
+returns 404; multiple matches without a selection return 409. No credential is
+stored in either case. An explicit selection outside the user's discovered set
+returns 403. There is no multiple-installation picker in this bounded change.
+The shared HTTP error boundary sanitizes error codes by status, so the callback
+does not claim a more specific cause than the response proves. A 409 can also
+mean expired, used or invalid state; every retry starts a fresh flow. An OAuth
+callback needs only `code` and `state`; URL-supplied installation IDs do not
+override saved setup selections or backend access checks.
 
 Disconnect is explicit, owner-only and idempotent. A repository disconnect
 marks that connection inactive while retaining snapshots. An installation
@@ -156,7 +177,7 @@ do not require those write headers. Guest cookies alone grant no App access.
 | Method/path | Input | Output |
 | --- | --- | --- |
 | POST `/installations/start` | No body | `installation_url`, `authorization_url`, `state`, `expires_at` |
-| POST `/installations/complete` | `{installation_id,code,state}` | Installation ID, selected-repository mode, authorization expiry and status |
+| POST `/installations/complete` | `{code,state,installation_id?}`; omit the ID to discover a unique existing installation | Installation ID, selected-repository mode, authorization expiry and status |
 | GET `/installations` | None | Owned installation summaries; `authorized`, `reauthorization_required` or `disconnected` status |
 | POST `/installations/{installation_id}/disconnect` | No body | Disconnected installation summary; no tokens |
 | GET `/installations/{installation_id}/repositories` | None | Currently authorized `{repository_id,full_name,private}` choices |
@@ -168,7 +189,8 @@ do not require those write headers. Guest cookies alone grant no App access.
 | POST `/repositories/{id}/ask` | `{commit_sha,question,history?}` | Grounded `ProjectQuestionAnswer` with exact quotations and server-computed lines |
 | POST `/repositories/{id}/sync` | `{commit_sha}` | Existing V1 changed-file `ProjectSnapshot` |
 | GET `/repositories/{id}/snapshot?commit_sha=...` | Exact SHA query | Existing V1 snapshot after fresh access checks |
-| POST `/repositories/{id}/learning-path` | `{commit_sha}` | Existing ungraded V1 path/questions |
+| POST `/repositories/{id}/learning-path` | `{commit_sha}` | Ungraded V1 path/questions; `ready` only after persistence commits, with saved `id` and `generation` provenance |
+| GET `/repositories/{id}/learning-path?commit_sha=...` | Exact SHA query | Latest saved V1 path after current ownership/access and source checks; 404 if none is available; never generates |
 
 Use the generated types in `src/lib/api/schema.d.ts` and the
 `githubProjectsApi` adapter. The current `/projects` journey uses V2 ingest and
@@ -266,17 +288,33 @@ A log claim never establishes execution, learner competence or an exact commit
 caused by a particular prompt.
 
 V1 `/sync`, `/snapshot` and `/learning-path` remain separate from canonical V2.
-Their strict schema and historical digest rules are unchanged; current excluded
+The snapshot schema and historical digest rules are unchanged; current excluded
 source paths are refused on release. V1 reads at most twelve changed files,
 1,000-character excerpts and five associated PR titles. V2 does not claim a
-complete PR discussion/diff archive. Generated answers/paths are ephemeral
-explanations, not persisted course completion or mastery records. Broad-topic
-private guides retain their distinct owner-scoped persistence.
+complete PR discussion/diff archive. V2 question answers remain ephemeral.
+V1 learning paths are saved privately with their explanations, questions and
+reference IDs, bound to the owned connection, exact commit and snapshot digest.
+Each saved response has an `id` and `generation` metadata: `provider_id`,
+`requested_model_id`, optional `returned_model_id`, and `generated_at`.
+No credential is part of that response or generation metadata. These are ungraded
+explanations, not course completion or mastery records. Broad-topic private guides
+retain their distinct owner-scoped persistence.
+
+After selecting the repository and reading the exact commit, use **Load saved
+learning path** to retrieve the latest saved result without a generation request.
+The UI shows **Saved privately** only after a successful receipt with matching
+commit, snapshot and citations arrives. A failed or uncertain generation response
+does not imply a save failed: load the saved result before considering another
+generation. Loading does not automatically generate or retry. Existing paths that
+were displayed before persistence was implemented cannot be recovered from the
+database; no historical generated content or provenance is fabricated.
 
 Migration `0012_github_authorization` adds encrypted grants/revisioned disconnects;
 `0013_repository_knowledge` adds immutable V2 artifacts alongside V1 history.
+After the merged `0014` history, `0015_project_learning_paths` adds immutable saved
+V1 learning paths. Its downgrade refuses to remove populated path history.
 Back up each machine's own database, run the existing forward-upgrade procedure
-and verify integrity before starting the new backend. Both migrations are
+and verify integrity before starting the new backend. These migrations are
 additive; populated downgrade refuses to discard the new history. Never reset
 an older database or copy another learner's database to obtain the schema.
 See the acceptance report for actual local upgrade evidence; migration files

@@ -182,6 +182,42 @@ class GitHubAppClient:
         result = self._json("GET", "/user", token)
         return github_id(result.get("id")) if isinstance(result, dict) else github_id(None)
 
+    def accessible_installations(self, token: SecretStr) -> tuple[int, ...]:
+        """Discover this App through the user's proof, including organization access."""
+        # Numeric pagination is bounded and never follows provider-supplied URLs.
+        # Account IDs need not match the user: collaborators and organization
+        # members can have explicit access through this user-token endpoint.
+        found: list[int] = []
+        seen: set[int] = set()
+        total: int | None = None
+        for page in range(1, 5):
+            result = self._json("GET", f"/user/installations?per_page=25&page={page}", token)
+            if not isinstance(result, dict) or not isinstance(result.get("installations"), list):
+                raise unavailable()
+            rows = result["installations"]
+            count = result.get("total_count")
+            if type(count) is not int or not 0 <= count <= 100 or len(rows) > 25:
+                raise unavailable()
+            if total is not None and total != count:
+                raise unavailable()
+            total = count
+            for row in rows:
+                if not isinstance(row, dict):
+                    raise unavailable()
+                identity, app_id = github_id(row.get("id")), github_id(row.get("app_id"))
+                if identity in seen:
+                    raise unavailable()
+                seen.add(identity)
+                if app_id == self.settings.app_id:
+                    found.append(identity)
+            if len(seen) > total:
+                raise unavailable()
+            if len(seen) == total:
+                return tuple(found)
+            if len(rows) != 25:
+                raise unavailable()
+        raise unavailable()
+
     def validate_installation(self, installation_id: int) -> None:
         result = self._json("GET", f"/app/installations/{installation_id}", self.app_token())
         if not isinstance(result, dict):

@@ -9,6 +9,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -77,3 +78,33 @@ class GitHubProjectSnapshot(Base):
     digest: Mapped[str] = mapped_column(String(64))
     payload: Mapped[dict[str, object]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class GitHubProjectLearningPath(Base):
+    __tablename__ = "github_project_learning_paths"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["connection_id", "commit_sha"],
+            ["github_project_snapshots.connection_id", "github_project_snapshots.commit_sha"],
+        ),
+        CheckConstraint(
+            "length(commit_sha) = 40 AND length(snapshot_digest) = 64 "
+            "AND length(payload_digest) = 64",
+            name="digest_lengths",
+        ),
+        Index(
+            "ix_github_learning_paths_latest",
+            "owner_id",
+            "connection_id",
+            "commit_sha",
+            "generated_at",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
+    connection_id: Mapped[UUID] = mapped_column(Uuid)
+    commit_sha: Mapped[str] = mapped_column(String(40))
+    snapshot_digest: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(JSON)
+    payload_digest: Mapped[str] = mapped_column(String(64))
+    generated_at: Mapped[datetime] = mapped_column(UTCDateTime())

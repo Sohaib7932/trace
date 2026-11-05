@@ -1,8 +1,10 @@
 import json
 import logging
+from contextlib import suppress
 from datetime import UTC, datetime
 
 from app.ai.observability import delivery_fields
+from app.ai.project_generation_diagnostics import project_generation_fields
 from app.ai.support_diagnostics import support_diagnostic_fields, support_runtime_fields
 
 
@@ -15,6 +17,20 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "event": record.msg,
         }
+        if record.msg == "project_generation_pipeline":
+            # This private event has a smaller allowlist than general request
+            # logging. In particular a caller-supplied request ID is never copied.
+            with suppress(ValueError):
+                result.update(
+                    project_generation_fields(
+                        getattr(record, "generation_attempt_id", None),
+                        getattr(record, "generation_stage", None),
+                        getattr(record, "generation_reason", None),
+                        getattr(record, "generation_provider_request_initiated", None),
+                        getattr(record, "generation_provider_response_received", None),
+                    )
+                )
+            return json.dumps(result)
         for key in (
             "request_id",
             "method",

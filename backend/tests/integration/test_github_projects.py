@@ -82,6 +82,9 @@ class FakeGitHub(GitHubAppClient):
     def user_id(self, token):
         return 321
 
+    def accessible_installations(self, token):
+        return (11,)
+
     def validate_installation(self, installation_id):
         if not self.selected:
             raise ApplicationError("github_permissions", "Selected repositories required.", 403)
@@ -124,13 +127,17 @@ class FakeAI:
         self.fail = False
         self.claim = "Inspect the supplied function."
 
-    def complete(self, **kwargs):
+    def complete(self, *, on_transport_attempt=None, **kwargs):
+        # A local observer is not serialized into the provider's request data.
         self.calls.append(kwargs)
         refs = kwargs["data"]["snapshot"]["references"]
         identifier = "f" * 64 if self.invalid else refs[0]["reference_id"]
         return SimpleNamespace(
             status="timeout" if self.fail else "success",
             source="test_fixture",
+            provider_id="mock",
+            requested_model_id="fixture-project-model",
+            returned_model_id="fixture-project-model",
             text=json.dumps(
                 {
                     "schema_version": "project-learning-v1",

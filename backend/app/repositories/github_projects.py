@@ -5,7 +5,12 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.schemas.github_projects import ConnectionView, ProjectSnapshot, RepositoryView
+from app.schemas.github_projects import (
+    ConnectionView,
+    ProjectLearningPath,
+    ProjectSnapshot,
+    RepositoryView,
+)
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,12 @@ class GitHubConnectionLease:
 
 
 class GitHubProjectRepository(Protocol):
+    def save_learning_path(
+        self, value: ProjectLearningPath, *, lease: GitHubConnectionLease, now: datetime
+    ) -> None: ...
+    def load_learning_path(
+        self, owner: UUID, identity: UUID, sha: str
+    ) -> ProjectLearningPath | None: ...
     def reserve_state(self, owner: UUID, state_id: UUID, expiry: datetime) -> None: ...
     def consume_state(self, owner: UUID, state_id: UUID, now: datetime) -> bool: ...
     def bind_installation(

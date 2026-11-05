@@ -1880,7 +1880,14 @@
             "type": "string"
           },
           "installation_id": {
-            "$ref": "#/components/schemas/GitHubId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitHubId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "state": {
             "maxLength": 2000,
@@ -1890,7 +1897,6 @@
           }
         },
         "required": [
-          "installation_id",
           "state",
           "code"
         ],
@@ -3219,6 +3225,44 @@
       "ProjectExplanation": {
         "$ref": "#/components/schemas/ProjectText"
       },
+      "ProjectGenerationProvenance": {
+        "additionalProperties": false,
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "provider_id": {
+            "enum": [
+              "gemini",
+              "mock"
+            ],
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "requested_model_id": {
+            "$ref": "#/components/schemas/TransportIdentifier"
+          },
+          "returned_model_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransportIdentifier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "provider_id",
+          "requested_model_id",
+          "generated_at"
+        ],
+        "title": "ProjectGenerationProvenance",
+        "type": "object"
+      },
       "ProjectLearningContent": {
         "additionalProperties": false,
         "properties": {
@@ -3272,11 +3316,31 @@
             "title": "Execution Status",
             "type": "string"
           },
+          "generation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectGenerationProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "grading": {
             "const": "ungraded",
             "default": "ungraded",
             "title": "Grading",
             "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "snapshot_digest": {
             "$ref": "#/components/schemas/Digest"
@@ -4852,6 +4916,12 @@
         ],
         "title": "TransferAttemptCreate",
         "type": "object"
+      },
+      "TransportIdentifier": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+-]*$",
+        "type": "string"
       },
       "TutorConversationCreate": {
         "additionalProperties": false,
@@ -9794,6 +9864,150 @@
       }
     },
     "/api/v1/projects/github/repositories/{connection_id}/learning-path": {
+      "get": {
+        "operationId": "saved_learning_path_api_v1_projects_github_repositories__connection_id__learning_path_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "commit_sha",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CommitSha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLearningPath"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Saved Learning Path",
+        "tags": [
+          "project learning"
+        ]
+      },
       "post": {
         "operationId": "learning_path_api_v1_projects_github_repositories__connection_id__learning_path_post",
         "parameters": [
