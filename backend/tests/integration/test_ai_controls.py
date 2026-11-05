@@ -170,7 +170,12 @@ def test_fixed_utc_rate_window_uses_database_time_and_does_not_refund_calls(data
     assert windows == [datetime(2026, 11, 3, 23, 59, tzinfo=UTC), datetime(2026, 11, 4, tzinfo=UTC)]
 
 
-def test_shared_route_global_subject_and_rate_limits_release_only_actual_work(database):
+def test_shared_route_global_subject_and_rate_limits_release_only_actual_work(
+    database, monkeypatch
+):
+    # Limits are per clock minute: freeze the clock so a rollover mid-test cannot flake.
+    frozen = datetime.now(UTC).replace(second=30, microsecond=0)
+    monkeypatch.setattr(SqlAIControls, "_now", staticmethod(lambda _: frozen))
     controls = SqlAIControls(database)
     limits = admission(global_requests_per_minute=3, subject_requests_per_minute=3)
     a, b, c = [sha256(label.encode()).hexdigest() for label in ("a", "b", "c")]
