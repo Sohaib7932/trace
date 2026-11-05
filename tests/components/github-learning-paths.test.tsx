@@ -1,13 +1,16 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GitHubProjects } from "@/components/projects/github-projects";
+import { PathView } from "@/components/projects/path-view";
+import { ProjectsProviders } from "@/components/projects/shell";
 import { ApiError } from "@/lib/api/client";
 import type { ProjectLearningPath, ProjectSnapshot } from "@/lib/api/github-projects";
 
 const mocks = vi.hoisted(() => ({ auth: { status: "signed-in", userId: "owner-a" }, request: vi.fn() }));
 vi.mock("@/lib/supabase/use-auth", () => ({ useAuth: () => mocks.auth }));
 vi.mock("@/lib/api/client", async (original) => ({ ...await original<typeof import("@/lib/api/client")>(), protectedApiRequest: mocks.request }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const connectionId = "00000000-0000-4000-8000-000000000111";
 const otherConnection = "00000000-0000-4000-8000-000000000222";
@@ -27,27 +30,18 @@ const saved: ProjectLearningPath = {
 };
 
 afterEach(cleanup);
-beforeEach(() => { mocks.auth = { status: "signed-in", userId: "owner-a" }; mocks.request.mockReset(); });
+beforeEach(() => { mocks.auth = { status: "signed-in", userId: "owner-a" }; mocks.request.mockReset(); localStorage.clear(); });
 
-function api(generate: () => Promise<ProjectLearningPath> = async () => saved, load: () => Promise<ProjectLearningPath> = async () => saved) {
+function view(sha = commitSha) { return <ProjectsProviders><PathView connectionId={connectionId} sha={sha} /></ProjectsProviders>; }
+function api(generate: () => Promise<ProjectLearningPath> = async () => saved, load: () => Promise<ProjectLearningPath> = async () => { throw new ApiError(404, "not saved"); }) {
   mocks.request.mockImplementation(async (path: string, body?: unknown) => {
-    const id = mocks.auth.userId === "owner-b" ? otherConnection : connectionId;
-    if (path.endsWith("/repositories")) return [{ id, repository_id: 22, installation_id: 11, full_name: "fixture/alarm", private: true, status: "connected" }];
-    if (path.endsWith("/installations")) return [];
-    if (path.endsWith("/sync")) return { ...snapshot, connection_id: id };
+    if (path.endsWith("/repositories")) return [{ id: mocks.auth.userId === "owner-b" ? otherConnection : connectionId, full_name: "fixture/alarm", status: "connected" }];
+    if (path.includes("/snapshot?")) return snapshot;
+    if (path.includes("/knowledge?")) throw new ApiError(404, "not read");
     if (path.endsWith("/learning-path")) { expect(body).toEqual({ commit_sha: commitSha }); return generate(); }
-    if (path.endsWith(`/learning-path?commit_sha=${commitSha}`)) { expect(body).toBeUndefined(); return load(); }
+    if (path.includes("/learning-path?")) { expect(body).toBeUndefined(); return load(); }
     throw new Error("Unexpected fixture API path");
   });
-}
-
-async function pin(user: ReturnType<typeof userEvent.setup>, id = connectionId) {
-  await screen.findByRole("option", { name: "fixture/alarm" });
-  await user.selectOptions(screen.getByLabelText("Repository"), id);
-  await user.type(screen.getByLabelText("Exact commit SHA"), commitSha);
-  await user.click(screen.getByRole("button", { name: "Read this commit" }));
-  await screen.findByRole("heading", { name: "Pinned snapshot" });
-  await waitFor(() => expect(screen.getByRole("button", { name: "Generate grounded learning questions" })).toBeEnabled());
 }
 
 describe("Private persisted learning paths", () => {
@@ -55,108 +49,78 @@ describe("Private persisted learning paths", () => {
     let resolve!: (value: ProjectLearningPath) => void;
     const pending = new Promise<ProjectLearningPath>((done) => { resolve = done; });
     api(() => pending);
-    const user = userEvent.setup(); render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
+    const user = userEvent.setup(); render(view());
+    await user.click(await screen.findByRole("button", { name: "Generate learning path" }));
     await waitFor(() => expect(mocks.request.mock.calls.some(([path]) => path.endsWith("/learning-path"))).toBe(true));
-    expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
-    expect(screen.queryByText(/Saved privately/)).toBeNull();
-    await act(async () => { resolve(saved); await pending; });
+    try { expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull(); }
+    finally { await act(async () => { resolve(saved); await pending; }); }
     expect(await screen.findByRole("heading", { name: saved.content!.title })).toBeVisible();
-    expect(screen.getByText("Saved privately · Test fixture · Ungraded · Not executed")).toBeVisible();
-    expect(screen.getAllByText("alarm_clock.py")).toHaveLength(2);
+    expect(screen.getByText("Test fixture")).toBeVisible();
+    expect(screen.getByText("Not executed")).toBeVisible();
+    expect(screen.getByText(/Practice only.*ungraded/)).toBeVisible();
   });
 
-  it("clears the earlier result when a new save fails without exposing the database error", async () => {
-    let calls = 0;
-    api(async () => {
-      calls += 1;
-      if (calls === 1) return saved;
-      throw new ApiError(503, "private-database-failure-canary");
-    });
-    const user = userEvent.setup(); render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
-    await screen.findByRole("heading", { name: saved.content!.title });
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
+  it("clears an earlier result when regeneration fails without exposing the database error", async () => {
+    const generate = vi.fn(async () => { throw new ApiError(503, "private-database-failure-canary"); });
+    api(generate, async () => saved);
+    const user = userEvent.setup(); render(view());
+    await user.click(await screen.findByRole("button", { name: "Generate again" }));
     await screen.findByRole("alert");
     expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
-    expect(screen.queryByText(/Saved privately/)).toBeNull();
     expect(screen.queryByText(/private-database-failure-canary/)).toBeNull();
-    expect(calls).toBe(2);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    { id: null },
-    { generation: null },
-    { source: "ai" as const },
+    { id: null }, { generation: null }, { source: "ai" as const },
     { status: "unavailable" as const, id: null, generation: null, content: null, source: "none" as const },
     { content: { ...saved.content!, steps: [{ ...saved.content!.steps[0], reference_ids: ["f".repeat(64)] }] } },
-  ])("does not render success for an unconfirmed or inconsistent response %j", async (change) => {
+    { commit_sha: "d".repeat(40) }, { snapshot_digest: "d".repeat(64) },
+  ])("withholds an inconsistent generated receipt %j", async (change) => {
     api(async () => ({ ...saved, ...change }));
-    const user = userEvent.setup(); render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
-    expect(await screen.findByText("A saved, validated learning path is unavailable. No result has been assumed.")).toBeVisible();
-    expect(screen.queryByText(/Saved privately/)).toBeNull();
+    const user = userEvent.setup(); render(view());
+    await user.click(await screen.findByRole("button", { name: "Generate learning path" }));
+    expect(await screen.findByRole("heading", { name: "No validated path for this commit" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
   });
 
-  it("loads the saved result after remount and pinning without another generation", async () => {
+  it("loads a saved receipt after remount without generating again", async () => {
     const generate = vi.fn(async () => saved), load = vi.fn(async () => saved);
     api(generate, load);
-    const user = userEvent.setup(); const view = render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
+    const first = render(view());
     await screen.findByRole("heading", { name: saved.content!.title });
-    view.unmount(); render(<GitHubProjects />); await pin(user);
-    expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
-    expect(load).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Load saved learning path" }));
-    expect(await screen.findByRole("heading", { name: saved.content!.title })).toBeVisible();
-    expect(generate).toHaveBeenCalledTimes(1);
-    expect(load).toHaveBeenCalledTimes(1);
+    first.unmount(); render(view());
+    await screen.findByRole("heading", { name: saved.content!.title });
+    expect(generate).not.toHaveBeenCalled(); expect(load).toHaveBeenCalledTimes(2);
   });
 
   it("reports no saved path without automatically generating or retrying", async () => {
     const generate = vi.fn(async () => saved), load = vi.fn(async () => { throw new ApiError(404, "private-lookup-canary"); });
-    api(generate, load);
-    const user = userEvent.setup(); render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Load saved learning path" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("No saved learning path is available for this repository and commit.");
+    api(generate, load); render(view());
+    await screen.findByRole("heading", { name: "No learning path yet" });
     expect(screen.queryByText(/private-lookup-canary/)).toBeNull();
     expect(generate).not.toHaveBeenCalled(); expect(load).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([{ commit_sha: "d".repeat(40) }, { snapshot_digest: "d".repeat(64) }])("does not display a receipt bound to a different pinned source %j", async (change) => {
-    api(async () => ({ ...saved, ...change }));
-    const user = userEvent.setup(); render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Generate grounded learning questions" })).toBeEnabled());
-    expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
-    expect(screen.queryByText(/Saved privately/)).toBeNull();
   });
 
   it("withholds a late result after the pinned commit changes", async () => {
     let resolve!: (value: ProjectLearningPath) => void;
     const pending = new Promise<ProjectLearningPath>((done) => { resolve = done; });
     api(() => pending);
-    const user = userEvent.setup(); render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Generate grounded learning questions" }));
+    const user = userEvent.setup(); const page = render(view());
+    await user.click(await screen.findByRole("button", { name: "Generate learning path" }));
     await waitFor(() => expect(mocks.request.mock.calls.some(([path]) => path.endsWith("/learning-path"))).toBe(true));
-    await user.clear(screen.getByLabelText("Exact commit SHA"));
-    await user.type(screen.getByLabelText("Exact commit SHA"), "d".repeat(40));
+    page.rerender(view("d".repeat(40)));
     await act(async () => { resolve(saved); await pending; });
+    await screen.findByRole("heading", { name: "No learning path yet" });
     expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
-    expect(screen.queryByText(/Saved privately/)).toBeNull();
   });
 
   it("removes saved private content when the owner changes", async () => {
-    api();
-    const user = userEvent.setup(); const view = render(<GitHubProjects />); await pin(user);
-    await user.click(screen.getByRole("button", { name: "Load saved learning path" }));
+    api(async () => saved, async () => saved);
+    const page = render(view());
     await screen.findByRole("heading", { name: saved.content!.title });
-    mocks.auth = { status: "signed-in", userId: "owner-b" };
-    view.rerender(<GitHubProjects />);
+    mocks.auth = { status: "signed-in", userId: "owner-b" }; page.rerender(view());
     expect(screen.queryByRole("heading", { name: saved.content!.title })).toBeNull();
-    expect(screen.queryByText(/Saved privately/)).toBeNull();
-    await screen.findByRole("option", { name: "fixture/alarm" });
-    expect(mocks.request.mock.calls.filter(([path]) => path.includes("learning-path"))).toHaveLength(1);
+    await screen.findByRole("heading", { name: "That project isn't available" });
   });
 });

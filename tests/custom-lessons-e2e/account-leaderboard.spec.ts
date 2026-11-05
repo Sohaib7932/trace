@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 // Account and leaderboard on the fixture stack (mock provider transport, no Gemini). The
-// leaderboard has no backend endpoint yet, so this stack builds with the labelled demo adapter.
+// pagination and ties are exercised with the explicitly labelled demo adapter.
 const AUTH = "http://127.0.0.1:8111";
 const PASSWORD = "Controlled-fixture-password-47";
 
@@ -106,7 +106,7 @@ test("leaderboard: signed-out teaser, demo board with many ties, load more, jump
   if (isMobile) await page.getByRole("button", { name: "Open menu" }).click();
   await (isMobile ? page.locator("#mobile-menu") : nav(page)).getByRole("link", { name: "Leaderboard" }).click();
   await expect(page).toHaveURL(/\/leaderboard$/);
-  await expect(page.getByRole("main").getByText("Demo data · fictional people, not real results")).toBeVisible();
+  await expect(page.getByRole("main").getByText("Demo data · fictional people, not real learners")).toBeVisible();
   await expect(page.getByText(/Updated \d+ minutes? ago/)).toBeVisible();
 
   // Many ties: nine people share rank 1, so the top shows highlighted rows rather than a podium.

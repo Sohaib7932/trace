@@ -76,12 +76,12 @@ export function describeProjectError(error: unknown): ProjectErrorInfo {
       return make("The AI allowance is used up for now", "Trace can't generate more project lessons or answers right now. Try again later; nothing you saved was lost.");
     default:
   }
-  if (error.status === 404) return make("Not found", error.message || "This item isn't available to your account.");
-  if (error.status === 409) return make("That changed on the server", error.message || "Refresh and try again.", { label: "Try again", retry: true });
+  if (error.status === 404) return make("Not found", "This item isn't available to your account.");
+  if (error.status === 409) return make("That changed on the server", "Refresh and try again.", { label: "Try again", retry: true });
   if (error.status === 429) return make("You're going a little fast", "Wait about a minute, then try again.", { label: "Try again", retry: true });
   if (error.status === 504) return make("The server took too long", "The last step may or may not have finished. Check the current state before repeating it.", { label: "Try again", retry: true });
   if (error.status >= 500) return make("The server had a problem", "This isn't caused by anything you did. Try again in a moment.", { label: "Try again", retry: true });
-  return make("That didn't work", error.message || "Try again.", { label: "Try again", retry: true });
+  return make("That didn't work", "Try again.", { label: "Try again", retry: true });
 }
 
 /** True for the "feature is off" signal, so pages can show one calm unavailable state. */

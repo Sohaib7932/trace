@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from app.ai.accounting import ProviderAttempt, ProviderUsage
 from app.core.accounting_settings import AccountingSettings
+from app.core.ai_settings import GEMINI_MODEL
 from scripts import run_production
 from tests.unit.test_postgresql_configuration import production
 
@@ -102,3 +103,15 @@ def test_production_startup_requires_durable_shared_admission(mode, monkeypatch,
     )
     assert run_production.main() == 2
     assert "configuration is invalid" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("model", [GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-embedding-001"])
+def test_current_and_historical_models_remain_accountable(model):
+    attempt = ProviderAttempt(
+        id=uuid4(),
+        capability="tutor",
+        model_id=model,
+        subject_hash="a" * 64,
+        estimated_input_bytes=1,
+    )
+    assert attempt.model_id == model

@@ -37,7 +37,7 @@ from tests.integration.test_transfer_retrieval import (
     start_transfer,
 )
 
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "gemini-3.1-flash-lite"
 
 
 class ControlledProvider:

@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { looksSecret, useDialog } from "@/components/ai/use-dialog";
 import { githubProjectsApi, type ProjectAnswer } from "@/lib/api/github-projects";
 import { githubQueue } from "@/lib/projects/queue";
+import { useOwner } from "@/lib/projects/use-projects";
 import { PathChip, ShaChip } from "./parts";
 import { ProjectError } from "./shell";
 
@@ -16,6 +17,7 @@ type Turn = { question: string; answer: ProjectAnswer };
  * runs code and never changes progress.
  */
 export function ProjectTutor({ connectionId, sha, repository, suggestions = [] }: { connectionId: string; sha: string; repository: string; suggestions?: string[] }) {
+  const owner = useOwner();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const root = document.documentElement;
@@ -27,7 +29,7 @@ export function ProjectTutor({ connectionId, sha, repository, suggestions = [] }
     return () => document.documentElement.removeAttribute("data-tutor-open");
   }, [open]);
   // The conversation belongs to one repository and commit; changing either starts it over.
-  const scope = `${connectionId}:${sha}`;
+  const scope = `${owner}:${connectionId}:${sha}`;
   return (
     <>
       <div className="tutor-bar">

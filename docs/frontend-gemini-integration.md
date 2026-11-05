@@ -138,7 +138,7 @@ loaded by the application. No escalation contact or SLA has been invented.
 
 ## Configuration: backend only
 
-Approved pilot: `gemini-3.5-flash-lite`, credential variable `GEMINI_API_KEY`,
+Approved pilot: `gemini-3.1-flash-lite`, credential variable `GEMINI_API_KEY`,
 Free Tier project **with no billing**, no paid fallback. The official
 `google-genai` SDK is locked at `2.34.0`; services still use Trace's existing
 provider-neutral interfaces and shared, application-owned bounded client.
@@ -168,8 +168,8 @@ To configure another launch method, set process variables:
 ```dotenv
 TRACE_LLM_MODE=gemini_free
 TRACE_LLM_PROVIDER_ID=gemini
-TRACE_LLM_GENERATION_MODEL_ID=gemini-3.5-flash-lite
-TRACE_LLM_CONVERSATIONAL_MODEL_ID=gemini-3.5-flash-lite
+TRACE_LLM_GENERATION_MODEL_ID=gemini-3.1-flash-lite
+TRACE_LLM_CONVERSATIONAL_MODEL_ID=gemini-3.1-flash-lite
 TRACE_LLM_CREDENTIAL_ENV_VAR=GEMINI_API_KEY
 TRACE_LLM_FREE_TIER_PROJECT_CONFIRMED=true
 TRACE_LLM_SPEND_LIMIT_MICROUSD=0
@@ -182,7 +182,7 @@ These are public configuration values, not credentials. The confirmation flag
 records operator attestation; the application cannot independently prove the
 Google project's billing state. Keep billing disabled at Google. Free quotas
 and availability depend on Google; errors stay honest unavailable responses.
-See [Google model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)
+See [Google model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite)
 and [pricing/data-use information](https://ai.google.dev/gemini-api/docs/pricing).
 
 Without explicit configuration, AI remains disabled. Startup validates complete

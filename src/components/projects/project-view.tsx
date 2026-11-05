@@ -3,12 +3,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, GitCommitHorizontal, Settings2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CountUp } from "@/components/motion/count-up";
 import { Enter } from "./enter";
 import { githubProjectsApi } from "@/lib/api/github-projects";
 import { isCommitSha, languagesOf, loadSha, reasonLabel, saveSha } from "@/lib/projects/format";
 import { githubQueue } from "@/lib/projects/queue";
+import { isValidatedPath } from "@/lib/projects/validated-path";
 import { isNotFound, projectKeys, useConnections, useOwner, useSavedKnowledge, useSavedPath, useSavedSnapshot } from "@/lib/projects/use-projects";
 import { Excerpt, LanguageChip, PipelineTracker, PrivateChip, RepoName, ShaChip, StatusChip, type Stage } from "./parts";
 import { ProjectTutor } from "./project-tutor";
@@ -18,6 +19,11 @@ type Step = "sync" | "ingest" | "path";
 const EXCERPTS_AT_FIRST = 6;
 
 export function ProjectView({ connectionId }: { connectionId: string }) {
+  const owner = useOwner();
+  return <ScopedProjectView key={`${owner}:${connectionId}`} connectionId={connectionId} />;
+}
+
+function ScopedProjectView({ connectionId }: { connectionId: string }) {
   const owner = useOwner();
   const queries = useQueryClient();
   const connections = useConnections();
@@ -31,6 +37,8 @@ export function ProjectView({ connectionId }: { connectionId: string }) {
   const snapshot = useSavedSnapshot(connectionId, sha);
   const knowledge = useSavedKnowledge(connectionId, sha);
   const path = useSavedPath(connectionId, sha);
+  const action = useRef<AbortController | null>(null);
+  useEffect(() => () => { action.current?.abort(); }, []);
 
   if (!connections.data) return connections.error ? <ProjectError error={connections.error} onRetry={() => void connections.refetch()} /> : <CardSkeleton count={2} />;
   if (connections.error) return <ProjectError error={connections.error} onRetry={() => void connections.refetch()} />;
@@ -46,31 +54,42 @@ export function ProjectView({ connectionId }: { connectionId: string }) {
   const snapshotValue = snapshot.data;
   const knowledgeValue = knowledge.data;
   const pathValue = path.data;
-  const pathReady = pathValue?.status === "ready" && pathValue.content !== null;
+  const pathReady = isValidatedPath(pathValue, snapshotValue, sha);
   const unexpected = (query: { error: unknown }) => (query.error && !isNotFound(query.error) ? query.error : null);
   const readError = unexpected(snapshot) ?? unexpected(knowledge) ?? unexpected(path);
 
   function pin() {
     const value = draft.trim().toLowerCase();
     if (!isCommitSha(value)) return;
+    action.current?.abort();
+    setBusy(null);
     saveSha(connectionId, value);
     setSha(value); setError(null); setFailedStep(null); setShowAll(false);
   }
 
-  async function run(step: Step): Promise<boolean> {
+  async function run(step: Step, signal?: AbortSignal): Promise<boolean> {
+    if (!signal) {
+      action.current?.abort();
+      action.current = new AbortController();
+      signal = action.current.signal;
+    }
+    if (signal.aborted) return false;
     setError(null); setFailedStep(null); setBusy(step);
     try {
-      if (step === "sync") queries.setQueryData(projectKeys.snapshot(owner, connectionId, sha), await githubQueue(() => githubProjectsApi.sync(connectionId, sha)));
-      if (step === "ingest") queries.setQueryData(projectKeys.knowledge(owner, connectionId, sha), await githubQueue(() => githubProjectsApi.ingest(connectionId, sha)));
-      if (step === "path") queries.setQueryData(projectKeys.path(owner, connectionId, sha), await githubQueue(() => githubProjectsApi.learningPath(connectionId, sha)));
-      return true;
+      if (step === "sync") queries.setQueryData(projectKeys.snapshot(owner, connectionId, sha), await githubQueue(() => githubProjectsApi.sync(connectionId, sha), signal));
+      if (step === "ingest") queries.setQueryData(projectKeys.knowledge(owner, connectionId, sha), await githubQueue(() => githubProjectsApi.ingest(connectionId, sha), signal));
+      if (step === "path") queries.setQueryData(projectKeys.path(owner, connectionId, sha), await githubQueue(() => githubProjectsApi.learningPath(connectionId, sha), signal));
+      return !signal.aborted;
     } catch (failure) {
-      setError(failure); setFailedStep(step);
+      if (!signal.aborted) { setError(failure); setFailedStep(step); }
       return false;
-    } finally { setBusy(null); }
+    } finally { if (!signal.aborted) setBusy(null); }
   }
   async function prepare() {
-    for (const step of ["sync", "ingest", "path"] as const) if (!(await run(step))) return;
+    action.current?.abort();
+    action.current = new AbortController();
+    const signal = action.current.signal;
+    for (const step of ["sync", "ingest", "path"] as const) if (!(await run(step, signal))) return;
   }
 
   const stage = (done: boolean, step: Step, active: string, idle: string, ok: string): Pick<Stage, "state" | "detail"> =>

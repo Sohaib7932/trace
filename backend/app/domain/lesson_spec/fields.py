@@ -24,10 +24,10 @@ def plain_text(value: str) -> str:
         raise ValueError("Control characters are not supported")
     if re.search(r"<\s*[a-zA-Z!/?][^>]*>", value):
         raise ValueError("HTML is not supported")
-    if re.search(
-        r"\b[a-z][a-z0-9+.-]*://|\b(?:mailto|javascript|data):(?=\S)|\bwww\.|(?<!:)//[a-z]",
-        value,
-        re.I,
+    # Skip the variable-length scheme scan when its required delimiter is absent.
+    # Long hyphenated identifiers otherwise restart that scan at every word boundary.
+    if ("://" in value and re.search(r"\b[a-z][a-z0-9+.-]*://", value, re.I)) or re.search(
+        r"\b(?:mailto|javascript|data):(?=\S)|\bwww\.|(?<!:)//[a-z]", value, re.I
     ):
         raise ValueError("URLs are not supported")
     return value  # Validation never strips, normalizes or canonicalizes authored text.

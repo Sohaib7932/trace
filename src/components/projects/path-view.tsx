@@ -7,6 +7,7 @@ import { Enter } from "./enter";
 import { githubProjectsApi } from "@/lib/api/github-projects";
 import { isCommitSha, loadSha } from "@/lib/projects/format";
 import { githubQueue } from "@/lib/projects/queue";
+import { isValidatedPath } from "@/lib/projects/validated-path";
 import { isNotFound, projectKeys, useConnections, useOwner, useSavedKnowledge, useSavedPath, useSavedSnapshot } from "@/lib/projects/use-projects";
 import { RepoName, ShaChip, StatusChip } from "./parts";
 import { PathPlayer } from "./path-player";
@@ -15,6 +16,11 @@ import { CardSkeleton, Crumbs, Notice, ProjectError } from "./shell";
 
 /** The learning path for one repository at one commit. Questions and sources come from the server; nothing is graded here. */
 export function PathView({ connectionId, sha: given }: { connectionId: string; sha?: string }) {
+  const owner = useOwner();
+  return <ScopedPathView key={`${owner}:${connectionId}:${given ?? ""}`} connectionId={connectionId} sha={given} />;
+}
+
+function ScopedPathView({ connectionId, sha: given }: { connectionId: string; sha?: string }) {
   const owner = useOwner();
   const queries = useQueryClient();
   const connections = useConnections();
@@ -35,15 +41,13 @@ export function PathView({ connectionId, sha: given }: { connectionId: string; s
   const loading = path.isPending || snapshot.isPending;
   const unexpected = [path.error, snapshot.error].find((failure) => failure && !isNotFound(failure));
   const value = path.data;
-  const digest = snapshot.data?.digest;
   const sources = new Map<string, { path: string; text: string; lineStart?: number; lineEnd?: number }>();
   for (const reference of snapshot.data?.references ?? []) sources.set(reference.reference_id, { path: reference.path, text: reference.text });
   // Knowledge references carry line ranges; prefer them when the same excerpt is there.
   for (const reference of knowledge.data?.references ?? []) sources.set(reference.reference_id, { path: reference.path, text: reference.text, lineStart: reference.line_start, lineEnd: reference.line_end });
 
   // The path is only shown when it matches this commit's snapshot and every source it cites is present.
-  const valid = value?.status === "ready" && value.content && value.generation && value.id && digest === value.snapshot_digest && value.commit_sha === sha
-    && value.content.steps.every((step) => step.reference_ids.every((id) => (snapshot.data?.references ?? []).some((reference) => reference.reference_id === id)));
+  const valid = value && !error && isValidatedPath(value, snapshot.data, sha);
 
   async function generate() {
     setBusy(true); setError(null);

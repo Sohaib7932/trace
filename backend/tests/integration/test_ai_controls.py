@@ -17,6 +17,7 @@ from app.ai.accounting import (
     ProviderAttempt,
     ProviderUsage,
 )
+from app.core.ai_settings import GEMINI_MODEL
 from app.db import accounting_models as m
 from app.db import models as legacy
 from app.db.accounting import SqlAIControls
@@ -30,7 +31,7 @@ def attempt(subject="synthetic-subject", **changes):
             dict(
                 id=uuid4(),
                 capability="tutor",
-                model_id="gemini-3.5-flash-lite",
+                model_id=GEMINI_MODEL,
                 subject_hash=sha256(subject.encode()).hexdigest(),
                 estimated_input_bytes=128,
                 item_count=1,

@@ -270,7 +270,7 @@ The runtime uses the exact existing `gemini-free-text-v1` profile:
 | Setting | Fixed value |
 | --- | --- |
 | Mode / provider | `gemini_free` / `gemini` |
-| Generation / conversational model | `gemini-3.5-flash-lite` for both |
+| Generation / conversational model | `gemini-3.1-flash-lite` for both |
 | Credential name | `GEMINI_API_KEY`, runtime secret reference only |
 | Paid allowance / per-attempt reservation / retries | `0` / `0` / `0`; no fallback |
 | Request / response bytes | 32,768 / 16,384 |

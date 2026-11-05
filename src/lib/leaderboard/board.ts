@@ -39,11 +39,20 @@ export function tiedRanks(entries: LeaderboardEntry[]): Set<number> {
   return new Set([...seen].filter(([, count]) => count > 1).map(([rank]) => rank));
 }
 
+/**
+ * A short tag to tell apart people the backend lists without a name (it stores no public profiles yet).
+ * It comes from the opaque board id, which is not an account id, and identifies no one.
+ */
+export function learnerTag(userId: string): string {
+  const letters = userId.replace(/[^A-Za-z0-9]/g, "");
+  return letters.slice(-4).toUpperCase() || "----";
+}
+
 export const rankLabel = (rank: number, tied: boolean) => `Rank ${rank}${tied ? ", tied" : ""}`;
 
 /**
- * The top of the board by rank VALUE (1, 2, 3), not by position. Returns null when the groups are
- * too crowded for a podium (then the page highlights rows instead).
+ * The top of the board by rank VALUE (1, 2, 3), not by position. Everyone sharing a rank stays in its group, so the
+ * page can say how many are tied even when it only draws the first few. Null when nobody has a top-three rank.
  */
 export function topGroups(entries: LeaderboardEntry[]): { rank: number; entries: LeaderboardEntry[] }[] | null {
   const groups: { rank: number; entries: LeaderboardEntry[] }[] = [];
@@ -52,8 +61,7 @@ export function topGroups(entries: LeaderboardEntry[]): { rank: number; entries:
     const group = groups.find((g) => g.rank === entry.rank);
     if (group) group.entries.push(entry); else groups.push({ rank: entry.rank, entries: [entry] });
   }
-  if (!groups.length || groups.some((group) => group.entries.length > 3)) return null;
-  return groups;
+  return groups.length ? groups : null;
 }
 
 /** Bar width for a count, relative to the highest count among the loaded rows (display only). */

@@ -171,7 +171,9 @@ def create_app(
         }
     )
     github_limits = TutorSettings.model_validate(
-        {**knowledge_config.model_dump(warnings=False), "requests_per_minute": 10}
+        # A normal connect/pin/prepare/tutor journey includes more than ten reads
+        # and writes. This HTTP allowance is separate from the bounded AI quota.
+        {**knowledge_config.model_dump(warnings=False), "requests_per_minute": 30}
     )
 
     def admission_policy(

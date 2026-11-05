@@ -4,7 +4,7 @@ Status: design only. No host, deployment, public tunnel, production environment,
 
 ## Current implementation and deployment boundary
 
-The approved local pilot uses the official Google GenAI SDK, the existing shared application-scoped AI client and `gemini-3.5-flash-lite`. Tutor, support and candidate generation share that infrastructure while retaining their separate policies and trusted validation. The existing PowerShell launcher binds the backend to loopback. It must not be exposed by changing its bind address or opening a public tunnel.
+The approved local pilot uses the official Google GenAI SDK, the existing shared application-scoped AI client and `gemini-3.1-flash-lite`. Tutor, support and candidate generation share that infrastructure while retaining their separate policies and trusted validation. The existing PowerShell launcher binds the backend to loopback. It must not be exposed by changing its bind address or opening a public tunnel.
 
 The current configuration supports `development` and `test` environments, not a reviewed production profile. `Settings` accepts SQLite through `sqlite+pysqlite` only. There is no hosting manifest, production secret manager, persistent-volume policy, scheduled backup/restore automation, distributed limiter or release/rollback pipeline established by the source. These are deployment prerequisites, not capabilities implied by passing local tests.
 

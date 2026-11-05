@@ -36,7 +36,7 @@ from app.support.knowledge import load_corpus_package
 from scripts import auth_fixture
 from tests.integration.test_github_projects import FakeGitHub
 from tests.integration.test_github_projects import config as github_settings
-from tests.unit.test_project_ingestion import SHA, FixtureRepository
+from tests.unit.test_project_ingestion import SHA, FixtureRepository, sha
 
 API = "http://127.0.0.1:8100"
 AUTH = "http://127.0.0.1:8101"
@@ -73,6 +73,22 @@ class BrowserFixtureTransport:
             from tests.integration.test_private_guides import content
 
             text = json.dumps(content())
+        elif json.loads(request.data_json).get("operation") == "project-learning-v1":
+            data = json.loads(request.data_json)
+            text = json.dumps(
+                {
+                    "schema_version": "project-learning-v1",
+                    "title": "Read the identity helper",
+                    "steps": [
+                        {
+                            "title": "Inspect the return value",
+                            "explanation": "The supplied helper returns its subject.",
+                            "question": "Which argument is returned?",
+                            "reference_ids": [data["snapshot"]["references"][0]["reference_id"]],
+                        }
+                    ],
+                }
+            )
         elif json.loads(request.data_json).get("operation") == "project-question-v1":
             data = json.loads(request.data_json)
             reference = next(
@@ -114,6 +130,17 @@ class BrowserFixtureGitHub(FakeGitHub):
     def accessible_repositories(self, token, installation_id):
         super().accessible_repositories(token, installation_id)
         return [RepositoryView(repository_id=22, full_name="fixture/architecture", private=True)]
+
+    def commit(self, token, full_name, identifier):
+        # The preparation UI now syncs before ingestion. Both operations must see
+        # the same synthetic files and blob identifiers.
+        return {
+            "sha": identifier,
+            "commit": {"message": "Add the identity helper"},
+            "files": [
+                {"filename": "backend/identity.py", "status": "modified", "sha": sha("identity.py")}
+            ],
+        }
 
     def repository(self, token, name):
         return self.fixture_repository.repository(token, name)
@@ -174,7 +201,12 @@ def main():
             app = create_app(
                 settings,
                 database,
-                ai_settings=AIClientSettings(_env_file=None, mode="mock"),
+                ai_settings=AIClientSettings(
+                    _env_file=None,
+                    mode="mock",
+                    generation_model_id="fixture-project-model",
+                    conversational_model_id="fixture-conversation-model",
+                ),
                 ai_transport_factory=lambda: transport,
             )
             original_lifespan = app.router.lifespan_context

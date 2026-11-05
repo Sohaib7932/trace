@@ -262,6 +262,7 @@ class NativeEventCaptureTests(unittest.TestCase):
         worker = """import importlib.util,json,sys
 from pathlib import Path
 spec=importlib.util.spec_from_file_location('capture_worker',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
 root=Path(sys.argv[2]);identity=json.loads(sys.argv[3]);turn=sys.argv[4]
 for event in ('UserPromptSubmit','Stop'):
     payload={'session_id':'fixture-session','turn_id':turn,'cwd':str(root),'hook_event_name':event,'model':'fixture-model','prompt':'Prompt '+turn,'last_assistant_message':'Final '+turn}
