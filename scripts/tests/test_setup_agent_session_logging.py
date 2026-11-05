@@ -23,7 +23,9 @@ SPEC.loader.exec_module(setup)
 class LoggingSetupTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.base = Path(self.temporary.name)
+        # Windows runners may expose TEMP through an 8.3 alias; the installer and
+        # subprocess cwd use its resolved spelling.
+        self.base = Path(self.temporary.name).resolve()
         self.home = self.base / "private-global-claude"
         self.project = self.make_project("Trace project $literal & spaces")
 
@@ -85,6 +87,50 @@ class LoggingSetupTests(unittest.TestCase):
                 shlex.split(command),
                 [sys.executable, "-B", str(self.home / "extract-log.py")],
             )
+
+    def test_real_path_aliases_keep_canonical_scope_and_exact_native_payload(self):
+        alias = self.base / "existing-path-alias"
+        alias.mkdir()
+        # An existing directory followed by /.. is a portable, real filesystem
+        # alias. It exercises canonicalization without mocking Path.resolve or
+        # requiring symlink privileges or optional Windows short-name support.
+        aliased_base = alias / ".."
+        aliased_home = aliased_base / self.home.name
+        aliased_project = aliased_base / self.project.name
+        self.assertNotEqual(aliased_home, self.home)
+        self.assertNotEqual(aliased_project, self.project)
+        self.assertEqual(aliased_home.resolve(), self.home)
+        self.assertEqual(aliased_project.resolve(), self.project)
+
+        writes = setup.prepare(aliased_home, [aliased_project])
+        self.assertEqual(
+            set(writes),
+            {
+                self.home / "extract-log.py",
+                self.home / setup.REGISTRY_NAME,
+                self.home / "settings.json",
+            },
+        )
+        result = setup.install(aliased_home, [aliased_project], apply=True)
+        self.assertFalse(result["hook_trust_changed"])
+        registry = json.loads((self.home / setup.REGISTRY_NAME).read_text())
+        self.assertEqual(registry["projects"], [str(self.project)])
+
+        (self.project / "backend").mkdir()
+        payload = {
+            "hook_event_name": "Stop",
+            "cwd": str(aliased_project / "backend"),
+            "session_id": "synthetic-session",
+            "last_assistant_message": "Synthetic final answer",
+        }
+        completed = self.invoke_wrapper(payload)
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout + completed.stderr, b"")
+        dispatched = json.loads((self.project / "dispatched.json").read_text())
+        self.assertEqual(dispatched["argv"], ["hook", "--agent", "claude"])
+        self.assertEqual(dispatched["stdin"], json.dumps(payload))
+        self.assertEqual(dispatched["cwd"], str(self.project))
+        self.assertEqual(setup.install(self.home, [self.project])["changed_files"], [])
 
     def test_apply_preserves_every_unrelated_setting_and_hook(self):
         session_start = [{"hooks": [{"type": "command", "command": "existing-start"}]}]

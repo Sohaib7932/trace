@@ -169,7 +169,12 @@ def test_fixed_utc_rate_window_uses_database_time_and_does_not_refund_calls(data
     assert windows == [datetime(2026, 11, 3, 23, 59, tzinfo=UTC), datetime(2026, 11, 4, tzinfo=UTC)]
 
 
-def test_shared_route_global_subject_and_rate_limits_release_only_actual_work(database):
+def test_shared_route_global_subject_and_rate_limits_release_only_actual_work(
+    database, monkeypatch
+):
+    # Every assertion below concerns one rate window, regardless of CI wall time.
+    at = datetime(2026, 11, 5, 11, 55, 59, tzinfo=UTC)
+    monkeypatch.setattr(SqlAIControls, "_now", staticmethod(lambda _: at))
     controls = SqlAIControls(database)
     limits = admission(global_requests_per_minute=3, subject_requests_per_minute=3)
     a, b, c = [sha256(label.encode()).hexdigest() for label in ("a", "b", "c")]
@@ -190,6 +195,52 @@ def test_shared_route_global_subject_and_rate_limits_release_only_actual_work(da
     assert rate.value.code == "saturated"
     with database.session() as session:
         assert session.scalar(select(func.count()).select_from(m.AIAdmissionRelease)) == 3
+
+
+def test_shared_admission_utc_minute_rollover_preserves_active_leases_and_no_refunds(
+    database, monkeypatch
+):
+    now = [datetime(2026, 11, 5, 23, 59, 59, tzinfo=UTC)]
+    monkeypatch.setattr(SqlAIControls, "_now", staticmethod(lambda _: now[0]))
+    controls = SqlAIControls(database)
+    limits = admission(global_requests_per_minute=2, subject_requests_per_minute=1)
+    a, b, c, d = [sha256(label.encode()).hexdigest() for label in ("a", "b", "c", "d")]
+    first = controls.acquire(limits, a)
+    controls.release(first.id)
+    with pytest.raises(AIAccountingError) as subject_rate:
+        controls.acquire(limits, a)
+    assert subject_rate.value.code == "saturated"
+    old_pending = controls.acquire(limits, b)
+    with pytest.raises(AIAccountingError) as global_rate:
+        controls.acquire(limits, c)
+    assert global_rate.value.code == "saturated"
+
+    now[0] += timedelta(seconds=1)
+    with pytest.raises(AIAccountingError) as still_running:
+        controls.acquire(limits, b)
+    assert still_running.value.code == "saturated"
+    next_first = SqlAIControls(database).acquire(limits, a)
+    with pytest.raises(AIAccountingError) as active_global:
+        controls.acquire(limits, c)
+    assert active_global.value.code == "saturated"
+    controls.release(old_pending.id)
+    next_second = controls.acquire(limits, c)
+    controls.release(next_first.id)
+    controls.release(next_second.id)
+    with pytest.raises(AIAccountingError) as no_refund:
+        controls.acquire(limits, d)
+    assert no_refund.value.code == "saturated"
+    with database.session() as session:
+        windows = session.execute(
+            select(m.AIAdmissionLease.window_start, func.count())
+            .group_by(m.AIAdmissionLease.window_start)
+            .order_by(m.AIAdmissionLease.window_start)
+        ).all()
+        assert windows == [
+            (datetime(2026, 11, 5, 23, 59, tzinfo=UTC), 2),
+            (datetime(2026, 11, 6, tzinfo=UTC), 2),
+        ]
+        assert session.scalar(select(func.count()).select_from(m.AIAdmissionRelease)) == 4
 
 
 def test_control_records_are_immutable_at_database_boundary(database):
