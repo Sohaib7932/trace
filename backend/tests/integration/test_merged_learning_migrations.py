@@ -35,7 +35,8 @@ from app.services.catalog import LESSON_ID, seed_first_lesson
 from app.services.learning import LearningService
 
 MERGE = "0014_merge_learning_heads"
-LATEST = "0015_project_learning_paths"
+PROJECT_PATHS = "0015_project_learning_paths"
+LATEST = "0016_guard_search_paths"
 MAIN = "0010_custom_lessons"
 FEATURE = "0013_repository_knowledge"
 NOW = datetime(2026, 11, 4, tzinfo=UTC)
@@ -248,7 +249,8 @@ def seed_feature_history(database, owner):
 def test_both_dialect_graphs_have_one_head_and_retain_published_merge_and_branches(dialect):
     graph = ScriptDirectory.from_config(migration_config(dialect))
     assert graph.get_heads() == [LATEST]
-    assert graph.get_revision(LATEST).down_revision == MERGE
+    assert graph.get_revision(LATEST).down_revision == PROJECT_PATHS
+    assert graph.get_revision(PROJECT_PATHS).down_revision == MERGE
     assert set(graph.get_revision(MERGE).down_revision) == {MAIN, FEATURE}
     assert graph.get_revision(MAIN).down_revision == "0009_durable_ai_controls"
     assert graph.get_revision("0010_private_learning_guides").down_revision == (

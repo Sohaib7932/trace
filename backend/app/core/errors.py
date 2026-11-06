@@ -23,7 +23,9 @@ def error_response(
     body = ErrorResponse(
         error=ErrorDetail(code=code, message=message, request_id=request_id, details=details or [])
     )
-    return JSONResponse(body.model_dump(), status_code=status_code)
+    return JSONResponse(
+        body.model_dump(), status_code=status_code, headers={"Cache-Control": "no-store"}
+    )
 
 
 def register_error_handlers(app: FastAPI) -> None:

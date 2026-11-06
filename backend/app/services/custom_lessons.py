@@ -182,7 +182,9 @@ class CustomLessonService:
         return view
 
     def recover_interrupted(self) -> int:
-        return self.repository.recover_interrupted(_now(self.clock))
+        return self.repository.recover_interrupted(
+            _now(self.clock), timedelta(seconds=self.settings.stale_after_seconds)
+        )
 
     def list_lessons(self, owner: Owner) -> CustomLessonList:
         return self.repository.list_lessons(owner.account_id)
@@ -297,7 +299,10 @@ class CustomLessonRunner:
                 return
             self._running += 1
         try:
-            self._executor.submit(self._run, request_id)
+            future = self._executor.submit(self._run, request_id)
+            # A queued future may be cancelled before _run starts. Its actual
+            # completion callback owns the reservation in every terminal case.
+            future.add_done_callback(lambda _: self._finished())
         except RuntimeError:
             self._finished()
 
@@ -310,10 +315,13 @@ class CustomLessonRunner:
         with self._idle:
             return self._idle.wait_for(lambda: self._running == 0, timeout=timeout)
 
-    def close(self, timeout: float = 30.0) -> None:
+    def stop_admission(self) -> None:
         with self._lock:
             self._closed = True
         self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def close(self, timeout: float = 30.0) -> None:
+        self.stop_admission()
         self.wait_for_idle(timeout)
 
     def _run(self, request_id: UUID) -> None:
@@ -324,8 +332,6 @@ class CustomLessonRunner:
             self.logger.warning("custom_lesson_job_failed")
             with contextlib.suppress(Exception):
                 self.repository.finish(request_id, "failed", "provider_error", _now(self.clock))
-        finally:
-            self._finished()
 
     def _generate(self, request_id: UUID) -> None:
         job = self.repository.start_generation(request_id, _now(self.clock))
