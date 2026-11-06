@@ -102,6 +102,7 @@ export function SplitHeading({
         <span
           key={`${lineIndex}-${wordIndex}`}
           className="sh-word"
+          suppressHydrationWarning
           data-accent={word.accent ? "" : undefined}
           style={{ "--i": word.order } as CSSProperties}
         >
@@ -125,6 +126,7 @@ export function SplitHeading({
       className={`sh ${mode === "load" ? "sh-load" : ""} ${tone === "dark" ? "sh-dark" : ""} ${className}`}
       data-split={mode === "view" ? "" : undefined}
       data-words={count}
+      suppressHydrationWarning
       style={{ "--sh-base": `${baseDelay}ms` } as CSSProperties}
     >
       <span className="sr-only">{label}</span>
