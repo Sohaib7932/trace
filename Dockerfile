@@ -4,7 +4,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_NO_CACHE=1 UV_PYTHON_DOWNLOA
 WORKDIR /app
 RUN python -m pip install --no-cache-dir uv==0.12.1 \
     && groupadd --gid 10001 trace \
-    && useradd --uid 10001 --gid trace --no-create-home --shell /usr/sbin/nologin trace
+    && useradd --uid 10001 --gid trace --no-create-home --shell /usr/sbin/nologin trace \
+    && (getent group 1000 || groupadd --gid 1000 render-secrets) \
+    && usermod -a -G 1000 trace
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --locked --no-dev
 COPY backend/app ./app
