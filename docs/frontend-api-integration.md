@@ -1,5 +1,14 @@
 # Trace frontend API integration handoff
 
+> **Production transport review candidate:** the current backend export is
+> **54 paths / 60 operations**. The proposed production browser client uses
+> same-origin `/api/v1` through a fixed-destination server-only relay; local
+> development keeps its existing direct API configuration. It is not yet
+> production-accepted. Preview deployments fail closed and do not call Render.
+> See [production integration and release gates](deployment/production-integration.md)
+> for cookie behavior, runtime requirements and the still-failing HTTPS probe.
+> The dated handoff below is retained as historical documentation.
+
 > **Current PR #26 integration contract (4 November 2026):** the combined application
 > exposes **53 paths / 58 operations**, including Custom Lessons, Private Learning
 > Guides and GitHub Project Learning. The authoritative current exports are
