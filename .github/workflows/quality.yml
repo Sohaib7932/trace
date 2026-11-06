@@ -59,6 +59,7 @@ jobs:
       - run: git diff --exit-code -- src/lib/api/schema.d.ts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node --test tests/integration/api-relay-browser.mjs
       - run: npm run test:e2e
       - run: npx playwright test --config playwright.ai.config.ts
       # Custom lessons end to end with the backend's mock provider transport (no key, no Gemini).

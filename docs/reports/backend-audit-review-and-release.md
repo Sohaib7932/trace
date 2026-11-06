@@ -131,6 +131,14 @@ continuity or weaken SameSite/HttpOnly/Secure.
 
 ## 5. Publish the genuine reviewed support corpus
 
+Integration follow-up: use the bounded operator described in
+[production integration](../deployment/production-integration.md) for the initial
+import/publication. It verifies the returned sealed histories without nine
+immediate revision reads. The existing knowledge-admin limit is five requests per
+minute; manual readbacks below must respect that limit. Do not raise it. The new
+operator leaves active-manifest availability unverified until a separate status
+check and live Help acceptance; its receipt alone is not current availability.
+
 Only after transport/authentication pass and production writes are authorized:
 
 Protected writes retain the allowed frontend `Origin`,

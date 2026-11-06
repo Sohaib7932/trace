@@ -54,8 +54,14 @@ export const retryOnInfrastructure = (failureCount: number, error: unknown) =>
   failureCount < 1 && error instanceof ApiError && error.isInfrastructure;
 
 function baseUrl(): string {
-  // backend: the base is the API origin without /api/v1. Matching hostnames keep local cookies same-site.
-  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? `http://${window.location.hostname}:8000`).replace(/\/$/, "");
+  const hostname = window.location.hostname;
+  const loopback = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname);
+  // Public production browsers always use our fixed same-origin relay, even
+  // when an older deployment still has a public Render API base configured.
+  // Loopback production builds retain local development and E2E configuration.
+  if (process.env.NODE_ENV === "production" && !loopback) return "";
+  const hostLiteral = hostname === "::1" ? "[::1]" : hostname;
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? `http://${hostLiteral}:8000`).replace(/\/$/, "");
 }
 
 async function accessToken(refresh = false): Promise<string | undefined> {
