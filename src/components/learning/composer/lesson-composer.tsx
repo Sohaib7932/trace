@@ -34,7 +34,8 @@ export function LessonComposer() {
   const [focused, setFocused] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [service, setService] = useState<"unknown" | "available" | "unavailable">("unknown");
+  const [service, setService] = useState<"unknown" | "checking" | "available" | "unavailable">("unknown");
+  const [availabilityCheck, setAvailabilityCheck] = useState(0);
   const restored = useRef(false);
   const box = useRef<HTMLTextAreaElement>(null);
   const keyFor = useRef<{ body: string; key: string } | null>(null);
@@ -80,18 +81,19 @@ export function LessonComposer() {
         setService(failure instanceof ApiError && (failure.status === 503 || failure.status === 404) ? "unavailable" : "available");
       });
     return () => { active = false; };
-  }, [signedIn]);
+  }, [signedIn, availabilityCheck]);
 
   const problems = draftProblems(draft);
   const promptProblem = touched && draft.prompt.trim() ? problems.find((p) => p.field === "prompt")?.message : undefined;
   const update = (patch: Partial<ComposerDraft>) => { setTouched(true); setError(null); setDraft((d) => ({ ...d, ...patch })); };
   const count = draft.prompt.length;
   const unavailable = service === "unavailable";
+  const checking = service === "checking";
   const failure = error ? describeCustomLessonError(error) : null;
 
   async function send() {
     setTouched(true);
-    if (problems.length || sending || unavailable) return;
+    if (problems.length || sending || unavailable || checking) return;
     const body = requestBody(draft);
     const serialized = JSON.stringify(body);
     if (keyFor.current?.body !== serialized) keyFor.current = { body: serialized, key: crypto.randomUUID() };
@@ -141,8 +143,8 @@ export function LessonComposer() {
             <div className="flex shrink-0 items-center gap-3">
               <span className={`font-mono text-[0.75rem] ${count > PROMPT_MAX ? "font-semibold text-error" : "text-tertiary"}`} aria-label={`${count} of ${PROMPT_MAX} characters`}>{count}/{PROMPT_MAX}</span>
               {signedIn ? (
-                <button type="submit" disabled={sending || unavailable} aria-label={sending ? "Creating lesson" : "Create lesson"} aria-describedby={`${ids}-status`} className="chat-send" data-ready={problems.length === 0 && !unavailable ? "" : undefined}>
-                  {unavailable ? <Lock aria-hidden="true" className="size-[18px]" strokeWidth={2} /> : sending ? <span aria-hidden="true" className="chat-spinner" /> : <ArrowUp aria-hidden="true" className="size-5" strokeWidth={2.2} />}
+                <button type="submit" disabled={sending || unavailable || checking} aria-label={sending ? "Creating lesson" : "Create lesson"} aria-describedby={`${ids}-status`} className="chat-send" data-ready={problems.length === 0 && !unavailable && !checking ? "" : undefined}>
+                  {unavailable ? <Lock aria-hidden="true" className="size-[18px]" strokeWidth={2} /> : sending || checking ? <span aria-hidden="true" className="chat-spinner" /> : <ArrowUp aria-hidden="true" className="size-5" strokeWidth={2.2} />}
                 </button>
               ) : null}
             </div>
@@ -156,8 +158,12 @@ export function LessonComposer() {
         <div id={`${ids}-status`} className="text-secondary" aria-live="polite">
           {!signedIn && auth.status !== "loading" ? (
             <p><Link href="/sign-in?next=%2Flearn%2Fnew" className="inline-flex min-h-11 items-center rounded-[11px] bg-foreground px-5 text-[0.9375rem] font-medium text-white hover:bg-foreground/85">Sign in to create this lesson</Link><span className="mt-1 block">Lessons you create are private to your account. Your draft is kept.</span></p>
-          ) : unavailable ? (
-            <p><span className="font-medium text-foreground">Creating lessons isn&apos;t available right now.</span> The lesson service is switched off or not connected. Your draft is kept.</p>
+          ) : unavailable || checking ? (
+            <div>
+              {checking ? <p>Checking lesson availability. Your draft is kept.</p>
+                : <p><span className="font-medium text-foreground">Creating lessons isn&apos;t available right now.</span> The lesson service is switched off or not connected. Your draft is kept.</p>}
+              <button type="button" disabled={checking} onClick={() => { setService("checking"); setAvailabilityCheck((value) => value + 1); }} className="min-h-11 font-medium underline underline-offset-4 disabled:opacity-45">{checking ? "Checking…" : "Check again"}</button>
+            </div>
           ) : sending ? (
             <p>Sending your request…</p>
           ) : touched && problems.length ? (

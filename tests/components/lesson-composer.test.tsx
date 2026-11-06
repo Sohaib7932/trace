@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { LessonComposer } from "@/components/learning/composer/lesson-composer";
@@ -27,7 +27,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   fx.auth = { status: "signed-in" };
-  fx.languages.mockResolvedValue({ generation_available: true, items: [] });
+  fx.languages.mockReset().mockResolvedValue({ generation_available: true, items: [] });
   fetchSpy = vi.fn(); vi.stubGlobal("fetch", fetchSpy);
   window.history.replaceState(null, "", "/learn/new");
 });
@@ -146,11 +146,66 @@ test("when the backend reports the feature disabled, sending is unavailable with
   expect(screen.getByRole("button", { name: "Create lesson" })).toBeDisabled();
 });
 
+test.each(["disabled", "503"] as const)("an explicit availability check recovers from %s without sending the saved draft", async (initial) => {
+  const user = userEvent.setup();
+  if (initial === "disabled") fx.languages.mockResolvedValueOnce({ generation_available: false, items: [] });
+  else fx.languages.mockRejectedValueOnce(new ApiError(503, "Temporarily unavailable"));
+  let finishCheck!: (value: { generation_available: boolean; items: [] }) => void;
+  fx.languages.mockReturnValueOnce(new Promise((resolve) => { finishCheck = resolve; }));
+  fx.create.mockResolvedValueOnce({ id: "req-recovered" });
+  render(<LessonComposer />);
+  expect(await screen.findByText("Creating lessons isn't available right now.")).toBeVisible();
+  const prompt = "Teach me FastAPI request validation";
+  await user.type(box(), prompt);
+  await waitFor(() => expect(loadDraft()?.prompt).toBe(prompt));
+
+  await user.click(screen.getByRole("button", { name: "Check again" }));
+  const checking = screen.getByRole("button", { name: "Checking…" });
+  expect(checking).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Create lesson" })).toBeDisabled();
+  expect(box()).toHaveValue(prompt);
+  expect(loadDraft()?.prompt).toBe(prompt);
+  await user.click(checking);
+  await user.click(box());
+  await user.keyboard("{Control>}{Enter}{/Control}");
+  expect(fx.languages).toHaveBeenCalledTimes(2);
+  expect(fx.create).not.toHaveBeenCalled();
+
+  await act(async () => { finishCheck({ generation_available: true, items: [] }); });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Create lesson" })).toBeEnabled());
+  expect(box()).toHaveValue(prompt);
+  expect(loadDraft()?.prompt).toBe(prompt);
+  expect(fx.create).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Create lesson" }));
+  expect(fx.create).toHaveBeenCalledExactlyOnceWith(requestBody({ ...DEFAULT_DRAFT, prompt }), expect.any(String));
+  expect(fx.push).toHaveBeenCalledWith("/learn/requests/req-recovered");
+  expect(fetchSpy).not.toHaveBeenCalled();
+});
+
+test("checking a still-disabled service never creates a lesson or clears the draft", async () => {
+  const user = userEvent.setup();
+  fx.languages.mockResolvedValue({ generation_available: false, items: [] });
+  render(<LessonComposer />);
+  expect(await screen.findByText("Creating lessons isn't available right now.")).toBeVisible();
+  const prompt = "Teach me FastAPI request validation";
+  await user.type(box(), prompt);
+  await user.click(screen.getByRole("button", { name: "Check again" }));
+  await waitFor(() => expect(fx.languages).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Create lesson" })).toBeDisabled();
+  await user.click(box());
+  await user.keyboard("{Control>}{Enter}{/Control}");
+  expect(box()).toHaveValue(prompt);
+  expect(fx.create).not.toHaveBeenCalled();
+  expect(fx.push).not.toHaveBeenCalled();
+});
+
 test("guests get one primary action: sign in. Nothing is requested", async () => {
   fx.auth = { status: "guest" };
   render(<LessonComposer />);
   expect(screen.getByRole("link", { name: "Sign in to create this lesson" })).toHaveAttribute("href", "/sign-in?next=%2Flearn%2Fnew");
   expect(screen.queryByRole("button", { name: "Create lesson" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Check again" })).toBeNull();
   expect(fx.languages).not.toHaveBeenCalled();
   expect(fx.create).not.toHaveBeenCalled();
 });
