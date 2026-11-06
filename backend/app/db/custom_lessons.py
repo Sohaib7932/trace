@@ -165,13 +165,21 @@ class SqlCustomLessonRepository:
                 row.updated_at = row.completed_at = now
             return self._view(session, row)
 
-    def recover_interrupted(self, now: datetime) -> int:
-        """Nothing can be running at startup. Tolerates a database not yet at head."""
+    def recover_interrupted(self, now: datetime, stale_after: timedelta) -> int:
+        """Recover expired work without interrupting another running application.
+
+        Use the same strict cutoff as status reads. A fresh crashed job remains
+        pending until its existing stale interval expires; startup is not proof
+        that no other process or rolling-deploy instance owns an active job.
+        """
         try:
             with self._write() as session:
                 result = session.execute(
                     update(CustomLessonRequestRow)
-                    .where(CustomLessonRequestRow.status.in_(ACTIVE))
+                    .where(
+                        CustomLessonRequestRow.status.in_(ACTIVE),
+                        CustomLessonRequestRow.updated_at < now - stale_after,
+                    )
                     .values(
                         status="failed", error_code="interrupted", updated_at=now, completed_at=now
                     )

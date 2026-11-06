@@ -64,6 +64,15 @@ class VerificationService:
         at = as_utc(self.clock())
         with self.repository.write() as store:
             session = owned(store, owner, session_id)
+            current = next((saved for saved in store.runs(session_id) if saved.id == run.id), None)
+            if current is None:
+                raise LearningError("dependency_unavailable", "Saved verification is unavailable.")
+            # Recovery may have finalized this reservation while its original
+            # worker was outside the transaction. Preserve the stale-worker
+            # conflict contract before attempting any domain writes; explicit
+            # retries still return the saved terminal result through _reserve.
+            if current.status != "pending":
+                raise LearningError("conflict", "The write conflicts with preserved history.")
             if is_transfer:
                 task_checks(store, run.id, task_observation, at)
             else:
