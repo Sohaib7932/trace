@@ -29,6 +29,7 @@ from app.api.v1.tutoring import router as tutor_router
 from app.auth.jwt import JwtVerifier
 from app.core.accounting_settings import AccountingSettings
 from app.core.ai_settings import AIClientSettings
+from app.core.cors_errors import AllowedOriginErrorCORSMiddleware
 from app.core.custom_lesson_settings import CustomLessonSettings
 from app.core.embedding_settings import EmbeddingSettings
 from app.core.errors import register_error_handlers
@@ -38,6 +39,8 @@ from app.core.github_settings import GitHubSettings, load_github_env_file
 from app.core.https_middleware import ProductionHTTPSMiddleware
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
+from app.core.render_edge_middleware import RenderEdgeSchemeMiddleware
+from app.core.render_edge_settings import RenderEdgeSettings
 from app.core.retrieval_settings import RetrievalSettings
 from app.core.settings import Settings
 from app.core.support_settings import SupportSettings
@@ -90,9 +93,12 @@ def create_app(
     retrieval_settings: RetrievalSettings | None = None,
     github_settings: GitHubSettings | None = None,
     custom_lesson_settings: CustomLessonSettings | None = None,
+    render_edge_settings: RenderEdgeSettings | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
+    render_edge_config = render_edge_settings or RenderEdgeSettings(_env_file=None)
+    render_edge_config.validate_environment(config.environment)
     ai_config = ai_settings if ai_settings is not None else AIClientSettings(_env_file=None)
     accounting_config = accounting_settings or AccountingSettings(_env_file=None)
     embedding_config = embedding_settings or EmbeddingSettings(_env_file=None)
@@ -449,6 +455,7 @@ def create_app(
 
     app = FastAPI(title="Trace API", version="0.1.0", lifespan=lifespan)
     app.state.settings = config
+    app.state.render_edge_settings = render_edge_config
     app.state.ai_settings = ai_config
     app.state.feedback_settings = feedback_config
     app.state.tutor_settings = tutor_config
@@ -584,5 +591,8 @@ def create_app(
     )
     if config.environment == "production":
         app.add_middleware(ProductionHTTPSMiddleware)
+    if render_edge_config.mode == "enabled":
+        app.add_middleware(RenderEdgeSchemeMiddleware, settings=render_edge_config, logger=logger)
+    app.add_middleware(AllowedOriginErrorCORSMiddleware, allowed_origins=config.cors_origins)
     app.add_middleware(RequestContextMiddleware, logger=logger)
     return app
