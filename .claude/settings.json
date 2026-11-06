@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\""
+            "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; GITHUB_USER=Sohaib7932 CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\""
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\""
+            "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; GITHUB_USER=Sohaib7932 CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\""
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\""
+            "command": "P=python3; \"$P\" -c '' 2>/dev/null || P=python; GITHUB_USER=Sohaib7932 CLAUDE_CWD=\"$CLAUDE_PROJECT_DIR\" \"$P\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/extract-log.py\""
           }
         ]
       }

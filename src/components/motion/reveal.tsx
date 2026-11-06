@@ -28,11 +28,14 @@ export function Reveal({
   style?: CSSProperties;
   children: ReactNode;
 } & Partial<Record<`data-${string}` | `aria-${string}` | "id" | "role", string>>) {
+  // The motion runtime may add an inline will-change before React hydrates this node (client
+  // navigation); that is expected and harmless, so it must not raise a hydration mismatch.
   return (
     <Tag
       {...rest}
       data-reveal={stagger ? undefined : variant}
       data-reveal-stagger={stagger ? variant : undefined}
+      suppressHydrationWarning
       style={{ ...style, "--d": `${delay}ms` } as CSSProperties}
       className={className}
     >
