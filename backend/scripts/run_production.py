@@ -12,6 +12,7 @@ from uvicorn._types import ASGI3Application
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.core.accounting_settings import AccountingSettings
+from app.core.ingress_settings import IngressSettings
 from app.core.render_edge_middleware import RawSocketCaptureMiddleware
 from app.core.render_edge_settings import RenderEdgeSettings
 from app.core.settings import Settings
@@ -55,6 +56,8 @@ def main() -> int:
         trusted_proxy_ips = _trusted_proxy_ips()
         edge = RenderEdgeSettings(_env_file=None)
         edge.validate_environment(settings.environment)
+        ingress = IngressSettings(_env_file=None)
+        ingress.validate_deployment(settings.environment, edge.mode)
     except (ValueError, ValidationError):
         print(
             "Production configuration is invalid; review the production template privately.",

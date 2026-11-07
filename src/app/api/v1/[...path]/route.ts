@@ -1,11 +1,12 @@
 import "server-only";
 import { createRelay } from "@/lib/api/relay-core";
+import { isProductionVercelDeployment, readVercelWorkloadToken } from "@/lib/api/vercel-ingress";
 
 export const maxDuration = 40;
 
-// No runtime destination override, forwarded-IP trust, or workload identity.
 const relay = createRelay({
-  isProductionDeployment: () => process.env.VERCEL_ENV === "production",
+  isProductionDeployment: isProductionVercelDeployment,
+  readWorkloadToken: readVercelWorkloadToken,
   fetchImpl: (url, options) => fetch(url, options),
 });
 export const GET = relay;

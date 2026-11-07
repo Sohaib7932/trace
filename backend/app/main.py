@@ -27,6 +27,7 @@ from app.api.v1.router import router
 from app.api.v1.support import router as support_router
 from app.api.v1.tutoring import router as tutor_router
 from app.auth.jwt import JwtVerifier
+from app.auth.workload_ingress import AuthenticatedIngressMiddleware, WorkloadVerifier
 from app.core.accounting_settings import AccountingSettings
 from app.core.ai_settings import AIClientSettings
 from app.core.cors_errors import AllowedOriginErrorCORSMiddleware
@@ -37,6 +38,7 @@ from app.core.feedback_middleware import FeedbackSecurityMiddleware
 from app.core.feedback_settings import FeedbackSettings
 from app.core.github_settings import GitHubSettings, load_github_env_file
 from app.core.https_middleware import ProductionHTTPSMiddleware
+from app.core.ingress_settings import IngressSettings
 from app.core.logging import create_logger
 from app.core.middleware import RequestContextMiddleware, RequestLimitsMiddleware
 from app.core.render_edge_middleware import RenderEdgeSchemeMiddleware
@@ -94,11 +96,24 @@ def create_app(
     github_settings: GitHubSettings | None = None,
     custom_lesson_settings: CustomLessonSettings | None = None,
     render_edge_settings: RenderEdgeSettings | None = None,
+    ingress_settings: IngressSettings | None = None,
+    workload_verifier: WorkloadVerifier | None = None,
 ) -> FastAPI:
     config = settings if settings is not None else Settings()
     logger = create_logger(config.log_level)
     render_edge_config = render_edge_settings or RenderEdgeSettings(_env_file=None)
     render_edge_config.validate_environment(config.environment)
+    ingress_config = (
+        IngressSettings.model_validate(ingress_settings.model_dump(warnings=False))
+        if ingress_settings is not None
+        else IngressSettings(_env_file=None)
+    )
+    ingress_config.validate_deployment(config.environment, render_edge_config.mode)
+    if workload_verifier is not None and (
+        ingress_config.mode == "disabled"
+        or workload_verifier.config != ingress_config.verifier_config()
+    ):
+        raise ValueError("Workload verifier must match enabled pinned ingress")
     ai_config = ai_settings if ai_settings is not None else AIClientSettings(_env_file=None)
     accounting_config = accounting_settings or AccountingSettings(_env_file=None)
     embedding_config = embedding_settings or EmbeddingSettings(_env_file=None)
@@ -232,15 +247,30 @@ def create_app(
     owned_verifier = JwtVerifier(config) if jwt_verifier is None else None
     verifier_owners = 0
     verifier_lock = RLock()
+    owned_workload = (
+        WorkloadVerifier(
+            ingress_config.verifier_config(),
+            async_timeout_seconds=ingress_config.verification_timeout_seconds,
+        )
+        if ingress_config.mode != "disabled" and workload_verifier is None
+        else None
+    )
+    workload_lock = RLock()
+    # Active lifespans stop admission; retained owners keep actual cleanup alive.
+    # Keys are actual verifier objects, so deferred old cleanup cannot close a
+    # replacement created by a subsequent lifespan.
+    workload_active: dict[WorkloadVerifier, int] = {}
+    workload_retained: dict[WorkloadVerifier, int] = {}
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        nonlocal owned_verifier, verifier_owners
+        nonlocal owned_verifier, verifier_owners, owned_workload
         resource: Database | None = None
         ai: AIResources | None = None
         operations: list[FeedbackOperations] = []
         ingress_jobs: SharedIngressJobs | None = None
         verifier_acquired = False
+        lifecycle_workload: WorkloadVerifier | None = None
         github_client: GitHubAppClient | None = None
         custom_runtime: CustomLessonRuntime | None = None
         try:
@@ -251,6 +281,21 @@ def create_app(
                         app.state.jwt_verifier = owned_verifier
                     verifier_owners += 1
                     verifier_acquired = True
+            with workload_lock:
+                if owned_workload is not None and app.state.workload_verifier is owned_workload:
+                    if owned_workload.closed:
+                        owned_workload = WorkloadVerifier(
+                            ingress_config.verifier_config(),
+                            async_timeout_seconds=ingress_config.verification_timeout_seconds,
+                        )
+                        app.state.workload_verifier = owned_workload
+                    lifecycle_workload = owned_workload
+                    workload_active[lifecycle_workload] = (
+                        workload_active.get(lifecycle_workload, 0) + 1
+                    )
+                    workload_retained[lifecycle_workload] = (
+                        workload_retained.get(lifecycle_workload, 0) + 1
+                    )
             resource = database if database is not None else Database(config)
             app.state.database = resource
             controls = SqlAIControls(resource) if accounting_config.mode == "durable" else None
@@ -384,6 +429,12 @@ def create_app(
                 ingress_jobs.close()
             if ai is not None:
                 ai.stop_admission()
+            with workload_lock:
+                if lifecycle_workload is not None:
+                    workload_active[lifecycle_workload] -= 1
+                    if workload_active[lifecycle_workload] == 0:
+                        del workload_active[lifecycle_workload]
+                        lifecycle_workload.stop_admission()
 
             def dispose() -> None:
                 nonlocal verifier_owners
@@ -411,8 +462,16 @@ def create_app(
                             if verifier_owners == 0:
                                 owned_verifier.close()
                 finally:
-                    if database is None and resource is not None:
-                        resource.dispose()
+                    try:
+                        with workload_lock:
+                            if lifecycle_workload is not None:
+                                workload_retained[lifecycle_workload] -= 1
+                                if workload_retained[lifecycle_workload] == 0:
+                                    del workload_retained[lifecycle_workload]
+                                    lifecycle_workload.close()
+                    finally:
+                        if database is None and resource is not None:
+                            resource.dispose()
 
             # ASGI cancellation does not mean its abandoned sync worker stopped.
             # Keep the DB/AI alive through fresh final authorization and readback.
@@ -437,6 +496,10 @@ def create_app(
                     drained = await anyio.to_thread.run_sync(
                         owned_verifier.wait_for_idle, max(0, grace_end - time.monotonic())
                     )
+                if drained and lifecycle_workload is not None:
+                    drained = await anyio.to_thread.run_sync(
+                        lifecycle_workload.wait_for_idle, max(0, grace_end - time.monotonic())
+                    )
                 if drained:
                     await anyio.to_thread.run_sync(dispose)
                 else:
@@ -455,6 +518,8 @@ def create_app(
                             ai.wait_for_idle(None)
                         if owned_verifier is not None:
                             owned_verifier.wait_for_idle(None)
+                        if lifecycle_workload is not None:
+                            lifecycle_workload.wait_for_idle(None)
                         try:
                             dispose()
                         except Exception:
@@ -467,6 +532,10 @@ def create_app(
     app = FastAPI(title="Trace API", version="0.1.0", lifespan=lifespan)
     app.state.settings = config
     app.state.render_edge_settings = render_edge_config
+    app.state.ingress_settings = ingress_config
+    app.state.workload_verifier = (
+        workload_verifier if workload_verifier is not None else owned_workload
+    )
     app.state.ai_settings = ai_config
     app.state.feedback_settings = feedback_config
     app.state.tutor_settings = tutor_config
@@ -604,6 +673,12 @@ def create_app(
         app.add_middleware(ProductionHTTPSMiddleware)
     if render_edge_config.mode == "enabled":
         app.add_middleware(RenderEdgeSchemeMiddleware, settings=render_edge_config, logger=logger)
+    if ingress_config.mode != "disabled":
+        app.add_middleware(
+            AuthenticatedIngressMiddleware,
+            verifier_factory=lambda: app.state.workload_verifier,
+            required=ingress_config.mode == "required",
+        )
     app.add_middleware(AllowedOriginErrorCORSMiddleware, allowed_origins=config.cors_origins)
     app.add_middleware(RequestContextMiddleware, logger=logger)
     return app

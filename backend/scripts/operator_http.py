@@ -14,9 +14,9 @@ import httpx2
 from pydantic import SecretStr
 
 BACKEND_ORIGIN = "https://trace-backend-1lio.onrender.com"
-API_ORIGIN = BACKEND_ORIGIN
 FRONTEND_ORIGIN = "https://trace-ten-mu.vercel.app"
 TOKEN_VARIABLE = "TRACE_OPERATOR_ACCESS_TOKEN"
+GATEWAY_VARIABLE = "TRACE_OPERATOR_USE_GATEWAY"
 MAX_RESPONSE_BYTES = 262144
 MAX_REQUEST_BYTES = 16384
 MAX_REQUESTS = 32
@@ -83,6 +83,7 @@ class OperatorHTTP:
         transport: httpx2.BaseTransport | None = None,
         clock: Callable[[], float] = monotonic,
         deadline_seconds: float = 90.0,
+        use_gateway: bool = False,
     ) -> None:
         if (
             not isinstance(token, SecretStr)
@@ -95,6 +96,7 @@ class OperatorHTTP:
         if not math.isfinite(deadline_seconds) or not 0 < deadline_seconds <= 90:
             raise OperatorHTTPError("invalid_operation")
         self._clock, self._deadline = clock, clock() + deadline_seconds
+        self._origin = FRONTEND_ORIGIN if use_gateway else BACKEND_ORIGIN
         self._requests = 0
         self._client = httpx2.Client(
             transport=transport,
@@ -114,7 +116,10 @@ class OperatorHTTP:
 
     @classmethod
     def from_environment(cls) -> Self:
-        return cls(SecretStr(os.environ.get(TOKEN_VARIABLE, "")))
+        gateway = os.environ.get(GATEWAY_VARIABLE, "0")
+        if gateway not in {"0", "1"}:
+            raise OperatorHTTPError("invalid_operation")
+        return cls(SecretStr(os.environ.get(TOKEN_VARIABLE, "")), use_gateway=gateway == "1")
 
     def remaining_seconds(self) -> float:
         return max(0.0, self._deadline - self._clock())
@@ -155,7 +160,7 @@ class OperatorHTTP:
             self._requests += 1
             with self._client.stream(
                 method,
-                API_ORIGIN + path,
+                self._origin + path,
                 content=content,
                 headers=headers,
                 timeout=min(10.0, remaining),
