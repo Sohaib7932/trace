@@ -106,6 +106,9 @@ class SqlPrivateGuideRepository:
         digest = canonical_digest(request)
         try:
             with self.database.session() as session, session.begin():
+                # Reserve writer ownership before the idempotency read, as in
+                # account/custom-lesson writes; avoid SQLite read-to-write upgrades.
+                session.execute(update(m.WriteGate).where(m.WriteGate.id == 1).values(id=1))
                 existing = session.scalar(
                     select(Guide).where(Guide.owner_id == owner, Guide.creation_key == key)
                 )
