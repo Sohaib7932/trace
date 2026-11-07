@@ -20,6 +20,7 @@ GATEWAY_VARIABLE = "TRACE_OPERATOR_USE_GATEWAY"
 MAX_RESPONSE_BYTES = 262144
 MAX_REQUEST_BYTES = 16384
 MAX_REQUESTS = 32
+_IMPORT_REVIEWED_CORPUS = "/api/v1/admin/knowledge/import-reviewed-corpus"
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _GET = (
     r"/api/v1/account/me",
@@ -30,7 +31,7 @@ _GET = (
 )
 _POST = (
     "/api/v1/custom-lessons/requests",
-    "/api/v1/admin/knowledge/import-reviewed-corpus",
+    _IMPORT_REVIEWED_CORPUS,
     "/api/v1/admin/knowledge/publications",
 )
 _ERRORS = frozenset(
@@ -156,6 +157,14 @@ class OperatorHTTP:
         if idempotency_key is not None:
             headers["Idempotency-Key"] = str(idempotency_key)
         unknown = method == "POST"
+        io_timeout = min(10.0, remaining)
+        # A first import commits several governance checkpoints before responding.
+        # Allow its response to reach the gateway deadline within the operator budget.
+        timeout = (
+            httpx2.Timeout(io_timeout, read=min(40.0, remaining))
+            if path == _IMPORT_REVIEWED_CORPUS
+            else io_timeout
+        )
         try:
             self._requests += 1
             with self._client.stream(
@@ -163,7 +172,7 @@ class OperatorHTTP:
                 self._origin + path,
                 content=content,
                 headers=headers,
-                timeout=min(10.0, remaining),
+                timeout=timeout,
             ) as response:
                 if 300 <= response.status_code < 400:
                     raise OperatorHTTPError("redirect_rejected", outcome_unknown=unknown)
