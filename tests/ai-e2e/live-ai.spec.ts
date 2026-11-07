@@ -277,8 +277,15 @@ test("fixture repository disconnect withholds owned and foreign source access", 
   await page.getByRole("button", { name: "Close project tutor" }).click();
   await page.getByRole("link", { name: "Manage", exact: true }).click();
   await page.getByRole("button", { name: "Disconnect this repository", exact: true }).click();
+  // URL navigation does not await the hub's queued installation refresh. Finish
+  // that real browser read before probing ownership outside githubQueue.
+  const installationsRefreshed = page.waitForResponse((result) => new URL(result.url()).pathname === "/api/v1/projects/github/installations" && result.request().method() === "GET", { timeout: 10_000 });
   await page.getByRole("button", { name: "Yes, disconnect it", exact: true }).click();
   await expect(page).toHaveURL(/\/projects$/);
+  const installations = await installationsRefreshed;
+  expect(installations.status()).toBe(200);
+  expect(Array.isArray(await installations.json())).toBe(true);
+  await expect(page.getByRole("heading", { name: "No repositories yet", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Project tutor/ })).toHaveCount(0);
   const knowledgePath = `/api/v1/projects/github/repositories/${prepared.connection_id}/knowledge?commit_sha=${prepared.commit_sha}`;
   const withheld = await request.get(`${API}${knowledgePath}`, { headers: prepared.headers, timeout: 10_000 });
