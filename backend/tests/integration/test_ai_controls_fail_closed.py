@@ -1,7 +1,7 @@
 """Accounting failures never admit work, fabricate usage or authorize recovery."""
 
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import uuid4
 
@@ -160,9 +160,13 @@ def test_admin_reconciliation_refuses_missing_or_already_finished_targets(databa
         assert session.get(m.AIProviderUsage, item.id).status == "success"
 
 
-def test_admin_can_reconcile_admission_idempotently_without_erasing_rate_history(database):
+def test_admin_can_reconcile_admission_idempotently_without_erasing_rate_history(
+    database, monkeypatch
+):
+    now = datetime(2026, 11, 3, 23, 59, 59, tzinfo=UTC)
+    clock = [now]
+    monkeypatch.setattr(SqlAIControls, "_now", staticmethod(lambda _: clock[0]))
     controls = SqlAIControls(database)
-    now = datetime.now(UTC)
     with database.session() as session, session.begin():
         actor = legacy.User(status="active", created_at=now, updated_at=now)
         session.add(actor)
@@ -182,4 +186,15 @@ def test_admin_can_reconcile_admission_idempotently_without_erasing_rate_history
         assert event.target_id == lease.id and event.operator_id == actor_id
         assert session.get(m.AIAdmissionRelease, lease.id) is not None
         assert session.scalar(select(func.count()).select_from(m.AIAdmissionLease)) == 1
+        assert session.scalar(select(func.count()).select_from(m.AIControlReconciliation)) == 1
+
+    clock[0] += timedelta(seconds=1)
+    next_lease = controls.acquire(limits, subject_hash)
+    assert next_lease.id != lease.id
+    with database.session() as session:
+        assert session.get(m.AIAdmissionLease, lease.id).window_start == now.replace(second=0)
+        assert session.get(m.AIAdmissionLease, next_lease.id).window_start == clock[0]
+        assert session.get(m.AIAdmissionRelease, lease.id) is not None
+        assert session.get(m.AIAdmissionRelease, next_lease.id) is None
+        assert session.scalar(select(func.count()).select_from(m.AIAdmissionLease)) == 2
         assert session.scalar(select(func.count()).select_from(m.AIControlReconciliation)) == 1
