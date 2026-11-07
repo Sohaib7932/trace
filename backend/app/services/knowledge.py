@@ -40,9 +40,108 @@ from app.support.knowledge import (
 from app.support.receipts import VersionedSupportAnswer
 from app.support.versioning import canonical_digest
 
+_IMPORT_STEPS: tuple[KnowledgeAction, ...] = ("parse", "normalize", "chunk", "index", "validate")
+_IMPORT_REASON = "Deterministic import checkpoint over the exact existing reviewed copy."
+_ADOPTION_REASON = "Explicit adoption retains the genuine historical review attribution."
+
 
 def operation_key(key: str, label: str) -> str:
     return str(uuid5(NAMESPACE_URL, str(UUID(key)) + ":" + label))
+
+
+def _ingest_command(
+    source_id: str,
+    revision: str,
+    digest: str,
+    actor_id: UUID,
+    imported_review: ImportedReview | None,
+) -> str:
+    return canonical_digest(
+        {
+            "source_id": source_id,
+            "revision": revision,
+            "document_sha256": digest,
+            "actor_id": str(actor_id),
+            "imported_review": imported_review.model_dump(mode="json") if imported_review else None,
+        }
+    )
+
+
+def _transition_command(
+    revision_id: str,
+    action: KnowledgeAction,
+    expected_sequence: int,
+    actor_id: UUID,
+    reason: str,
+    reviewed_document_sha256: str | None = None,
+    valid_until: datetime | None = None,
+) -> str:
+    return canonical_digest(
+        {
+            "revision_id": revision_id,
+            "action": action,
+            "expected_sequence": expected_sequence,
+            "actor_id": str(actor_id),
+            "reason": reason,
+            "reviewed_document_sha256": reviewed_document_sha256,
+            "valid_until": valid_until.isoformat() if valid_until else None,
+        }
+    )
+
+
+def _matches_import(
+    history: KnowledgeHistory,
+    document: CorpusDocument,
+    review: ImportedReview,
+    key: str,
+    actor_id: UUID,
+    *,
+    adopt_existing_review: bool,
+) -> bool:
+    revision = history.revision
+    if (
+        revision.source_id != document.source_id
+        or revision.revision != review.package_revision
+        or revision.actor_id != str(actor_id)
+        or revision.normalized_sha256 != review.document_sha256
+        or revision.imported_review != review
+    ):
+        return False
+    expected = [
+        (
+            operation_key(key, document.source_id + ":ingest"),
+            _ingest_command(
+                document.source_id,
+                review.package_revision,
+                review.document_sha256,
+                actor_id,
+                review,
+            ),
+        )
+    ]
+    expected.extend(
+        (
+            operation_key(key, document.source_id + ":" + action),
+            _transition_command(revision.id, action, sequence, actor_id, _IMPORT_REASON),
+        )
+        for sequence, action in enumerate(_IMPORT_STEPS)
+    )
+    if adopt_existing_review:
+        expected.append(
+            (
+                operation_key(key, document.source_id + ":adopt"),
+                _transition_command(
+                    revision.id,
+                    "adopt_existing_review",
+                    len(_IMPORT_STEPS),
+                    actor_id,
+                    _ADOPTION_REASON,
+                ),
+            )
+        )
+    return [
+        (e.operation_key, e.command_sha256) for e in history.events[: len(expected)]
+    ] == expected
 
 
 class KnowledgeGovernanceService:
@@ -95,16 +194,8 @@ class KnowledgeGovernanceService:
         public = document.document()
         text = canonical_json(public.model_dump(mode="json"))
         digest = support_document_digest(public)
-        command = canonical_digest(
-            {
-                "source_id": public.source_id,
-                "revision": revision,
-                "document_sha256": digest,
-                "actor_id": str(actor.account.id),
-                "imported_review": imported_review.model_dump(mode="json")
-                if imported_review
-                else None,
-            }
+        command = _ingest_command(
+            public.source_id, revision, digest, actor.account.id, imported_review
         )
         with self.repository.write() as store:
             store.require_role(actor.account.id, "admin")
@@ -217,16 +308,14 @@ class KnowledgeGovernanceService:
             raise LearningError(
                 "conflict", "Adoption cannot alter the existing review or validity."
             )
-        command = canonical_digest(
-            {
-                "revision_id": revision_id,
-                "action": action,
-                "expected_sequence": expected_sequence,
-                "actor_id": str(actor.account.id),
-                "reason": reason,
-                "reviewed_document_sha256": reviewed_document_sha256,
-                "valid_until": valid_until.isoformat() if valid_until else None,
-            }
+        command = _transition_command(
+            revision_id,
+            action,
+            expected_sequence,
+            actor.account.id,
+            reason,
+            reviewed_document_sha256,
+            valid_until,
         )
         with self.repository.write() as store:
             store.require_role(actor.account.id, "admin")
@@ -323,57 +412,74 @@ class KnowledgeGovernanceService:
         self._actor(actor)
         with self.repository.read() as store:
             store.require_role(actor.account.id, "admin")
-        package = SupportCorpusPackage.model_validate_json(self.corpus_loader().model_dump_json())
-        if (
-            not ReviewedSupportKnowledge(clock=self.clock, loader=lambda: package).available
-            or package.reviewed_by is None
-            or package.reviewed_at is None
-            or package.valid_until is None
-        ):
-            raise LearningError(
-                "conflict", "Existing reviewed corpus is unavailable for explicit import."
+            package = SupportCorpusPackage.model_validate_json(
+                self.corpus_loader().model_dump_json()
             )
+            if (
+                not ReviewedSupportKnowledge(clock=self.clock, loader=lambda: package).available
+                or package.reviewed_by is None
+                or package.reviewed_at is None
+                or package.valid_until is None
+            ):
+                raise LearningError(
+                    "conflict", "Existing reviewed corpus is unavailable for explicit import."
+                )
+            digest = support_corpus_digest(package)
+            reviews = {
+                document.source_id: ImportedReview(
+                    reviewer_label=package.reviewed_by,
+                    reviewed_at=package.reviewed_at,
+                    valid_until=package.valid_until,
+                    package_revision=package.revision,
+                    package_sha256=digest,
+                    document_sha256=package.document_digests[document.source_id],
+                )
+                for document in package.documents
+            }
+            # A lost response can follow a committed import. Read its exact command
+            # history once before falling back to the existing checkpoint writes.
+            replayed = []
+            for document in package.documents:
+                history = store.by_creation_key(operation_key(key, document.source_id + ":ingest"))
+                if history is None or not _matches_import(
+                    history,
+                    document,
+                    reviews[document.source_id],
+                    key,
+                    actor.account.id,
+                    adopt_existing_review=adopt_existing_review,
+                ):
+                    break
+                replayed.append(history)
+            else:
+                self._actor(actor)
+                return tuple(replayed)
         result = []
         for document in package.documents:
-            review = ImportedReview(
-                reviewer_label=package.reviewed_by,
-                reviewed_at=package.reviewed_at,
-                valid_until=package.valid_until,
-                package_revision=package.revision,
-                package_sha256=support_corpus_digest(package),
-                document_sha256=package.document_digests[document.source_id],
-            )
             history = self.ingest(
                 document,
                 revision=package.revision,
                 key=operation_key(key, document.source_id + ":ingest"),
                 actor=actor,
-                imported_review=review,
+                imported_review=reviews[document.source_id],
             )
-            steps: tuple[KnowledgeAction, ...] = (
-                "parse",
-                "normalize",
-                "chunk",
-                "index",
-                "validate",
-            )
-            for sequence, action in enumerate(steps):
+            for sequence, action in enumerate(_IMPORT_STEPS):
                 history = self.advance(
                     history.revision.id,
                     action=action,
                     expected_sequence=sequence,
                     key=operation_key(key, document.source_id + ":" + action),
                     actor=actor,
-                    reason="Deterministic import checkpoint over the exact existing reviewed copy.",
+                    reason=_IMPORT_REASON,
                 )
             if adopt_existing_review:
                 history = self.advance(
                     history.revision.id,
                     action="adopt_existing_review",
-                    expected_sequence=5,
+                    expected_sequence=len(_IMPORT_STEPS),
                     key=operation_key(key, document.source_id + ":adopt"),
                     actor=actor,
-                    reason="Explicit adoption retains the genuine historical review attribution.",
+                    reason=_ADOPTION_REASON,
                 )
             result.append(history)
         return tuple(result)

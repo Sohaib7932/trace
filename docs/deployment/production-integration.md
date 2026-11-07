@@ -136,6 +136,13 @@ approved authenticated `/api/v1/support/ask` request and verify approved citatio
 and its release receipt. This change does not itself prove live Trace Help or
 activate an unvalidated semantic retrieval strategy.
 
+The first import may need more than 10 seconds to finish its governance
+checkpoints. The operator allows up to 40 seconds for that response within its
+overall deadline. After an uncertain response, check the archive before
+resuming with the same operation UUID. A fully committed import replays its
+verified histories from a read-only snapshot. An incomplete import resumes
+through the original checkpoints.
+
 ## Future approved Gemini/custom-lesson acceptance
 
 The acceptance tool requires explicit production PostgreSQL configuration,

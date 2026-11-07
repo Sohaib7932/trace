@@ -37,6 +37,29 @@ def test_fixed_target_auth_origin_and_idempotency_are_exact():
     assert seen[1].headers["idempotency-key"] == str(key)
 
 
+def test_only_reviewed_import_has_an_extended_read_timeout_within_the_deadline():
+    seen = []
+    now = [0.0]
+
+    def handler(request):
+        seen.append(request.extensions["timeout"])
+        return httpx2.Response(200, json={})
+
+    with OperatorHTTP(
+        SecretStr(TOKEN), clock=lambda: now[0], transport=httpx2.MockTransport(handler)
+    ) as client:
+        client.request("POST", "/api/v1/admin/knowledge/import-reviewed-corpus", body={})
+        client.request("POST", "/api/v1/admin/knowledge/publications", body={})
+        now[0] = 65.0
+        client.request("POST", "/api/v1/admin/knowledge/import-reviewed-corpus", body={})
+
+    assert seen == [
+        {"connect": 10.0, "read": 40.0, "write": 10.0, "pool": 10.0},
+        {"connect": 10.0, "read": 10.0, "write": 10.0, "pool": 10.0},
+        {"connect": 10.0, "read": 25.0, "write": 10.0, "pool": 10.0},
+    ]
+
+
 @pytest.mark.parametrize("token", ["", " ", "key", "a.b.c\r\nX: canary", "a.b.c "])
 def test_private_credential_shape_errors_never_echo(token):
     with pytest.raises(OperatorHTTPError) as error:

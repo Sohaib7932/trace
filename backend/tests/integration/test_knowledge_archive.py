@@ -83,13 +83,15 @@ def publish_corpus(context):
     return histories, publication
 
 
-def test_default_import_is_durable_validated_without_approval_or_publication(archive):
+def test_default_import_is_durable_validated_without_approval_or_publication(archive, monkeypatch):
     key = str(uuid4())
     histories = archive.service.import_reviewed_corpus(key=key, actor=archive.admin)
     assert len(histories) == 9 and sum(len(h.chunks) for h in histories) == 19
     assert all(history.state == "validated" and history.approval is None for history in histories)
     assert not archive.knowledge.available
-    assert archive.service.import_reviewed_corpus(key=key, actor=archive.admin) == histories
+    with monkeypatch.context() as patch:
+        patch.setattr(archive.repository, "write", forbid_archive_write)
+        assert archive.service.import_reviewed_corpus(key=key, actor=archive.admin) == histories
     with archive.database.session() as session:
         assert session.scalar(select(func.count()).select_from(k.KnowledgeRevisionRow)) == 9
         assert session.scalar(select(func.count()).select_from(k.KnowledgePublicationRow)) == 0
@@ -101,6 +103,62 @@ def test_default_import_is_durable_validated_without_approval_or_publication(arc
             == archive.package.document_digests[history.revision.source_id]
         )
         assert history.revision.imported_review.reviewer_label == archive.package.reviewed_by
+
+
+def forbid_archive_write():
+    pytest.fail(
+        "A complete import replay must read the archive without opening a write transaction"
+    )
+
+
+def test_partial_import_resumes_and_published_histories_replay_without_writes(archive, monkeypatch):
+    key = str(uuid4())
+    import_args = {"key": key, "actor": archive.admin, "adopt_existing_review": True}
+    advance = archive.service.advance
+
+    def interrupt_index(*args, **kwargs):
+        if kwargs["action"] == "index":
+            raise RuntimeError("Synthetic interruption")
+        return advance(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(archive.service, "advance", interrupt_index)
+        with pytest.raises(RuntimeError, match="Synthetic interruption"):
+            archive.service.import_reviewed_corpus(**import_args)
+
+    histories = archive.service.import_reviewed_corpus(**import_args)
+    assert len(histories) == 9 and all(history.state == "approved" for history in histories)
+    with archive.database.session() as session:
+        assert session.scalar(select(func.count()).select_from(k.KnowledgeRevisionRow)) == 9
+        assert session.scalar(select(func.count()).select_from(k.KnowledgeEventRow)) == 63
+    archive.service.publish(
+        tuple(history.revision.id for history in histories),
+        key=str(uuid4()),
+        expected_sequence=-1,
+        actor=archive.admin,
+        reason="Publish the exact reviewed corpus after an interrupted import.",
+    )
+
+    monkeypatch.setattr(archive.repository, "write", forbid_archive_write)
+    replay = archive.service.import_reviewed_corpus(**import_args)
+    assert all(history.state == "published" for history in replay)
+    assert [history.revision for history in replay] == [history.revision for history in histories]
+    assert archive.service.import_reviewed_corpus(key=key, actor=archive.admin) == replay
+
+
+def test_completed_import_replay_rechecks_the_admin_role(archive):
+    key = str(uuid4())
+    archive.service.import_reviewed_corpus(key=key, actor=archive.admin)
+    with archive.database.session() as session, session.begin():
+        session.execute(
+            delete(m.UserRole).where(
+                m.UserRole.user_id == archive.admin.account.id, m.UserRole.role == "admin"
+            )
+        )
+
+    with pytest.raises(LearningError) as error:
+        archive.service.import_reviewed_corpus(key=key, actor=archive.admin)
+    assert error.value.code == "forbidden"
 
 
 def test_explicit_review_adoption_preserves_attribution_then_separate_publication(archive):
