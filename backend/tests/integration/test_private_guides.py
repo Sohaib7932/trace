@@ -2,13 +2,13 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from threading import Event
+from threading import Event, local
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import select, update
+from sqlalchemy import event, func, select, update
 
 from alembic import command
 from app.db import models as m
@@ -287,3 +287,72 @@ def test_populated_guide_downgrade_refuses_to_delete_private_user_work(guides):
     assert guides.service.get(guides.auth, saved.id) == saved
     with guides.database.engine.connect() as connection:
         assert MigrationContext.configure(connection).get_current_heads() == before
+
+
+@pytest.mark.parametrize("existing", [False, True], ids=["new-key", "duplicate-key"])
+def test_guide_reservation_waits_before_reading_while_list_writes(guides, existing):
+    """A list writer must not create a SQLite read-to-write upgrade deadlock."""
+    assert guides.database.engine.dialect.name == "sqlite"
+    owner, now, key = guides.auth.account.id, guides.clock(), uuid4()
+    saved = guides.service.create(guides.auth, key, guides.request) if existing else None
+    repository = guides.service.repository
+    writer_updated, release_writer, reservation_attempted = Event(), Event(), Event()
+    reservation_read = Event()
+    role = local()
+    statements = []
+
+    def before_sql(connection, cursor, statement, parameters, context, executemany):
+        if getattr(role, "name", None) != "reserve":
+            return
+        normalized = " ".join(statement.lower().split())
+        statements.append(normalized)
+        reservation_attempted.set()
+        if normalized.startswith("select") and "private_learning_guides" in normalized:
+            reservation_read.set()
+
+    def after_sql(connection, cursor, statement, parameters, context, executemany):
+        if getattr(role, "name", None) == "list" and statement.lower().lstrip().startswith(
+            "update private_learning_guides"
+        ):
+            writer_updated.set()
+            assert release_writer.wait(5), "The test must release the actual list writer."
+
+    def list_while_held():
+        role.name = "list"
+        return repository.list(owner, now)
+
+    def reserve():
+        role.name = "reserve"
+        return repository.reserve(owner, key, guides.request, now)
+
+    event.listen(guides.database.engine, "before_cursor_execute", before_sql)
+    event.listen(guides.database.engine, "after_cursor_execute", after_sql)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            listing = workers.submit(list_while_held)
+            try:
+                assert writer_updated.wait(5), "The list must hold a real reserved write lock."
+                reservation = workers.submit(reserve)
+                assert reservation_attempted.wait(5)
+                assert statements[0].startswith("update write_gate "), (
+                    "Reservation must acquire the shared write gate before its first read."
+                )
+                assert not reservation_read.is_set()
+                assert not reservation.done()
+            finally:
+                release_writer.set()
+            listed = listing.result(timeout=5)
+            result, created = reservation.result(timeout=5)
+    finally:
+        release_writer.set()
+        event.remove(guides.database.engine, "before_cursor_execute", before_sql)
+        event.remove(guides.database.engine, "after_cursor_execute", after_sql)
+
+    assert created is not existing
+    assert result.status == ("ready" if existing else "generating")
+    assert tuple(item.id for item in listed) == ((saved.id,) if saved else ())
+    assert len(guides.provider.calls) == (1 if existing else 0)
+    replay, created_again = repository.reserve(owner, key, guides.request, now)
+    assert replay == result and created_again is False
+    with guides.database.session() as session:
+        assert session.scalar(select(func.count()).select_from(PrivateLearningGuide)) == 1
