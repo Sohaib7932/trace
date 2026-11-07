@@ -46,11 +46,38 @@ def test_private_credential_shape_errors_never_echo(token):
 
 def test_environment_token_only_and_missing_fail_closed(monkeypatch):
     monkeypatch.delenv("TRACE_OPERATOR_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("TRACE_OPERATOR_USE_GATEWAY", raising=False)
     with pytest.raises(OperatorHTTPError, match="credential_unavailable"):
         OperatorHTTP.from_environment()
     monkeypatch.setenv("TRACE_OPERATOR_ACCESS_TOKEN", TOKEN)
     with OperatorHTTP.from_environment() as client:
         assert TOKEN not in repr(client)
+
+
+def test_gateway_route_preserves_user_auth_on_fixed_frontend_origin(monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx2.Response(200, json={"accepted": True})
+
+    class OfflineOperator(OperatorHTTP):
+        def __init__(self, token, *, use_gateway=False):
+            super().__init__(
+                token, use_gateway=use_gateway, transport=httpx2.MockTransport(handler)
+            )
+
+    monkeypatch.setenv("TRACE_OPERATOR_ACCESS_TOKEN", TOKEN)
+    monkeypatch.setenv("TRACE_OPERATOR_USE_GATEWAY", "1")
+    with OfflineOperator.from_environment() as client:
+        assert client.request("GET", "/api/v1/account/me") == {"accepted": True}
+    assert str(seen[0].url) == FRONTEND_ORIGIN + "/api/v1/account/me"
+    assert seen[0].headers["authorization"] == "Bearer " + TOKEN
+    assert "x-trace-ingress-authorization" not in seen[0].headers
+    monkeypatch.setenv("TRACE_OPERATOR_USE_GATEWAY", "https://unapproved.invalid")
+    with pytest.raises(OperatorHTTPError, match="invalid_operation"):
+        OfflineOperator.from_environment()
+    assert len(seen) == 1
 
 
 @pytest.mark.parametrize(

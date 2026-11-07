@@ -8,6 +8,7 @@ export type RelayFetch = (url: string, options: RequestInit & { headers: Headers
 export type RelayOptions = {
   fetchImpl?: RelayFetch;
   isProductionDeployment?: () => boolean;
+  readWorkloadToken?: (request: Request) => string | null;
   deadlineMs?: number;
   maxRequestBytes?: number;
   maxResponseBytes?: number;
@@ -112,7 +113,7 @@ function failure(status: number, code: string) {
   return Response.json({ error: { code, message: "Trace could not complete this request. Try again.", request_id: requestId } },
     { status, headers: { "cache-control": "no-store", "x-request-id": requestId } });
 }
-async function bounded(stream: ReadableStream<Uint8Array> | null, limit: number, signal: AbortSignal): Promise<Buffer> {
+export async function bounded(stream: ReadableStream<Uint8Array> | null, limit: number, signal: AbortSignal): Promise<Buffer> {
   if (!stream) return Buffer.alloc(0);
   const reader = stream.getReader(), chunks: Uint8Array[] = [];
   let length = 0;
@@ -130,7 +131,7 @@ async function bounded(stream: ReadableStream<Uint8Array> | null, limit: number,
   } finally { signal.removeEventListener("abort", cancel); reader.releaseLock(); }
   return Buffer.concat(chunks, length);
 }
-async function untilAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+export async function untilAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) { void Promise.resolve(promise).catch(() => {}); throw signal.reason; }
   let listener: (() => void) | undefined;
   try {
@@ -173,7 +174,7 @@ function guestSetCookies(headers: Headers) {
   });
 }
 
-export function createRelay({ fetchImpl = fetch, isProductionDeployment = () => false, deadlineMs = 35_000,
+export function createRelay({ fetchImpl = fetch, isProductionDeployment = () => false, readWorkloadToken, deadlineMs = 35_000,
   maxRequestBytes = 65_536, maxResponseBytes = 1_048_576 }: RelayOptions = {}) {
   if (!Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 35_000
     || !Number.isInteger(maxRequestBytes) || maxRequestBytes < 1 || maxRequestBytes > 65_536
@@ -221,6 +222,8 @@ export function createRelay({ fetchImpl = fetch, isProductionDeployment = () => 
         if (value !== null) headers.set(name, value);
       }
       if (cookie) headers.set("cookie", cookie);
+      const workloadToken = readWorkloadToken?.(request);
+      if (workloadToken) headers.set("x-trace-ingress-authorization", `Bearer ${workloadToken}`);
       const target = new URL(url.pathname + url.search, UPSTREAM);
       if (target.origin !== UPSTREAM) return failure(400, "unsafe_target");
       dispatched = true;
@@ -239,15 +242,22 @@ export function createRelay({ fetchImpl = fetch, isProductionDeployment = () => 
         if (!/^application\/json(?:\s*;|$)/i.test(upstream.headers.get("content-type") ?? "")) return unusable("invalid_upstream_response");
         try { json = JSON.parse(bytes.toString("utf8")); } catch { return unusable("invalid_upstream_response"); }
       } else if (bytes.length) return unusable("invalid_upstream_response");
-      // A rejected TLS boundary precedes application work; keep it an opaque
-      // infrastructure failure, never an auth refresh or automatic write retry.
-      if (upstream.status === 400 && json?.error?.code === "https_required") return failure(503, "dependency_unavailable");
+      // These boundary failures precede application work and use an infrastructure
+      // error so the client does not treat them as expired learner credentials.
+      const code = json?.error?.code;
+      if ((upstream.status === 400 && code === "https_required")
+        || (upstream.status === 403 && code === "ingress_rejected")
+        || (upstream.status === 503 && code === "ingress_unavailable")) return failure(503, "dependency_unavailable");
       const responseHeaders = new Headers({ "cache-control": "no-store" });
       for (const name of RESPONSE_HEADERS) {
         const value = upstream.headers.get(name);
         if (value !== null) responseHeaders.set(name, value);
       }
+      if (workloadToken && upstream.headers.get("x-trace-ingress-verified") === "1")
+        responseHeaders.set("x-trace-ingress-verified", "1");
       for (const value of guestSetCookies(upstream.headers)) responseHeaders.append("set-cookie", value);
+      if (workloadToken && ((json !== undefined && JSON.stringify(json).includes(workloadToken))
+        || [...responseHeaders.values()].some(value => value.includes(workloadToken)))) return unusable("unsafe_upstream_response");
       return new Response(upstream.status === 204 ? null : new Uint8Array(bytes), { status: upstream.status, headers: responseHeaders });
     } catch {
       if (request.signal.aborted) return dispatched && write ? unusable("request_cancelled") : failure(499, "request_cancelled");

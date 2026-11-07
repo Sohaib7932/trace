@@ -30,6 +30,8 @@ SAFE_CODES = frozenset(
         "not_found",
         "validation_error",
         "internal_error",
+        "ingress_rejected",
+        "ingress_unavailable",
     }
 )
 
@@ -43,14 +45,32 @@ class Observation:
     cors_origin_exact: bool
     cors_credentials: bool
     passed: bool
+    workload_verified: bool = False
 
 
 @dataclass(frozen=True)
 class Report:
     observations: tuple[Observation, ...]
+    gateway: Literal["verify", "required"] | None = None
 
     def safe_summary(self) -> dict[str, object]:
         checks = Counter(item.check for item in self.observations)
+        if self.gateway is not None:
+            return {
+                "mode": f"gateway_{self.gateway}",
+                "passed": (
+                    len(self.observations) == (67 if self.gateway == "required" else 65)
+                    and checks["gateway_account"] == PREFLIGHTS_PER_ROUTE
+                    and checks["gateway_custom"] == PREFLIGHTS_PER_ROUTE
+                    and all(item.passed for item in self.observations)
+                ),
+                "attempted_requests": sum(item.attempted for item in self.observations),
+                "workload_verified": sum(item.workload_verified for item in self.observations),
+                "observations": [asdict(item) for item in self.observations],
+                "provider_calls": 0,
+                "learner_writes": 0,
+                "production_configuration_changes": 0,
+            }
         return {
             "mode": "read_only_probe",
             "passed": (
@@ -89,6 +109,7 @@ def probe(
     *,
     transport: httpx.BaseTransport | None = None,
     clock: Callable[[], float] = time.monotonic,
+    gateway: Literal["verify", "required"] | None = None,
 ) -> Report:
     deadline = clock() + MAX_SECONDS
     observations: list[Observation] = []
@@ -103,6 +124,7 @@ def probe(
         expected: tuple[int, ...] = (200,),
         foreign_origin: bool = False,
         expected_health: str | None = None,
+        expected_error: str | None = None,
     ) -> None:
         remaining = deadline - clock()
         if remaining <= 0:
@@ -113,7 +135,10 @@ def probe(
             "Connection": "close",
         }
         headers.update(extra or {})
-        origin = BACKEND_ORIGIN.replace("https://", "http://", 1) if plain_http else BACKEND_ORIGIN
+        through_gateway = gateway is not None and check.startswith("gateway_")
+        origin = FRONTEND_ORIGIN if through_gateway else BACKEND_ORIGIN
+        if plain_http:
+            origin = origin.replace("https://", "http://", 1)
         try:
             # A fresh client/connection samples rotating edge hops, not only a
             # single successful keepalive connection. No user cookie jar exists.
@@ -156,6 +181,8 @@ def probe(
                         return
                     raw.extend(chunk)
                 code, health = _body_metadata(bytes(raw))
+                marker = response.headers.get_list("x-trace-ingress-verified")
+                workload_verified = through_gateway and marker == ["1"]
                 exact = response.headers.get_list("access-control-allow-origin") == [
                     FRONTEND_ORIGIN
                 ]
@@ -165,15 +192,33 @@ def probe(
                 passed = response.status_code in expected and code != "https_required"
                 if plain_http:
                     passed = passed and response.headers.get("location") == BACKEND_ORIGIN + path
+                elif through_gateway:
+                    passed = (
+                        passed
+                        and workload_verified
+                        and response.headers.get("cache-control") == "no-store"
+                    )
                 elif foreign_origin:
                     passed = passed and "access-control-allow-origin" not in response.headers
                 else:
                     passed = passed and exact and credentials
                 if expected_health is not None:
-                    passed = passed and health == expected_health
+                    passed = passed and (
+                        (response.status_code == 200 and health == expected_health)
+                        or (
+                            gateway == "verify"
+                            and expected_health == "ready"
+                            and response.status_code == 503
+                            and code == "dependency_unavailable"
+                        )
+                    )
                 if expected == (401,):
                     passed = passed and code == "unauthenticated"
-                if method == "OPTIONS" and not foreign_origin:
+                if expected_error is not None:
+                    passed = passed and code == expected_error
+                if gateway is not None and not through_gateway:
+                    passed = passed and not marker
+                if method == "OPTIONS" and not foreign_origin and expected == (200,):
                     methods = {
                         item.strip().upper()
                         for item in response.headers.get("access-control-allow-methods", "").split(
@@ -193,7 +238,16 @@ def probe(
                         and {"authorization", "content-type", "x-trace-client"} <= allowed
                     )
                 observations.append(
-                    Observation(check, True, response.status_code, code, exact, credentials, passed)
+                    Observation(
+                        check,
+                        True,
+                        response.status_code,
+                        code,
+                        exact,
+                        credentials,
+                        passed,
+                        workload_verified,
+                    )
                 )
         except httpx.TimeoutException:
             observations.append(Observation(check, True, None, "timeout", False, False, False))
@@ -205,6 +259,58 @@ def probe(
         "Access-Control-Request-Method": "GET",
         "Access-Control-Request-Headers": "authorization,content-type,x-trace-client",
     }
+    if gateway is not None:
+        spoof = {
+            "X-Trace-Ingress-Authorization": "Bearer forged.claim.signature",
+            "X-Trace-Ingress-Verified": "1",
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-For": "203.0.113.9",
+        }
+        for check, route in zip(("gateway_account", "gateway_custom"), ROUTES, strict=True):
+            for _ in range(PREFLIGHTS_PER_ROUTE):
+                observe(check, "GET", route, expected=(401,))
+        observe("gateway_health_live", "GET", "/api/v1/health/live", expected_health="alive")
+        observe(
+            "gateway_health_ready",
+            "GET",
+            "/api/v1/health/ready",
+            expected=(200, 503) if gateway == "verify" else (200,),
+            expected_health="ready",
+        )
+        observe("gateway_spoof", "GET", ROUTES[0], extra=spoof, expected=(401,))
+        observe(
+            "direct_spoof",
+            "GET",
+            ROUTES[0],
+            extra=spoof,
+            expected=(403,),
+            expected_error="ingress_rejected",
+        )
+        observe(
+            "http_forwarding_spoof",
+            "GET",
+            ROUTES[0],
+            extra=spoof,
+            plain_http=True,
+            expected=(301, 302, 307, 308),
+        )
+        if gateway == "required":
+            observe(
+                "direct_without_workload",
+                "GET",
+                ROUTES[0],
+                expected=(403,),
+                expected_error="ingress_rejected",
+            )
+            observe(
+                "direct_preflight_without_workload",
+                "OPTIONS",
+                ROUTES[1],
+                extra=preflight,
+                expected=(403,),
+                expected_error="ingress_rejected",
+            )
+        return Report(tuple(observations), gateway)
     for route in ROUTES:
         for _ in range(PREFLIGHTS_PER_ROUTE):
             observe(
@@ -256,11 +362,13 @@ class SafeParser(argparse.ArgumentParser):
 
 def main(argv: list[str] | None = None) -> int:
     parser = SafeParser(description=__doc__)
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--probe", action="store_true", help="Run the fixed read-only public checks."
     )
+    modes.add_argument("--gateway-probe", choices=("verify", "required"))
     args = parser.parse_args(argv)
-    if not args.probe:
+    if not args.probe and not args.gateway_probe:
         print(
             json.dumps(
                 {
@@ -273,7 +381,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    result = probe().safe_summary()
+    result = probe(gateway=args.gateway_probe).safe_summary()
     print(json.dumps(result, sort_keys=True))
     return 0 if result["passed"] else 1
 

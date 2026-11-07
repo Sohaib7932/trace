@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.errors import error_response
 
-_HEALTH = frozenset({"/api/v1/health/live", "/api/v1/health/ready"})
+HEALTH_PATHS = frozenset({"/api/v1/health/live", "/api/v1/health/ready"})
 
 
 class ProductionHTTPSMiddleware:
@@ -30,7 +30,7 @@ class ProductionHTTPSMiddleware:
         if (
             scope["type"] == "http"
             and scope.get("method") in {"GET", "HEAD"}
-            and scope.get("path") in _HEALTH
+            and scope.get("path") in HEALTH_PATHS
             and loopback
         ):
             await self.app(scope, receive, send)

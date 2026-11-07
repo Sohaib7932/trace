@@ -66,6 +66,56 @@ def test_exact_read_only_probe_and_spoofed_header_controls():
     assert summary["provider_calls"] == summary["learner_writes"] == 0
 
 
+@pytest.mark.parametrize("mode,count", [("verify", 65), ("required", 67)])
+def test_gateway_probe_requires_backend_workload_proof_and_rejects_direct_spoofs(mode, count):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        if request.url.scheme == "http":
+            return httpx.Response(301, headers={"Location": tool.BACKEND_ORIGIN + request.url.path})
+        if str(request.url).startswith(tool.BACKEND_ORIGIN):
+            headers = {
+                "Access-Control-Allow-Origin": tool.FRONTEND_ORIGIN,
+                "Access-Control-Allow-Credentials": "true",
+            }
+            return httpx.Response(
+                403, headers=headers, json={"error": {"code": "ingress_rejected"}}
+            )
+        headers = {"X-Trace-Ingress-Verified": "1", "Cache-Control": "no-store"}
+        if request.url.path.endswith("/health/ready") and mode == "verify":
+            return httpx.Response(
+                503, headers=headers, json={"error": {"code": "dependency_unavailable"}}
+            )
+        response = healthy(request)
+        response.headers.update(headers)
+        return response
+
+    summary = tool.probe(
+        gateway=mode, transport=httpx.MockTransport(handler), clock=lambda: 0
+    ).safe_summary()
+    assert summary["passed"] is True
+    assert summary["attempted_requests"] == len(seen) == count
+    assert summary["workload_verified"] == 63
+    assert all(
+        "authorization" not in request.headers and "cookie" not in request.headers
+        for request in seen
+    )
+    assert sum(request.method == "OPTIONS" for request in seen) == (mode == "required")
+
+    def without_marker(request):
+        response = handler(request)
+        if request.url.path.endswith("/account/me"):
+            response.headers.pop("x-trace-ingress-verified", None)
+        return response
+
+    rejected = tool.probe(
+        gateway=mode, transport=httpx.MockTransport(without_marker), clock=lambda: 0
+    ).safe_summary()
+    assert rejected["passed"] is False
+    assert rejected["workload_verified"] < 63
+
+
 def test_one_https_failure_is_preserved_not_replaced_by_later_success():
     count = 0
 

@@ -10,7 +10,10 @@ let api: Awaited<ReturnType<typeof fastapiFixture>>;
 // A fresh Python process imports the real backend and migrates only its temporary DB.
 beforeAll(async () => { api = await fastapiFixture(); }, 25_000);
 afterAll(async () => { await api?.close(); });
-beforeEach(() => vi.stubEnv("VERCEL_ENV", "production"));
+beforeEach(() => {
+  vi.stubEnv("VERCEL", "1");
+  vi.stubEnv("VERCEL_ENV", "production");
+});
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function call(path: string, { method = "GET", cookie, token, key }: { method?: string; cookie?: string; token?: string; key?: string } = {}) {
   const headers = new Headers({ "x-trace-client": "learning-web", "sec-fetch-site": "same-origin" });
