@@ -1,5 +1,10 @@
 # Render-native HTTPS and CORS repair
 
+This guide describes PR #42. The separate backend error-audit candidate adds
+`0016_guard_search_paths` and requires an approved migration rollout before that
+candidate is deployed. PR #42 alone does not require this new migration. See the
+[backend audit report](../reports/backend-error-audit-2026-11-06.md).
+
 ## Root cause
 
 Render terminates public TLS, redirects public HTTP to HTTPS and sends internal

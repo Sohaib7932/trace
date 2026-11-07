@@ -4,7 +4,7 @@ import { browserAuth } from "@/lib/supabase/browser";
 
 vi.mock("@/lib/supabase/browser", () => ({ browserAuth: vi.fn(() => null) }));
 
-afterEach(() => { vi.unstubAllGlobals(); vi.mocked(browserAuth).mockReset().mockReturnValue(null); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.mocked(browserAuth).mockReset().mockReturnValue(null); });
 
 test("API requests include cookies, the client header and the stable retry key", async () => {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "attempt-fixture" }), { status: 201 }));
@@ -59,4 +59,39 @@ test("a thrown SDK refresh error also fails closed with a safe message", async (
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
   await expect(learningApi.identity()).rejects.toThrow("could not be refreshed");
   expect(fetch).not.toHaveBeenCalled();
+});
+
+test.each(["trace-ten-mu.vercel.app", "trace.example.com", "trace-git-preview.example.vercel.app"])("production browser %s always uses same-origin relay despite stale public configuration", async (hostname) => {
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://trace-backend-1lio.onrender.com");
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000");
+  vi.stubGlobal("window", { location: { hostname } });
+  const fetch = vi.fn().mockResolvedValue(new Response("{}")); vi.stubGlobal("fetch", fetch);
+  await learningApi.lesson("fixture");
+  expect(fetch.mock.calls[0][0]).toBe("/api/v1/lessons/fixture");
+});
+
+test.each(["production", "development"])("%s loopback browsers retain explicit local API configuration", async (mode) => {
+  vi.stubEnv("NODE_ENV", mode);
+  vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://127.0.0.1:8120/");
+  for (const hostname of ["localhost", "127.0.0.1", "[::1]", "::1"]) {
+    vi.stubGlobal("window", { location: { hostname } });
+    const fetch = vi.fn().mockResolvedValue(new Response("{}")); vi.stubGlobal("fetch", fetch);
+    await learningApi.lesson("fixture");
+    expect(fetch.mock.calls[0][0]).toBe("http://127.0.0.1:8120/api/v1/lessons/fixture");
+  }
+});
+
+test.each([["localhost", "http://localhost:8000"], ["127.0.0.1", "http://127.0.0.1:8000"], ["[::1]", "http://[::1]:8000"], ["::1", "http://[::1]:8000"]])("a local production build at %s keeps its loopback development fallback", async (hostname, base) => {
+  vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", undefined);
+  vi.stubGlobal("window", { location: { hostname } });
+  const fetch = vi.fn().mockResolvedValue(new Response("{}")); vi.stubGlobal("fetch", fetch);
+  await learningApi.lesson("fixture"); expect(fetch.mock.calls[0][0]).toBe(`${base}/api/v1/lessons/fixture`);
+});
+
+test("a public production browser without API configuration has no port8000 fallback", async () => {
+  vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", undefined);
+  vi.stubGlobal("window", { location: { hostname: "trace.example.com" } });
+  const fetch = vi.fn().mockResolvedValue(new Response("{}")); vi.stubGlobal("fetch", fetch);
+  await learningApi.lesson("fixture"); expect(fetch.mock.calls[0][0]).toBe("/api/v1/lessons/fixture");
 });

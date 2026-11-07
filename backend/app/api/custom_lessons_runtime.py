@@ -7,6 +7,7 @@ transport is owned (and closed) by the main client, never by this one.
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -41,9 +42,22 @@ class CustomLessonRuntime:
     runner: CustomLessonRunner
     client: BoundedAIClient
 
-    def close(self, timeout: float = 30.0) -> None:
+    def stop_admission(self) -> None:
         self.client.stop_admission()
-        self.runner.close(timeout)
+        self.runner.stop_admission()
+
+    def wait_for_idle(self, timeout: float | None = None) -> bool:
+        deadline = time.monotonic() + timeout if timeout is not None else None
+        # A provider may be idle while its job is still committing a lesson or
+        # failure. Keep the database and shared transport until the WHOLE job ends.
+        if not self.runner.wait_for_idle(timeout):
+            return False
+        remaining = max(0, deadline - time.monotonic()) if deadline is not None else None
+        return self.client.wait_for_idle(remaining)
+
+    def close(self, timeout: float = 30.0) -> None:
+        self.stop_admission()
+        self.wait_for_idle(timeout)
         self.client.close()
 
 

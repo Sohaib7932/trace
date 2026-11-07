@@ -17,6 +17,7 @@ from app.api.dependencies import (
 )
 from app.api.presentation import present_lesson, present_progress, present_run
 from app.api.retrieval_presentation import present_journey, present_retrieval
+from app.core.errors import ApplicationError
 from app.core.settings import Settings
 from app.domain.accounts import AuthenticatedAccount, Principal
 from app.domain.learning import LearningError
@@ -105,7 +106,22 @@ def anonymous(
         return IdentityResponse(
             learner_id=accounts.learner(auth.account), expires_at=auth.identity.expires_at
         )
-    credential, raw = service.bootstrap(request.cookies.get(COOKIE_NAME))
+    raw_cookie = request.cookies.get(COOKIE_NAME)
+    if request.headers.get("sec-fetch-site") == "cross-site":
+        # Fetch metadata is an availability hint, never authentication. Lax
+        # cookies cannot establish a new cross-site guest identity; retain a
+        # genuinely authenticated existing guest without renewing its cookie.
+        try:
+            credential = service.authenticate(raw_cookie)
+        except LearningError as exc:
+            if exc.code != "unauthenticated":
+                raise
+            raise ApplicationError(
+                "guest_sign_in_required", "Sign in to start learning from this address.", 409
+            ) from None
+        response.headers["Cache-Control"] = "no-store"
+        return IdentityResponse(learner_id=credential.learner_id, expires_at=credential.expires_at)
+    credential, raw = service.bootstrap(raw_cookie)
     if raw is not None:
         response.set_cookie(
             COOKIE_NAME,

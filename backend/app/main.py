@@ -12,7 +12,7 @@ from app.ai.providers.github_app import GitHubAppClient
 from app.ai.providers.private_guides import BoundedGuideGenerator
 from app.ai.resources import AIResources, AITransportFactory, EmbeddingTransportFactory
 from app.ai.support_diagnostics import record_support_runtime
-from app.api.custom_lessons_runtime import build_custom_lessons
+from app.api.custom_lessons_runtime import CustomLessonRuntime, build_custom_lessons
 from app.api.v1.accounts import router as account_router
 from app.api.v1.custom_lessons import router as custom_lessons_router
 from app.api.v1.feedback import router as feedback_router
@@ -242,6 +242,7 @@ def create_app(
         ingress_jobs: SharedIngressJobs | None = None
         verifier_acquired = False
         github_client: GitHubAppClient | None = None
+        custom_runtime: CustomLessonRuntime | None = None
         try:
             with verifier_lock:
                 if owned_verifier is not None:
@@ -367,16 +368,16 @@ def create_app(
                 ),
             )
             # Learner-requested lessons: own client over the same transport and ledger.
-            app.state.custom_lessons = build_custom_lessons(
+            custom_runtime = build_custom_lessons(
                 resource, ai, custom_lesson_config, clock, app.state.logger
             )
+            app.state.custom_lessons = custom_runtime
             yield
         finally:
-            custom_lessons = getattr(app.state, "custom_lessons", None)
-            if custom_lessons is not None:
-                with anyio.CancelScope(shield=True):
-                    await anyio.to_thread.run_sync(custom_lessons.close)
-                app.state.custom_lessons = None
+            if custom_runtime is not None:
+                custom_runtime.stop_admission()
+                if getattr(app.state, "custom_lessons", None) is custom_runtime:
+                    app.state.custom_lessons = None
             for operation in operations:
                 operation.close()
             if ingress_jobs is not None:
@@ -387,14 +388,18 @@ def create_app(
             def dispose() -> None:
                 nonlocal verifier_owners
                 try:
-                    if ai is not None:
-                        ai.close()
+                    if custom_runtime is not None:
+                        custom_runtime.close(timeout=0)
                 finally:
                     try:
-                        if github_client is not None:
-                            github_client.close()
+                        if ai is not None:
+                            ai.close()
                     finally:
-                        dispose_verifier()
+                        try:
+                            if github_client is not None:
+                                github_client.close()
+                        finally:
+                            dispose_verifier()
 
             def dispose_verifier() -> None:
                 nonlocal verifier_owners
@@ -420,6 +425,10 @@ def create_app(
                     drained = await anyio.to_thread.run_sync(
                         ingress_jobs.wait_for_idle, max(0, grace_end - time.monotonic())
                     )
+                if drained and custom_runtime is not None:
+                    drained = await anyio.to_thread.run_sync(
+                        custom_runtime.wait_for_idle, max(0, grace_end - time.monotonic())
+                    )
                 if drained and ai is not None:
                     drained = await anyio.to_thread.run_sync(
                         ai.wait_for_idle, max(0, grace_end - time.monotonic())
@@ -440,6 +449,8 @@ def create_app(
                         _drain_operations(tuple(operations), None)
                         if ingress_jobs is not None:
                             ingress_jobs.wait_for_idle(None)
+                        if custom_runtime is not None:
+                            custom_runtime.wait_for_idle(None)
                         if ai is not None:
                             ai.wait_for_idle(None)
                         if owned_verifier is not None:

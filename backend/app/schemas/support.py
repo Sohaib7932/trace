@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 
 from pydantic import AfterValidator, Field, model_validator
 
+from app.core.ai_privacy import credential_free_text
 from app.domain.lesson_spec.fields import Items, LocalId, Title, Value, plain_text
 
 
@@ -27,6 +28,10 @@ def support_question(value: str) -> str:
 def customer_reference(value: str) -> str:
     """Defense in depth for approved references, not automatic source approval."""
     plain_text(value)
+    try:
+        credential_free_text(value)
+    except ValueError:
+        raise ValueError("Reference is not suitable for customer support") from None
     if re.search(
         r"(?i)(?:\b(?:sk|ghp|github_pat)-?[A-Za-z0-9_]{12,}"
         r"|\b(?:api[_ -]?key|password|secret|token)\s*[:=]\s*\S+"

@@ -5,7 +5,7 @@ No key, no network, never real Gemini.
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -314,14 +314,15 @@ def test_restart_and_stale_jobs_are_marked_failed(api):
     request_id = create(api).json()["id"]
     finish(api, request_id)
     service = api.app.state.custom_lessons.service
+    old = api.clock() - timedelta(seconds=service.settings.stale_after_seconds + 1)
     with api.database.session() as session, session.begin():
-        session.execute(update(CustomLessonRequestRow).values(status="generating"))
+        session.execute(update(CustomLessonRequestRow).values(status="generating", updated_at=old))
     assert service.recover_interrupted() == 1
     assert (
         api.client.get(f"/api/v1/custom-lessons/requests/{request_id}").json()["error_code"]
         == "interrupted"
     )
-    old = datetime.now(UTC) - timedelta(hours=2)
+    old = api.clock() - timedelta(hours=2)
     with api.database.session() as session, session.begin():
         session.execute(update(CustomLessonRequestRow).values(status="queued", updated_at=old))
     stale = api.client.get(f"/api/v1/custom-lessons/requests/{request_id}").json()
